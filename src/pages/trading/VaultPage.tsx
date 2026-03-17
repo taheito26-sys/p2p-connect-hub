@@ -204,6 +204,7 @@ export default function VaultPage() {
     if (!snap?.state) { toast.error(t.lang === 'ar' ? 'النسخة غير موجودة' : 'Snapshot not found'); return; }
     try {
       const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(snap.state));
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
@@ -301,6 +302,7 @@ export default function VaultPage() {
         const state = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
         const normalized = normalizeImportedTrackerState(state);
         const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
         toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
         setTimeout(() => window.location.reload(), 500);
@@ -390,6 +392,7 @@ export default function VaultPage() {
           return;
         }
         const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
@@ -414,6 +417,7 @@ export default function VaultPage() {
   const clearAll = async () => {
     if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟ لا يمكن التراجع إلا إذا كان لديك نسخة احتياطية.' : '⚠ Clear ALL data? This cannot be undone unless you have a backup.')) return;
     clearTrackerStorage(localStorage);
+    localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
