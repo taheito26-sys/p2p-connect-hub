@@ -507,6 +507,8 @@ export default function RelationshipWorkspace() {
         relationshipId={id!}
         counterpartyName={counterpartyName}
         onCreated={reload}
+        customers={sharedCustomers}
+        suppliers={sharedSuppliers}
       />
 
       {/* Settlement Dialog */}
