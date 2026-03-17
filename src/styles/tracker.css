@@ -168,13 +168,13 @@
 .tracker-root .tradeBuyerChip { display: inline-flex; align-items: center; max-width: 160px; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb,var(--brand) 22%,transparent); background: var(--brand3); color: var(--text); font-size: calc(9px * var(--ui-scale,1)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── CALENDAR ── */
-.tracker-root .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-.tracker-root .cal-hdr { text-align: center; font-size: calc(9px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); padding: 6px 0; }
+.tracker-root .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.tracker-root .cal-hdr { text-align: center; font-size: calc(8px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); padding: 4px 0; }
 .tracker-root .cal-day {
-  aspect-ratio: 2 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  aspect-ratio: 2.5 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   border-radius: var(--lt-radius-sm); background: var(--panel2); border: 1px solid var(--line);
-  font-size: calc(11px * var(--ui-scale,1)); cursor: pointer; position: relative;
-  transition: all var(--lt-tr); min-height: 30px; padding: 2px; overflow: hidden;
+  font-size: calc(10px * var(--ui-scale,1)); cursor: pointer; position: relative;
+  transition: all var(--lt-tr); min-height: 24px; padding: 1px; overflow: hidden;
 }
 .tracker-root .cal-day:hover { border-color: var(--brand); transform: scale(1.04); box-shadow: 0 4px 16px var(--glow); }
 .tracker-root .cal-day.has-profit { background: color-mix(in srgb,var(--good) 12%,var(--panel2)); border-color: color-mix(in srgb,var(--good) 30%,transparent); }
