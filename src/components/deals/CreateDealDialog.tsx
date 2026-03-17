@@ -165,7 +165,7 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-2 mb-2">
               <span>{config.icon}</span>
-              <span className="font-medium">{config.label}</span>
+              <span className="font-medium">{selectedType ? t(`dealType_${selectedType}_label` as any) : config.label}</span>
               <Badge variant="outline" className="text-xs">{t('with')} {counterpartyName}</Badge>
             </div>
 
