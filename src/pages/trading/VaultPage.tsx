@@ -301,6 +301,7 @@ export default function VaultPage() {
         const state = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
         const normalized = normalizeImportedTrackerState(state);
         const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
         toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
         setTimeout(() => window.location.reload(), 500);
