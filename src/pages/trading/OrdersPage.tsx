@@ -6,11 +6,10 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import type { MerchantRelationship, MerchantDeal } from '@/types/domain';
 import '@/styles/tracker.css';
@@ -22,6 +21,7 @@ function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 
 export default function OrdersPage() {
   const { settings } = useTheme();
   const { userId } = useAuth();
+  const t = useT();
 
   const initial = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -63,37 +63,27 @@ export default function OrdersPage() {
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
 
-  // Load relationships for deal linking
   useEffect(() => {
     api.relationships.list().then(r => setRelationships(r.relationships)).catch(() => {});
   }, []);
 
-  // Load deals when relationship changes
   useEffect(() => {
     if (!linkedRelId) { setRelDeals([]); setLinkedDealId(''); return; }
     api.deals.list(linkedRelId).then(r => setRelDeals(r.deals.filter(d => ['active', 'due'].includes(d.status)))).catch(() => {});
   }, [linkedRelId]);
 
-  // Calculate allocation preview
   useEffect(() => {
     if (!linkedDealId || !saleAmount) { setAllocationPreview(null); return; }
     const deal = relDeals.find(d => d.id === linkedDealId);
     const rel = relationships.find(r => r.id === linkedRelId);
     if (!deal || !rel) { setAllocationPreview(null); return; }
-
     const raw = Number(saleAmount);
     const sell = Number(saleSell);
     const orderAmount = saleMode === 'USDT' ? raw * sell : raw;
     const alloc = calculateAllocation(deal, orderAmount, 'QAR');
     if (alloc) {
-      setAllocationPreview({
-        ...alloc,
-        counterpartyName: rel.counterparty?.display_name || 'Counterparty',
-        dealTitle: deal.title,
-      });
-    } else {
-      setAllocationPreview(null);
-    }
+      setAllocationPreview({ ...alloc, counterpartyName: rel.counterparty?.display_name || t('buyer'), dealTitle: deal.title });
+    } else { setAllocationPreview(null); }
   }, [linkedDealId, saleAmount, saleSell, saleMode, relDeals, relationships, linkedRelId]);
 
   const applyState = (next: TrackerState) => {
@@ -171,11 +161,11 @@ export default function OrdersPage() {
     const raw = Number(saleAmount);
     let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     const errs: string[] = [];
-    if (!Number.isFinite(ts)) errs.push('date');
-    if (!(sell > 0)) errs.push('sell price');
-    if (!(raw > 0)) errs.push('quantity');
-    if (!(amountUSDT > 0)) errs.push('amount');
-    if (errs.length) { setSaleMessage(`Fix: ${errs.join(', ')}`); return; }
+    if (!Number.isFinite(ts)) errs.push(t('date'));
+    if (!(sell > 0)) errs.push(t('sellPriceLabel'));
+    if (!(raw > 0)) errs.push(t('quantity'));
+    if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
+    if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
     let nextCustomers = state.customers;
     let customerId = buyerId;
@@ -189,7 +179,6 @@ export default function OrdersPage() {
     const next: TrackerState = { ...state, customers: nextCustomers, trades: [...state.trades, trade], range: inRange(ts, state.range) ? state.range : 'all' };
     applyState(next);
 
-    // ─── Propagate to linked merchant deal ───
     if (linkedDealId && allocationPreview) {
       try {
         const revenue = amountUSDT * sell;
@@ -198,12 +187,12 @@ export default function OrdersPage() {
           period_key: new Date().toISOString().substring(0, 7),
           note: `Auto-allocation from sell order: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)} QAR. Total: ${fmtQ(revenue)}. ${allocationPreview.counterpartyName}'s share: ${fmtQ(allocationPreview.counterpartyAmount)}.`,
         });
-        toast.success(`Trade logged ✓ — ${allocationPreview.counterpartyName}'s allocation of ${fmtQ(allocationPreview.counterpartyAmount)} submitted for approval.`);
+        toast.success(t('tradeLogged'));
       } catch (err: any) {
-        toast.error(`Trade logged but deal allocation failed: ${err.message}`);
+        toast.error(err.message);
       }
     } else {
-      setSaleMessage('Trade logged ✓');
+      setSaleMessage(t('tradeLogged'));
     }
 
     setSaleAmount('');
@@ -258,45 +247,45 @@ export default function OrdersPage() {
     setEditingTradeId(null);
   };
 
-  const renderDetail = (t: Trade, c?: TradeCalcResult) => {
+  const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
-    const revenue = t.amountUSDT * t.sellPriceQAR;
+    const revenue = tr.amountUSDT * tr.sellPriceQAR;
     const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
-    const net = ok ? revenue - cost - t.feeQAR : NaN;
+    const net = ok ? revenue - cost - tr.feeQAR : NaN;
     const slicesWithBatch = (c?.slices || []).map(sl => {
       const b = state.batches.find(x => x.id === sl.batchId);
-      return { ...sl, source: b?.source || '—', price: b?.buyPriceQAR || 0, ts: b?.ts || t.ts, pct: b && b.initialUSDT > 0 ? (sl.qty / b.initialUSDT) * 100 : 0 };
+      return { ...sl, source: b?.source || '—', price: b?.buyPriceQAR || 0, ts: b?.ts || tr.ts, pct: b && b.initialUSDT > 0 ? (sl.qty / b.initialUSDT) * 100 : 0 };
     });
-    const cycleMs = slicesWithBatch.length ? t.ts - Math.min(...slicesWithBatch.map(s => s.ts)) : null;
+    const cycleMs = slicesWithBatch.length ? tr.ts - Math.min(...slicesWithBatch.map(s => s.ts)) : null;
     return (
       <div className="tradeDetail">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-          <span className="pill">{new Date(t.ts).toLocaleString()}</span>
-          {ok && <span className="pill">Avg Buy {fmtP(c!.avgBuyQAR)}</span>}
-          <span className="pill">Revenue {fmtQ(revenue)}</span>
-          <span className="pill">Fee {fmtQ(t.feeQAR)}</span>
-          {ok && <span className="pill">Cost {fmtQ(cost)}</span>}
-          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>Net {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}</span>
-          {cycleMs !== null && <span className="cycle-badge">Cycle {fmtDur(cycleMs)}</span>}
+          <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
+          {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
+          <span className="pill">{t('revenue')} {fmtQ(revenue)}</span>
+          <span className="pill">{t('fee')} {fmtQ(tr.feeQAR)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtQ(cost)}</span>}
+          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}</span>
+          {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
-        <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>FIFO SLICES</div>
+        <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
         {ok && slicesWithBatch.length ? slicesWithBatch.map(sl => (
-          <div key={`${t.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
-            {sl.source} · <span className="mono">{fmtU(sl.qty)}</span> @ <span className="mono">{fmtP(sl.price)}</span> <span className="cycle-badge">{sl.pct.toFixed(1)}% of batch</span>
+          <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
+            {sl.source} · <span className="mono">{fmtU(sl.qty)}</span> @ <span className="mono">{fmtP(sl.price)}</span> <span className="cycle-badge">{sl.pct.toFixed(1)}{t('ofBatch')}</span>
           </div>
-        )) : <div className="msg">No slices</div>}
+        )) : <div className="msg">{t('noSlices')}</div>}
       </div>
     );
   };
 
   return (
-    <div className="tracker-root" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div className="twoColPage">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 800 }}>Trades</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>FIFO cost basis · margin bar</div>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>{t('trades')}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('fifoCostBasisMargin')}</div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <span className="pill">{rLabel}</span>
@@ -307,45 +296,45 @@ export default function OrdersPage() {
           {filtered.length === 0 ? (
             <div className="empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
-              <div className="empty-t">No trades yet</div>
-              <div className="empty-s">Add a batch, then log a sale →</div>
+              <div className="empty-t">{t('noTradesYet')}</div>
+              <div className="empty-s">{t('addBatchThenSale')}</div>
             </div>
           ) : (
             <div className="tableWrap ledgerWrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th><th>Buyer</th><th className="r">Qty</th><th className="r">Avg Buy</th><th className="r">Sell</th><th className="r">Volume</th><th className="r">Net</th><th>Margin</th><th>Actions</th>
+                    <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(t => {
-                    const c = derived.tradeCalc.get(t.id);
+                  {filtered.map(tr => {
+                    const c = derived.tradeCalc.get(tr.id);
                     const ok = !!c?.ok;
-                    const rev = t.amountUSDT * t.sellPriceQAR;
+                    const rev = tr.amountUSDT * tr.sellPriceQAR;
                     const net = ok ? c!.netQAR : NaN;
                     const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
                     const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                    const cn = state.customers.find(x => x.id === t.customerId)?.name || '';
+                    const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                     return (
-                      <tr key={t.id}>
-                        <td><div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0 }}><span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(t.ts)}</span>{!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}</div></td>
+                      <tr key={tr.id}>
+                        <td><div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0 }}><span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>{!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}</div></td>
                         <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                        <td className="mono r">{fmtU(t.amountUSDT)}</td>
+                        <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                         <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
-                        <td className="mono r">{fmtP(t.sellPriceQAR)}</td>
+                        <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
                         <td className="mono r">{fmtQ(rev)}</td>
                         <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
                         <td>
                           <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-                          <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% margin` : '—'}</div>
+                          <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                         </td>
                         <td>
                           <div className="actionsRow">
-                            <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [t.id]: !prev[t.id] }))}>
-                              {detailsOpen[t.id] ? '▼ Hide' : '▶ Details'}
+                            <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
+                              {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
                             </button>
-                            <button className="rowBtn" onClick={() => openEdit(t.id)}>Edit</button>
+                            <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
                           </div>
                         </td>
                       </tr>
@@ -359,21 +348,21 @@ export default function OrdersPage() {
 
         <div>
           <div className="formPanel salePanel">
-            <div className="hdr">New Sale</div>
+            <div className="hdr">{t('newSale')}</div>
             <div className="inner">
               {wacop && (
                 <div className="bannerRow">
-                  <span className="bLbl">Av Price</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
+                  <span className="bLbl">{t('avPrice')}</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
                 </div>
               )}
 
               <div className="field2">
-                <div className="lbl">Date &amp; Time</div>
+                <div className="lbl">{t('dateTime')}</div>
                 <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
               </div>
 
               <div className="field2">
-                <div className="lbl">Input Mode</div>
+                <div className="lbl">{t('inputMode')}</div>
                 <div className="modeToggle">
                   <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
                   <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
@@ -382,25 +371,25 @@ export default function OrdersPage() {
 
               <div className="g2tight">
                 <div className="field2">
-                  <div className="lbl">{saleMode === 'USDT' ? 'Quantity' : 'Amount (QAR)'}</div>
+                  <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
                   <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
                 </div>
                 <div className="field2">
-                  <div className="lbl">Sell Price</div>
+                  <div className="lbl">{t('sellPriceLabel')}</div>
                   <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
                 </div>
               </div>
 
               <div className="field2">
-                <div className="lbl">Buyer Name</div>
+                <div className="lbl">{t('buyerName')}</div>
                 <div className="lookupShell">
                   <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input placeholder="Search or type buyer name" style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
+                    <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
                       onFocus={() => setBuyerMenuOpen(true)}
                       onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
                     />
-                    <button className="sideAction" title="Show buyers" type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
-                    <button className="sideAction" title="Add buyer" type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+                    <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
+                    <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
                   </div>
                   {buyerMenuOpen && (
                     <div className="lookupMenu">
@@ -408,7 +397,7 @@ export default function OrdersPage() {
                         <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
                           <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
                         </button>
-                      )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>No buyers yet</span></div>}
+                      )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
                     </div>
                   )}
                 </div>
@@ -416,37 +405,37 @@ export default function OrdersPage() {
 
               {addBuyerOpen && (
                 <div className="previewBox" style={{ marginTop: 2 }}>
-                  <div className="pt">Add Buyer</div>
+                  <div className="pt">{t('addBuyerTitle')}</div>
                   <div className="g2tight" style={{ marginBottom: 6 }}>
-                    <div className="field2"><div className="lbl">Name</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder="Buyer name" /></div></div>
-                    <div className="field2"><div className="lbl">Phone</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                    <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
+                    <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
                   </div>
                   <div className="field2">
-                    <div className="lbl">Tier</div>
+                    <div className="lbl">{t('tier')}</div>
                     <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>))}</div>
                   </div>
-                  <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>Cancel</button><button className="btn" onClick={addBuyerFromModal}>Add Buyer</button></div>
+                  <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
                 </div>
               )}
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
-                <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> Use FIFO stock
+                <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
               </label>
 
               {/* ─── MERCHANT DEAL LINKING ─── */}
               <div className="previewBox" style={{ marginTop: 6, borderColor: linkedDealId ? 'var(--brand)' : undefined }}>
                 <div className="pt" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  🔗 Link to Merchant Deal
-                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>(optional)</span>
+                  {t('linkToMerchantDeal')}
+                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
                 </div>
                 <div className="field2" style={{ marginBottom: 4 }}>
-                  <div className="lbl">Relationship</div>
+                  <div className="lbl">{t('relationship')}</div>
                   <select
                     value={linkedRelId}
                     onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }}
                     style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                   >
-                    <option value="">— None —</option>
+                    <option value="">{t('noneSelected')}</option>
                     {relationships.map(r => (
                       <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>
                     ))}
@@ -454,43 +443,43 @@ export default function OrdersPage() {
                 </div>
                 {linkedRelId && (
                   <div className="field2" style={{ marginBottom: 4 }}>
-                    <div className="lbl">Deal</div>
+                    <div className="lbl">{t('deal')}</div>
                     <select
                       value={linkedDealId}
                       onChange={e => setLinkedDealId(e.target.value)}
                       style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                     >
-                      <option value="">— Select deal —</option>
+                      <option value="">{t('selectDeal')}</option>
                       {relDeals.map(d => {
                         const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
                         return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${d.amount.toLocaleString()} {d.currency})</option>;
                       })}
                     </select>
-                    {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>No active deals in this relationship</div>}
+                    {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noActiveDeals')}</div>}
                   </div>
                 )}
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>ALLOCATION PREVIEW</div>
-                    <div className="prev-row"><span className="muted">Deal</span><strong style={{ fontSize: 10 }}>{allocationPreview.dealTitle}</strong></div>
-                    <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName}'s share</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
-                    <div className="prev-row"><span className="muted">Your share</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
-                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>This allocation will be automatically submitted for counterparty approval.</div>
+                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('allocationPreview')}</div>
+                    <div className="prev-row"><span className="muted">{t('deal')}</span><strong style={{ fontSize: 10 }}>{allocationPreview.dealTitle}</strong></div>
+                    <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName}{t('counterpartyShare')}</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
+                    <div className="prev-row"><span className="muted">{t('yourShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('autoApprovalNote')}</div>
                   </div>
                 )}
               </div>
 
               {/* Live Preview */}
               <div className="previewBox">
-                <div className="pt">Live Preview</div>
-                {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>Enter details...</div> : (
+                <div className="pt">{t('livePreview')}</div>
+                {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                   <>
-                    {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">Avg Buy</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
-                    <div className="prev-row"><span className="muted">Qty</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
-                    <div className="prev-row"><span className="muted">Revenue</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
-                    <div className="prev-row"><span className="muted">Cost (FIFO)</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                    {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
+                    <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
+                    <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
+                    <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
                     <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
-                      <span className="muted">Net</span>
+                      <span className="muted">{t('net')}</span>
                       <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
                         {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
                       </strong>
@@ -499,8 +488,8 @@ export default function OrdersPage() {
                 )}
               </div>
 
-              <div className="formActions"><button className="btn" onClick={addTrade}>Add Trade</button></div>
-              <div className={`msg ${saleMessage.includes('Fix') ? 'bad' : ''}`}>{saleMessage}</div>
+              <div className="formActions"><button className="btn" onClick={addTrade}>{t('addTrade')}</button></div>
+              <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
             </div>
           </div>
         </div>
@@ -508,19 +497,19 @@ export default function OrdersPage() {
 
       <Dialog open={!!editingTradeId} onOpenChange={open => !open && setEditingTradeId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit Trade</DialogTitle></DialogHeader>
-          <div className="field2" style={{ marginTop: 4 }}><div className="lbl">Date &amp; Time</div><div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} /></div></div>
+          <DialogHeader><DialogTitle>{t('editTrade')}</DialogTitle></DialogHeader>
+          <div className="field2" style={{ marginTop: 4 }}><div className="lbl">{t('dateTime')}</div><div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} /></div></div>
           <div className="g2tight" style={{ marginTop: 8 }}>
-            <div className="field2"><div className="lbl">Quantity (USDT)</div><div className="inputBox"><input inputMode="decimal" value={editQty} onChange={e => setEditQty(e.target.value)} /></div></div>
-            <div className="field2"><div className="lbl">Sell Price (QAR)</div><div className="inputBox"><input inputMode="decimal" value={editSell} onChange={e => setEditSell(e.target.value)} /></div></div>
+            <div className="field2"><div className="lbl">{t('quantityUsdt')}</div><div className="inputBox"><input inputMode="decimal" value={editQty} onChange={e => setEditQty(e.target.value)} /></div></div>
+            <div className="field2"><div className="lbl">{t('sellPriceQar')}</div><div className="inputBox"><input inputMode="decimal" value={editSell} onChange={e => setEditSell(e.target.value)} /></div></div>
           </div>
-          <div className="field2" style={{ marginTop: 8 }}><div className="lbl">Buyer</div><div className="inputBox"><input value={editBuyer} onChange={e => setEditBuyer(e.target.value)} placeholder="Buyer name" /></div></div>
+          <div className="field2" style={{ marginTop: 8 }}><div className="lbl">{t('buyerLabel')}</div><div className="inputBox"><input value={editBuyer} onChange={e => setEditBuyer(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>
-            <input type="checkbox" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> Use FIFO stock
+            <input type="checkbox" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
           </label>
           <DialogFooter>
-            <button className="btn secondary" onClick={deleteTrade}>Delete</button>
-            <button className="btn" onClick={saveTradeEdit}>Save Changes</button>
+            <button className="btn secondary" onClick={deleteTrade}>{t('delete')}</button>
+            <button className="btn" onClick={saveTradeEdit}>{t('saveChanges')}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

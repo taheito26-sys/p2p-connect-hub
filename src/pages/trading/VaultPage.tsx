@@ -431,7 +431,7 @@ export default function VaultPage() {
         description={t('vaultSub')} 
       />
 
-      <div className="p-6 space-y-4 max-w-6xl">
+      <div className="p-6 space-y-4">
         {/* Ring 1 + Ring 2 side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* ── Ring 1: Local IndexedDB ── */}

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, Users, AlertTriangle, Shield, Briefcase, PieChart, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 const riskSeverityColors: Record<string, string> = {
   high: 'bg-destructive text-destructive-foreground',
@@ -15,6 +16,7 @@ const riskSeverityColors: Record<string, string> = {
 };
 
 export default function AnalyticsPage() {
+  const t = useT();
   const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +25,7 @@ export default function AnalyticsPage() {
       setAnalytics(res);
       setLoading(false);
     }).catch(err => {
-      toast.error(err.message || "Failed to load analytics");
+      toast.error(err.message || t('failedLoadAnalytics'));
       setLoading(false);
     });
   }, []);
@@ -39,34 +41,34 @@ export default function AnalyticsPage() {
   if (!analytics) return null;
 
   return (
-    <div>
-      <PageHeader title="Analytics" description="Portfolio-wide performance metrics derived from real deal data" />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('analyticsTitle')} description={t('analyticsSub')} />
       <div className="p-6 space-y-6">
         {/* Top KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Deployed" value={`$${analytics.totalDeployed.toLocaleString()}`} icon={DollarSign} />
-          <StatCard label="Active Exposure" value={`$${analytics.activeDeployed.toLocaleString()}`} icon={Briefcase} />
-          <StatCard label="Realized Profit" value={`$${analytics.realizedProfit.toLocaleString()}`} icon={TrendingUp} />
-          <StatCard label="Returned Capital" value={`$${analytics.returnedCapital.toLocaleString()}`} icon={DollarSign} />
+          <StatCard label={t('totalDeployed')} value={`$${analytics.totalDeployed.toLocaleString()}`} icon={DollarSign} />
+          <StatCard label={t('activeExposure')} value={`$${analytics.activeDeployed.toLocaleString()}`} icon={Briefcase} />
+          <StatCard label={t('realizedProfit')} value={`$${analytics.realizedProfit.toLocaleString()}`} icon={TrendingUp} />
+          <StatCard label={t('returnedCapital')} value={`$${analytics.returnedCapital.toLocaleString()}`} icon={DollarSign} />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Unsettled Exposure" value={`$${analytics.unsettledExposure.toLocaleString()}`} icon={Shield} />
-          <StatCard label="Overdue Deals" value={analytics.overdueDeals} icon={AlertTriangle} />
-          <StatCard label="Active Relationships" value={analytics.activeRelationships} icon={Users} />
-          <StatCard label="Pending Approvals" value={analytics.pendingApprovals} icon={Shield} />
+          <StatCard label={t('unsettledExposure')} value={`$${analytics.unsettledExposure.toLocaleString()}`} icon={Shield} />
+          <StatCard label={t('overdueDeals')} value={analytics.overdueDeals} icon={AlertTriangle} />
+          <StatCard label={t('activeRelationships')} value={analytics.activeRelationships} icon={Users} />
+          <StatCard label={t('pendingApprovals')} value={analytics.pendingApprovals} icon={Shield} />
         </div>
 
         {/* Capital Owner View */}
         <Card className="glass">
           <CardHeader>
             <CardTitle className="text-sm font-display flex items-center gap-2">
-              <PieChart className="w-4 h-4" /> Capital Owner — Counterparty Breakdown
+              <PieChart className="w-4 h-4" /> {t('capitalOwnerBreakdown')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {analytics.capitalByCounterparty.length === 0 && (
-              <p className="text-muted-foreground text-sm">No counterparty data yet</p>
+              <p className="text-muted-foreground text-sm">{t('noCounterpartyData')}</p>
             )}
             <div className="space-y-3">
               {analytics.capitalByCounterparty.map(cp => (
@@ -74,10 +76,10 @@ export default function AnalyticsPage() {
                   <div>
                     <p className="font-medium text-sm">{cp.name}</p>
                     <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                      <span>Deployed: ${cp.deployed.toLocaleString()}</span>
-                      <span>Returned: ${cp.returned.toLocaleString()}</span>
+                      <span>{t('deployed')}: ${cp.deployed.toLocaleString()}</span>
+                      <span>{t('returned')}: ${cp.returned.toLocaleString()}</span>
                       <span className={cp.profit >= 0 ? 'text-success' : 'text-destructive'}>
-                        Profit: ${cp.profit.toLocaleString()}
+                        {t('profit')}: ${cp.profit.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -85,7 +87,7 @@ export default function AnalyticsPage() {
                     <p className={`font-display font-bold text-lg ${cp.roi >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {cp.roi.toFixed(1)}%
                     </p>
-                    <p className="text-xs text-muted-foreground">ROI</p>
+                    <p className="text-xs text-muted-foreground">{t('roi')}</p>
                   </div>
                 </div>
               ))}
@@ -96,14 +98,14 @@ export default function AnalyticsPage() {
         {/* Deal Type Breakdown */}
         <Card className="glass">
           <CardHeader>
-            <CardTitle className="text-sm font-display">Deal Type Distribution</CardTitle>
+            <CardTitle className="text-sm font-display">{t('dealTypeDistribution')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
               {Object.entries(analytics.dealsByType).map(([type, count]) => (
                 <div key={type} className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
                   <Badge variant="outline" className="text-xs font-mono">{type}</Badge>
-                  <span className="text-sm font-medium">{count} deal{count !== 1 ? 's' : ''}</span>
+                  <span className="text-sm font-medium">{count} {count !== 1 ? t('dealsSuffix') : t('dealSuffix')}</span>
                 </div>
               ))}
             </div>
@@ -114,13 +116,13 @@ export default function AnalyticsPage() {
         <Card className="glass">
           <CardHeader>
             <CardTitle className="text-sm font-display flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" /> Risk Indicators
+              <AlertTriangle className="w-4 h-4" /> {t('riskIndicators')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {analytics.riskIndicators.length === 0 && (
               <div className="flex items-center gap-2 text-success text-sm">
-                <Shield className="w-4 h-4" /> No risk indicators — portfolio looks healthy
+                <Shield className="w-4 h-4" /> {t('noRiskIndicators')}
               </div>
             )}
             <div className="space-y-2">
