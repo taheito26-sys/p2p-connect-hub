@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invites as invitesApi } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +19,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function InvitationsPage() {
+  const t = useT();
   const [inbox, setInbox] = useState<MerchantInvite[]>([]);
   const [sent, setSent] = useState<MerchantInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export default function InvitationsPage() {
       setInbox(i.invites);
       setSent(s.invites);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to load invites');
+      toast.error(err.message || t('failedLoadInvites'));
     } finally {
       setLoading(false);
     }
@@ -38,37 +40,26 @@ export default function InvitationsPage() {
   useEffect(() => { load(); }, []);
 
   const handleAccept = async (id: string) => {
-    try {
-      await invitesApi.accept(id);
-      toast.success('Invite accepted!');
-      load();
-    } catch (err: any) { toast.error(err.message); }
+    try { await invitesApi.accept(id); toast.success(t('inviteAccepted')); load(); }
+    catch (err: any) { toast.error(err.message); }
   };
-
   const handleReject = async (id: string) => {
-    try {
-      await invitesApi.reject(id);
-      toast.success('Invite rejected');
-      load();
-    } catch (err: any) { toast.error(err.message); }
+    try { await invitesApi.reject(id); toast.success(t('inviteRejected')); load(); }
+    catch (err: any) { toast.error(err.message); }
   };
-
   const handleWithdraw = async (id: string) => {
-    try {
-      await invitesApi.withdraw(id);
-      toast.success('Invite withdrawn');
-      load();
-    } catch (err: any) { toast.error(err.message); }
+    try { await invitesApi.withdraw(id); toast.success(t('inviteWithdrawn')); load(); }
+    catch (err: any) { toast.error(err.message); }
   };
 
   return (
-    <div>
-      <PageHeader title="Invitations" description="Manage collaboration invites" />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('invitations')} description={t('manageInvites')} />
       <div className="p-6">
         <Tabs defaultValue="inbox">
           <TabsList>
-            <TabsTrigger value="inbox">Inbox ({inbox.length})</TabsTrigger>
-            <TabsTrigger value="sent">Sent ({sent.length})</TabsTrigger>
+            <TabsTrigger value="inbox">{t('inbox')} ({inbox.length})</TabsTrigger>
+            <TabsTrigger value="sent">{t('sent')} ({sent.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inbox" className="mt-4 space-y-3">
@@ -76,7 +67,7 @@ export default function InvitationsPage() {
             {!loading && inbox.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No invitations in your inbox</p>
+                <p>{t('noInboxInvitations')}</p>
               </div>
             )}
             {inbox.map(inv => (
@@ -89,14 +80,14 @@ export default function InvitationsPage() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {inv.purpose && <span>{inv.purpose} • </span>}
-                      Role: {inv.requested_role} • From: @{inv.from_nickname}
+                      {t('role')}: {inv.requested_role} • @{inv.from_nickname}
                     </p>
                     {inv.message && <p className="text-sm mt-2 text-muted-foreground italic">"{inv.message}"</p>}
                   </div>
                   {inv.status === 'pending' && (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> Accept</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1"><X className="w-3.5 h-3.5" /> Reject</Button>
+                      <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> {t('accept')}</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1"><X className="w-3.5 h-3.5" /> {t('reject')}</Button>
                     </div>
                   )}
                 </CardContent>
@@ -108,7 +99,7 @@ export default function InvitationsPage() {
             {!loading && sent.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No sent invitations</p>
+                <p>{t('noSentInvitations')}</p>
               </div>
             )}
             {sent.map(inv => (
@@ -116,14 +107,14 @@ export default function InvitationsPage() {
                 <CardContent className="flex items-center justify-between p-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">To: {inv.to_display_name || inv.to_merchant_id}</p>
+                      <p className="font-medium">{t('sent')}: {inv.to_display_name || inv.to_merchant_id}</p>
                       <Badge className={statusColors[inv.status]}>{inv.status}</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{inv.purpose || 'General collaboration'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{inv.purpose || t('generalCollaboration')}</p>
                   </div>
                   {inv.status === 'pending' && (
                     <Button size="sm" variant="outline" onClick={() => handleWithdraw(inv.id)} className="gap-1">
-                      <RotateCcw className="w-3.5 h-3.5" /> Withdraw
+                      <RotateCcw className="w-3.5 h-3.5" /> {t('withdraw')}
                     </Button>
                   )}
                 </CardContent>

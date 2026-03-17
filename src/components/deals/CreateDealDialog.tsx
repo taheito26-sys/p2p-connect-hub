@@ -12,6 +12,7 @@ import { AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
+import { useT } from '@/lib/i18n';
 import type { DealType, MerchantRelationship } from '@/types/domain';
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
 
 export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated }: Props) {
+  const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
   const [form, setForm] = useState({
@@ -107,11 +109,11 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
         expected_return: form.expected_return ? parseFloat(form.expected_return) : undefined,
         metadata,
       });
-      toast.success('Deal created successfully');
+      toast.success(t('dealCreated'));
       resetAndClose();
       onCreated();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create deal');
+      toast.error(err.message || t('failedCreateDeal'));
     } finally {
       setSubmitting(false);
     }
@@ -122,15 +124,15 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Create New Deal
-            <Badge variant="outline" className="text-xs font-mono">Step {step}/3</Badge>
+            {t('createNewDeal')}
+            <Badge variant="outline" className="text-xs font-mono">{t('step')} {step}/3</Badge>
           </DialogTitle>
         </DialogHeader>
 
         {/* Step 1: Choose deal type */}
         {step === 1 && (
           <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Choose the type of deal to create with <span className="font-medium text-foreground">{counterpartyName}</span>:</p>
+            <p className="text-sm text-muted-foreground">{t('chooseDealType')} <span className="font-medium text-foreground">{counterpartyName}</span>:</p>
             {dealTypeOrder.map(dt => {
               const cfg = DEAL_TYPE_CONFIGS[dt];
               return (
@@ -152,8 +154,8 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               );
             })}
             <DialogFooter>
-              <Button variant="outline" onClick={resetAndClose}>Cancel</Button>
-              <Button disabled={!selectedType} onClick={() => setStep(2)}>Next →</Button>
+              <Button variant="outline" onClick={resetAndClose}>{t('cancel')}</Button>
+              <Button disabled={!selectedType} onClick={() => setStep(2)}>{t('nextStep')}</Button>
             </DialogFooter>
           </div>
         )}
@@ -164,21 +166,21 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
             <div className="flex items-center gap-2 mb-2">
               <span>{config.icon}</span>
               <span className="font-medium">{config.label}</span>
-              <Badge variant="outline" className="text-xs">with {counterpartyName}</Badge>
+              <Badge variant="outline" className="text-xs">{t('with')} {counterpartyName}</Badge>
             </div>
 
             <div className="space-y-2">
-              <Label>Deal Title *</Label>
+              <Label>{t('dealTitle')} *</Label>
               <Input placeholder={`e.g. ${config.label} - Q1 2026`} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Amount *</Label>
+                <Label>{t('amount')} *</Label>
                 <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Currency</Label>
+                <Label>{t('currency')}</Label>
                 <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -192,34 +194,33 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
 
             {config.hasDueDate && (
               <div className="space-y-2">
-                <Label>Due Date {config.requiredFields.includes('due_date') ? '*' : '(optional)'}</Label>
+                <Label>{t('dueDate')} {config.requiredFields.includes('due_date') ? '*' : t('optional')}</Label>
                 <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
               </div>
             )}
 
             {config.hasExpectedReturn && (
               <div className="space-y-2">
-                <Label>Expected Return (optional)</Label>
+                <Label>{t('expectedReturn')} {t('optional')}</Label>
                 <Input type="number" placeholder="500" value={form.expected_return} onChange={e => setForm(f => ({ ...f, expected_return: e.target.value }))} />
               </div>
             )}
 
             {config.hasRepaymentLogic && (
               <div className="space-y-2">
-                <Label>Interest Rate % (optional)</Label>
+                <Label>{t('interestRate')} {t('optional')}</Label>
                 <Input type="number" step="0.1" placeholder="5" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} />
               </div>
             )}
 
-            {/* Counterparty share fields */}
             {config.hasCounterpartyShare && selectedType === 'arbitrage' && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>{counterpartyName}'s Share %</Label>
+                  <Label>{counterpartyName}{t('sharePercent')}</Label>
                   <Input type="number" min="1" max="99" value={form.counterparty_share_pct} onChange={e => setForm(f => ({ ...f, counterparty_share_pct: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Your Share %</Label>
+                  <Label>{t('yourSharePct')}</Label>
                   <Input disabled value={String(merchantSharePct)} />
                 </div>
               </div>
@@ -228,11 +229,11 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
             {config.hasCounterpartyShare && selectedType === 'partnership' && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Partner Ratio % ({counterpartyName})</Label>
+                  <Label>{t('partnerRatio')} ({counterpartyName})</Label>
                   <Input type="number" min="1" max="99" value={form.partner_ratio} onChange={e => setForm(f => ({ ...f, partner_ratio: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Your Ratio %</Label>
+                  <Label>{t('yourRatio')}</Label>
                   <Input disabled value={String(100 - Number(form.partner_ratio))} />
                 </div>
               </div>
@@ -241,11 +242,11 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
             {config.hasCounterpartyShare && selectedType === 'capital_placement' && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Pool Owner Share % ({counterpartyName})</Label>
+                  <Label>{t('poolOwnerShare')} ({counterpartyName})</Label>
                   <Input type="number" min="1" max="99" value={form.pool_owner_share_pct} onChange={e => setForm(f => ({ ...f, pool_owner_share_pct: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Your Share %</Label>
+                  <Label>{t('yourSharePct')}</Label>
                   <Input disabled value={String(100 - Number(form.pool_owner_share_pct))} />
                 </div>
               </div>
@@ -253,27 +254,27 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
 
             {config.hasCounterpartyShare && (
               <div className="space-y-2">
-                <Label>Settlement Period</Label>
+                <Label>{t('settlementPeriod')}</Label>
                 <Select value={form.settlement_period} onValueChange={v => setForm(f => ({ ...f, settlement_period: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="per_order">Per Order</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="per_order">{t('perOrder')}</SelectItem>
+                    <SelectItem value="daily">{t('daily')}</SelectItem>
+                    <SelectItem value="weekly">{t('weekly')}</SelectItem>
+                    <SelectItem value="monthly">{t('monthly')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label>Notes (optional)</Label>
-              <Textarea placeholder="Additional terms or context..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+              <Label>{t('notesOptional')}</Label>
+              <Textarea placeholder={t('additionalTerms')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep(1)}>← Back</Button>
-              <Button disabled={!form.title || !form.amount} onClick={() => setStep(3)}>Review →</Button>
+              <Button variant="outline" onClick={() => setStep(1)}>{t('backStep')}</Button>
+              <Button disabled={!form.title || !form.amount} onClick={() => setStep(3)}>{t('reviewAndConfirm')}</Button>
             </DialogFooter>
           </div>
         )}
@@ -284,21 +285,20 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
             <div className="flex items-center gap-2 mb-2">
               <span>{config.icon}</span>
               <span className="font-medium">{config.label}</span>
-              <Badge variant="outline" className="text-xs">Review</Badge>
+              <Badge variant="outline" className="text-xs">{t('reviewConfirm')}</Badge>
             </div>
 
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-4 space-y-2">
                 <p className="text-sm font-medium">{form.title}</p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span>Amount: <strong className="text-foreground">{Number(form.amount).toLocaleString()} {form.currency}</strong></span>
-                  {form.due_date && <span>Due: <strong className="text-foreground">{form.due_date}</strong></span>}
-                  {form.expected_return && <span>Expected Return: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
+                  <span>{t('amount')}: <strong className="text-foreground">{Number(form.amount).toLocaleString()} {form.currency}</strong></span>
+                  {form.due_date && <span>{t('dueDate')}: <strong className="text-foreground">{form.due_date}</strong></span>}
+                  {form.expected_return && <span>{t('expectedReturn')}: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Rule Summary */}
             <Card className="bg-muted/30">
               <CardContent className="p-4">
                 <div className="flex items-start gap-2">
@@ -311,21 +311,21 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
             {config.requiresApproval && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle className="w-3.5 h-3.5" />
-                <span>Settlements and profit records for this deal will require counterparty approval.</span>
+                <span>{t('requiresApprovalNote')}</span>
               </div>
             )}
 
             {config.eligibleOrderSides.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle className="w-3.5 h-3.5" />
-                <span>Eligible {config.eligibleOrderSides.join('/')} orders can be linked to this deal for automatic allocation.</span>
+                <span>{t('eligible')} {config.eligibleOrderSides.join('/')} {t('eligibleOrdersNote')}</span>
               </div>
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep(2)}>← Back</Button>
+              <Button variant="outline" onClick={() => setStep(2)}>{t('backStep')}</Button>
               <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? 'Creating...' : 'Create Deal'}
+                {submitting ? t('creating') : t('createDeal')}
               </Button>
             </DialogFooter>
           </div>

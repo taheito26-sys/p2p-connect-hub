@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { notifications as notifApi } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 import type { MerchantNotification } from '@/types/domain';
 
 export default function NotificationsPage() {
+  const t = useT();
   const [notifs, setNotifs] = useState<MerchantNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,10 +36,10 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div>
-      <PageHeader title="Notifications" description="All platform notifications">
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('notificationsTitle')} description={t('allNotifications')}>
         <Button variant="outline" size="sm" onClick={markAllRead} className="gap-1">
-          <CheckCheck className="w-4 h-4" /> Mark All Read
+          <CheckCheck className="w-4 h-4" /> {t('markAllRead')}
         </Button>
       </PageHeader>
       <div className="p-6 space-y-2">
@@ -45,7 +47,7 @@ export default function NotificationsPage() {
         {!loading && notifs.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No notifications</p>
+            <p>{t('noNotifications')}</p>
           </div>
         )}
         {notifs.map(n => (

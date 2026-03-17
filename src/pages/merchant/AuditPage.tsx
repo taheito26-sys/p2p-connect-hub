@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { audit as auditApi } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,7 @@ import { toast } from 'sonner';
 import type { AuditLog } from '@/types/domain';
 
 export default function AuditPage() {
+  const t = useT();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,14 +27,14 @@ export default function AuditPage() {
   }, []);
 
   return (
-    <div>
-      <PageHeader title="Audit Trail" description="Complete activity history" />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('auditTrail')} description={t('completeHistory')} />
       <div className="p-6 space-y-2">
         {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}
         {!loading && logs.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No audit events yet</p>
+            <p>{t('noAuditEventsYet')}</p>
           </div>
         )}
         {logs.map(log => (

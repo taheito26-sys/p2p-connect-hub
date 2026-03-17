@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { deals as dealsApi } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +19,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DealsPage() {
+  const t = useT();
   const [allDeals, setAllDeals] = useState<MerchantDeal[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,25 +28,23 @@ export default function DealsPage() {
       const res = await dealsApi.list();
       setAllDeals(res.deals);
     } catch (err: any) {
-      toast.error('Failed to load deals');
+      toast.error(t('failedLoadDeals'));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  useEffect(() => { reload(); }, [reload]);
 
   return (
-    <div>
-      <PageHeader title="Deals" description="All deals across relationships" />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('dealsLabel')} description={t('allDealsAcross')} />
       <div className="p-6 space-y-3">
         {allDeals.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No deals yet</p>
-            <p className="text-xs mt-1">Create deals from within a relationship workspace.</p>
+            <p>{t('noDeals')}</p>
+            <p className="text-xs mt-1">{t('createDealsFromWorkspace')}</p>
           </div>
         )}
         {allDeals.map(deal => (
@@ -57,8 +57,8 @@ export default function DealsPage() {
                   <Badge className={statusColors[deal.status]}>{deal.status}</Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  <span>Issued: {deal.issue_date}</span>
-                  {deal.due_date && <span>Due: {deal.due_date}</span>}
+                  <span>{t('issued')}: {deal.issue_date}</span>
+                  {deal.due_date && <span>{t('due')}: {deal.due_date}</span>}
                   {deal.realized_pnl != null && <span>P&L: ${deal.realized_pnl.toLocaleString()}</span>}
                 </div>
               </div>

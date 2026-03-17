@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/i18n';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { StatCard } from '@/components/layout/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +42,7 @@ export default function RelationshipWorkspace() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const [rel, setRel] = useState<MerchantRelationship | null>(null);
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
@@ -50,7 +52,6 @@ export default function RelationshipWorkspace() {
   const [activeTab, setActiveTab] = useState('overview');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Dialogs
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
@@ -86,15 +87,13 @@ export default function RelationshipWorkspace() {
       setRelApprovals([...inbox, ...sent].filter(a => a.relationship_id === id));
       setAuditLogs(logs);
     } catch (err: any) {
-      toast.error('Failed to load workspace data');
+      toast.error(t('failedLoadWorkspace'));
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => { reload(); }, [reload]);
-
-  // Realtime refresh for messages and approvals
   useRealtimeRefresh(reload, ['new_message', 'approval_update', 'deal_update']);
 
   useEffect(() => {
@@ -111,7 +110,7 @@ export default function RelationshipWorkspace() {
   };
 
   const handleActivateDeal = async (dealId: string) => {
-    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal activated'); await reload(); }
+    try { await api.deals.update(dealId, { status: 'active' }); toast.success(t('dealActivated')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
 
@@ -125,7 +124,7 @@ export default function RelationshipWorkspace() {
     if (!settlementForm.amount) return;
     try {
       await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
-      toast.success('Settlement submitted for approval');
+      toast.success(t('settlementSubmitted'));
       setSettlementOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
@@ -141,28 +140,28 @@ export default function RelationshipWorkspace() {
     if (!profitForm.amount) return;
     try {
       await api.deals.recordProfit(profitDealId, { amount: parseFloat(profitForm.amount), period_key: profitForm.period_key, note: profitForm.note });
-      toast.success('Profit recorded — pending approval');
+      toast.success(t('profitRecorded'));
       setProfitOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
   };
 
   const handleCloseDeal = async (dealId: string) => {
-    try { await api.deals.close(dealId); toast.success('Close request submitted'); await reload(); }
+    try { await api.deals.close(dealId); toast.success(t('closeRequest')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
 
   const handleApprove = async (approvalId: string) => {
-    try { await api.approvals.approve(approvalId); toast.success('Approved — business data updated'); await reload(); }
+    try { await api.approvals.approve(approvalId); toast.success(t('approvedMutation')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleReject = async (approvalId: string) => {
-    try { await api.approvals.reject(approvalId); toast.success('Rejected — no mutation'); await reload(); }
+    try { await api.approvals.reject(approvalId); toast.success(t('rejectedNoMutation')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
 
   if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
-  if (!rel) return <div className="p-6 text-center text-muted-foreground">Relationship not found</div>;
+  if (!rel) return <div className="p-6 text-center text-muted-foreground">{t('relationshipNotFound')}</div>;
 
   const statusColors: Record<string, string> = {
     active: 'bg-success text-success-foreground',
@@ -173,13 +172,12 @@ export default function RelationshipWorkspace() {
   const pendingApprovals = relApprovals.filter(a => a.status === 'pending');
   const unreadMsgs = msgs.filter(m => !m.is_read && m.sender_user_id !== userId);
   const activeDeals = relDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
-  const counterpartyName = rel.counterparty?.display_name || 'Workspace';
+  const counterpartyName = rel.counterparty?.display_name || t('workspace');
 
   return (
-    <div>
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
       <Breadcrumbs counterpartyName={counterpartyName} />
 
-      {/* Header with back button */}
       <div className="px-6 pt-3 pb-4 border-b border-border">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/network')}>
@@ -193,7 +191,7 @@ export default function RelationshipWorkspace() {
               <Badge variant="outline" className="text-xs capitalize">{rel.my_role}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {rel.relationship_type} relationship • Created {new Date(rel.created_at).toLocaleDateString()}
+              {rel.relationship_type} {t('relationship_rel')} • {t('created')} {new Date(rel.created_at).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -202,11 +200,11 @@ export default function RelationshipWorkspace() {
       <div className="p-6 space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard label="Deals" value={rel.summary?.totalDeals || 0} icon={Briefcase} />
-          <StatCard label="Active Exposure" value={`$${(rel.summary?.activeExposure || 0).toLocaleString()}`} icon={DollarSign} />
-          <StatCard label="Realized P&L" value={`$${(rel.summary?.realizedProfit || 0).toLocaleString()}`} icon={Users} />
-          <StatCard label="Pending Approvals" value={pendingApprovals.length} icon={CheckSquare} />
-          <StatCard label="Unread Messages" value={unreadMsgs.length} icon={Send} />
+          <StatCard label={t('dealsLabel')} value={rel.summary?.totalDeals || 0} icon={Briefcase} />
+          <StatCard label={t('activeExposure')} value={`$${(rel.summary?.activeExposure || 0).toLocaleString()}`} icon={DollarSign} />
+          <StatCard label={t('realizedProfit')} value={`$${(rel.summary?.realizedProfit || 0).toLocaleString()}`} icon={Users} />
+          <StatCard label={t('pendingApprovalsLabel')} value={pendingApprovals.length} icon={CheckSquare} />
+          <StatCard label={t('unreadMessages')} value={unreadMsgs.length} icon={Send} />
         </div>
 
         {/* Action Alerts */}
@@ -216,8 +214,8 @@ export default function RelationshipWorkspace() {
               <Card className="border-warning/50 bg-warning/5">
                 <CardContent className="p-3 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                  <span className="text-sm">{pendingApprovals.length} approval(s) need your attention</span>
-                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => setActiveTab('approvals')}>Review</Button>
+                  <span className="text-sm">{pendingApprovals.length} {t('approvalNeedAttention')}</span>
+                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => setActiveTab('approvals')}>{t('review')}</Button>
                 </CardContent>
               </Card>
             )}
@@ -225,8 +223,8 @@ export default function RelationshipWorkspace() {
               <Card key={d.id} className="border-destructive/50 bg-destructive/5">
                 <CardContent className="p-3 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-destructive shrink-0" />
-                  <span className="text-sm">Deal "{d.title}" is <strong>overdue</strong> — due {d.due_date}</span>
-                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => openSettlement(d.id)}>Settle</Button>
+                  <span className="text-sm">"{d.title}" {t('dealOverdue')} — {t('due')} {d.due_date}</span>
+                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => openSettlement(d.id)}>{t('settle')}</Button>
                 </CardContent>
               </Card>
             ))}
@@ -236,33 +234,33 @@ export default function RelationshipWorkspace() {
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
             <TabsTrigger value="deals" className="gap-1">
-              Deals {relDeals.length > 0 && <Badge className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">{relDeals.length}</Badge>}
+              {t('dealsLabel')} {relDeals.length > 0 && <Badge className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">{relDeals.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="messages" className="gap-1">
-              Messages {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{unreadMsgs.length}</Badge>}
+              {t('messagesLabel')} {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{unreadMsgs.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="approvals" className="gap-1">
-              Approvals {pendingApprovals.length > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals.length}</Badge>}
+              {t('approvalsLabel')} {pendingApprovals.length > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="audit">Audit</TabsTrigger>
+            <TabsTrigger value="audit">{t('auditLabel')}</TabsTrigger>
           </TabsList>
 
           {/* OVERVIEW */}
           <TabsContent value="overview" className="mt-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="glass">
-                <CardHeader><CardTitle className="text-sm font-display">Relationship Details</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-display">{t('relationshipDetails')}</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{rel.relationship_type}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Your Role</span><span className="capitalize">{rel.my_role}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Shared Fields</span><span>{rel.shared_fields?.join(', ') || 'All'}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{new Date(rel.created_at).toLocaleDateString()}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('type')}</span><span className="capitalize">{rel.relationship_type}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('yourRole')}</span><span className="capitalize">{rel.my_role}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('sharedFields')}</span><span>{rel.shared_fields?.join(', ') || t('all')}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('created')}</span><span>{new Date(rel.created_at).toLocaleDateString()}</span></div>
                   {rel.approval_policy && Object.keys(rel.approval_policy).length > 0 && (
                     <>
                       <div className="border-t border-border pt-2 mt-2">
-                        <p className="text-xs font-mono uppercase text-muted-foreground mb-1">Approval Policy</p>
+                        <p className="text-xs font-mono uppercase text-muted-foreground mb-1">{t('approvalPolicy')}</p>
                       </div>
                       {Object.entries(rel.approval_policy).map(([key, val]) => (
                         <div key={key} className="flex justify-between">
@@ -275,21 +273,20 @@ export default function RelationshipWorkspace() {
                 </CardContent>
               </Card>
 
-              {/* Active Deals Summary */}
               <Card className="glass">
                 <CardHeader>
                   <CardTitle className="text-sm font-display flex items-center justify-between">
-                    Active Deals
+                    {t('activeDeals')}
                     <Button size="sm" variant="outline" className="text-xs" onClick={() => setCreateDealOpen(true)}>
-                      <Plus className="w-3 h-3 mr-1" /> New Deal
+                      <Plus className="w-3 h-3 mr-1" /> {t('newDeal')}
                     </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {activeDeals.length === 0 && <p className="text-sm text-muted-foreground">No active deals</p>}
+                  {activeDeals.length === 0 && <p className="text-sm text-muted-foreground">{t('noActiveDealsShort')}</p>}
                   {activeDeals.slice(0, 5).map(deal => {
                     const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                    const outstanding = calculateOutstanding(deal);
+                    const outstandingVal = calculateOutstanding(deal);
                     return (
                       <div key={deal.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
                         <div className="flex items-center gap-2">
@@ -301,8 +298,8 @@ export default function RelationshipWorkspace() {
                         </div>
                         <div className="text-right">
                           <p className="font-mono text-xs font-bold">${deal.amount.toLocaleString()}</p>
-                          {outstanding.outstanding > 0 && (
-                            <p className="text-[10px] text-warning">Outstanding: ${outstanding.outstanding.toLocaleString()}</p>
+                          {outstandingVal.outstanding > 0 && (
+                            <p className="text-[10px] text-warning">{t('outstanding')}: ${outstandingVal.outstanding.toLocaleString()}</p>
                           )}
                         </div>
                       </div>
@@ -312,9 +309,8 @@ export default function RelationshipWorkspace() {
               </Card>
             </div>
 
-            {/* Recent Activity */}
             <Card className="glass">
-              <CardHeader><CardTitle className="text-sm font-display">Recent Activity</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-display">{t('recentActivity')}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5">
                 {auditLogs.slice(0, 8).map(log => (
                   <div key={log.id} className="flex items-center gap-2 text-xs">
@@ -324,7 +320,7 @@ export default function RelationshipWorkspace() {
                     <span className="text-muted-foreground ml-auto">{new Date(log.created_at).toLocaleDateString()}</span>
                   </div>
                 ))}
-                {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">No activity yet</p>}
+                {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">{t('noActivityYet')}</p>}
               </CardContent>
             </Card>
           </TabsContent>
@@ -332,12 +328,12 @@ export default function RelationshipWorkspace() {
           {/* DEALS */}
           <TabsContent value="deals" className="mt-4 space-y-3">
             <div className="flex justify-end">
-              <Button size="sm" onClick={() => setCreateDealOpen(true)} className="gap-1"><Plus className="w-3.5 h-3.5" /> New Deal</Button>
+              <Button size="sm" onClick={() => setCreateDealOpen(true)} className="gap-1"><Plus className="w-3.5 h-3.5" /> {t('newDeal')}</Button>
             </div>
-            {relDeals.length === 0 && <p className="text-center text-muted-foreground py-8">No deals yet — create one above</p>}
+            {relDeals.length === 0 && <p className="text-center text-muted-foreground py-8">{t('noDealsYet')}</p>}
             {relDeals.map(deal => {
               const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-              const outstanding = calculateOutstanding(deal);
+              const outstandingVal = calculateOutstanding(deal);
               return (
                 <Card key={deal.id} className="glass">
                   <CardContent className="p-4">
@@ -350,20 +346,19 @@ export default function RelationshipWorkspace() {
                           <Badge className={dealStatusColors[deal.status] || 'bg-muted text-muted-foreground'}>{deal.status}</Badge>
                         </div>
                         <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                          <span>Issued: {deal.issue_date}</span>
-                          {deal.due_date && <span>Due: {deal.due_date}</span>}
-                          {deal.expected_return != null && <span>Expected: ${deal.expected_return.toLocaleString()}</span>}
+                          <span>{t('issued')}: {deal.issue_date}</span>
+                          {deal.due_date && <span>{t('due')}: {deal.due_date}</span>}
+                          {deal.expected_return != null && <span>{t('expected')}: ${deal.expected_return.toLocaleString()}</span>}
                           {deal.realized_pnl != null && deal.realized_pnl !== 0 && <span className="text-success">P&L: ${deal.realized_pnl.toLocaleString()}</span>}
-                          {outstanding.outstanding > 0 && outstanding.isOverdue && (
-                            <Badge className="bg-destructive text-destructive-foreground text-[10px]">OVERDUE</Badge>
+                          {outstandingVal.outstanding > 0 && outstandingVal.isOverdue && (
+                            <Badge className="bg-destructive text-destructive-foreground text-[10px]">{t('overdue').toUpperCase()}</Badge>
                           )}
                         </div>
-                        {/* Deal metadata summary */}
                         {deal.metadata && (deal.metadata.counterparty_share_pct || deal.metadata.partner_ratio || deal.metadata.pool_owner_share_pct) && (
                           <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                            {deal.metadata.counterparty_share_pct && <span>CP Share: {String(deal.metadata.counterparty_share_pct)}%</span>}
-                            {deal.metadata.partner_ratio && <span>Partner: {String(deal.metadata.partner_ratio)}%</span>}
-                            {deal.metadata.pool_owner_share_pct && <span>Pool Owner: {String(deal.metadata.pool_owner_share_pct)}%</span>}
+                            {deal.metadata.counterparty_share_pct && <span>{t('cpShare')}: {String(deal.metadata.counterparty_share_pct)}%</span>}
+                            {deal.metadata.partner_ratio && <span>{t('partnerLabel')}: {String(deal.metadata.partner_ratio)}%</span>}
+                            {deal.metadata.pool_owner_share_pct && <span>{t('poolOwner')}: {String(deal.metadata.pool_owner_share_pct)}%</span>}
                           </div>
                         )}
                       </div>
@@ -373,19 +368,19 @@ export default function RelationshipWorkspace() {
                         <div className="flex gap-1 justify-end flex-wrap">
                           {deal.status === 'draft' && (
                             <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleActivateDeal(deal.id)}>
-                              <ArrowRight className="w-3 h-3 mr-1" /> Activate
+                              <ArrowRight className="w-3 h-3 mr-1" /> {t('activate')}
                             </Button>
                           )}
                           {['active', 'due', 'overdue'].includes(deal.status) && (
                             <>
                               <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
-                                <DollarSign className="w-3 h-3 mr-1" /> Settle
+                                <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
                               </Button>
                               <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
-                                <Plus className="w-3 h-3 mr-1" /> Profit
+                                <Plus className="w-3 h-3 mr-1" /> {t('profit')}
                               </Button>
                               <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
-                                <Lock className="w-3 h-3 mr-1" /> Close
+                                <Lock className="w-3 h-3 mr-1" /> {t('close')}
                               </Button>
                             </>
                           )}
@@ -403,7 +398,7 @@ export default function RelationshipWorkspace() {
             <Card className="glass">
               <CardContent className="p-0">
                 <div className="h-80 overflow-y-auto p-4 space-y-3">
-                  {msgs.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No messages yet</p>}
+                  {msgs.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">{t('noMessagesYet')}</p>}
                   {msgs.map(msg => (
                     <div key={msg.id} className={`flex ${msg.message_type === 'system' ? 'justify-center' : msg.sender_user_id === userId ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
@@ -419,7 +414,7 @@ export default function RelationshipWorkspace() {
                   <div ref={messagesEndRef} />
                 </div>
                 <div className="border-t p-3 flex gap-2">
-                  <Input placeholder="Type a message..." value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} />
+                  <Input placeholder={t('typeMessage')} value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} />
                   <Button onClick={sendMsg} size="icon"><Send className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -428,7 +423,7 @@ export default function RelationshipWorkspace() {
 
           {/* APPROVALS */}
           <TabsContent value="approvals" className="mt-4 space-y-3">
-            {relApprovals.length === 0 && <p className="text-center text-muted-foreground py-8">No approvals</p>}
+            {relApprovals.length === 0 && <p className="text-center text-muted-foreground py-8">{t('noApprovals')}</p>}
             {relApprovals.map(a => (
               <Card key={a.id} className="glass">
                 <CardContent className="flex items-center justify-between p-4">
@@ -451,8 +446,8 @@ export default function RelationshipWorkspace() {
                   </div>
                   {a.status === 'pending' && a.reviewer_user_id === userId && (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(a.id)} className="gap-1"><X className="w-3.5 h-3.5" /> Reject</Button>
+                      <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> {t('approve')}</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleReject(a.id)} className="gap-1"><X className="w-3.5 h-3.5" /> {t('reject')}</Button>
                     </div>
                   )}
                 </CardContent>
@@ -464,7 +459,7 @@ export default function RelationshipWorkspace() {
           <TabsContent value="audit" className="mt-4 space-y-2">
             {auditLogs.length === 0 && (
               <Card className="glass"><CardContent className="py-8 text-center text-muted-foreground">
-                <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" /><p>No audit events yet</p>
+                <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" /><p>{t('noAuditEvents')}</p>
               </CardContent></Card>
             )}
             {auditLogs.map(log => (
@@ -490,7 +485,6 @@ export default function RelationshipWorkspace() {
         </Tabs>
       </div>
 
-      {/* Create Deal Dialog */}
       <CreateDealDialog
         open={createDealOpen}
         onOpenChange={setCreateDealOpen}
@@ -502,20 +496,20 @@ export default function RelationshipWorkspace() {
       {/* Settlement Dialog */}
       <Dialog open={settlementOpen} onOpenChange={setSettlementOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Submit Settlement</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('submitSettlement')}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Amount (USDT)</Label>
+              <Label>{t('amountUsdtLabel')}</Label>
               <Input type="number" placeholder="10150" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label>Note (optional)</Label>
-              <Textarea placeholder="Principal + return" value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+              <Label>{t('noteOptional')}</Label>
+              <Textarea placeholder={t('principalReturn')} value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettlementOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitSettlement}>Submit for Approval</Button>
+            <Button variant="outline" onClick={() => setSettlementOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSubmitSettlement}>{t('submitForApproval')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -523,26 +517,26 @@ export default function RelationshipWorkspace() {
       {/* Profit Recording Dialog */}
       <Dialog open={profitOpen} onOpenChange={setProfitOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Record Profit</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('recordProfit')}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Amount (USDT)</Label>
+                <Label>{t('amountUsdtLabel')}</Label>
                 <Input type="number" placeholder="500" value={profitForm.amount} onChange={e => setProfitForm(f => ({ ...f, amount: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Period</Label>
+                <Label>{t('period')}</Label>
                 <Input type="month" value={profitForm.period_key} onChange={e => setProfitForm(f => ({ ...f, period_key: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Note (optional)</Label>
-              <Textarea placeholder="Monthly profit share" value={profitForm.note} onChange={e => setProfitForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+              <Label>{t('noteOptional')}</Label>
+              <Textarea placeholder={t('monthlyProfitShare')} value={profitForm.note} onChange={e => setProfitForm(f => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setProfitOpen(false)}>Cancel</Button>
-            <Button onClick={handleRecordProfit}>Submit for Approval</Button>
+            <Button variant="outline" onClick={() => setProfitOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleRecordProfit}>{t('submitForApproval')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

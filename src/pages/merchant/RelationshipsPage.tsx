@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { relationships as relApi } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function RelationshipsPage() {
+  const t = useT();
   const [rels, setRels] = useState<MerchantRelationship[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +28,7 @@ export default function RelationshipsPage() {
         const { relationships } = await relApi.list();
         setRels(relationships);
       } catch (err: any) {
-        toast.error(err.message || 'Failed to load relationships');
+        toast.error(err.message || t('failedLoadRelationships'));
       } finally {
         setLoading(false);
       }
@@ -34,15 +36,15 @@ export default function RelationshipsPage() {
   }, []);
 
   return (
-    <div>
-      <PageHeader title="Relationships" description="Active merchant collaborations" />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('relationships')} description={t('activeCollaborations')} />
       <div className="p-6 space-y-3">
         {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}
         {!loading && rels.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No relationships yet</p>
-            <p className="text-xs mt-1">Accept an invite or send one from the Directory to start collaborating.</p>
+            <p>{t('noRelsYet')}</p>
+            <p className="text-xs mt-1">{t('acceptInviteToStart')}</p>
           </div>
         )}
         {rels.map(rel => (
@@ -57,14 +59,14 @@ export default function RelationshipsPage() {
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                     <span>ID: {rel.counterparty?.merchant_id}</span>
-                    <span>Role: {rel.my_role}</span>
+                    <span>{t('role')}: {rel.my_role}</span>
                     {rel.summary && (
                       <>
-                        <span>{rel.summary.totalDeals} deals</span>
-                        <span>Exposure: ${rel.summary.activeExposure.toLocaleString()}</span>
+                        <span>{rel.summary.totalDeals} {t('dealsLabel')}</span>
+                        <span>{t('exposure')}: ${rel.summary.activeExposure.toLocaleString()}</span>
                         {rel.summary.pendingApprovals > 0 && (
                           <Badge className="bg-warning text-warning-foreground text-[10px]">
-                            {rel.summary.pendingApprovals} pending
+                            {rel.summary.pendingApprovals} {t('pending')}
                           </Badge>
                         )}
                       </>

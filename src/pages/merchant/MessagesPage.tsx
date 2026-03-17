@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/i18n';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ interface ConversationSummary {
 
 export default function MessagesPage() {
   const { userId } = useAuth();
+  const t = useT();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,7 +42,6 @@ export default function MessagesPage() {
       });
 
       const convos = await Promise.all(convoPromises);
-      
       convos.sort((a, b) => {
         const ta = a.lastMessage ? new Date(a.lastMessage.created_at).getTime() : 0;
         const tb = b.lastMessage ? new Date(b.lastMessage.created_at).getTime() : 0;
@@ -48,27 +49,25 @@ export default function MessagesPage() {
       });
       setConversations(convos);
     } catch (err: any) {
-      toast.error('Failed to load messages');
+      toast.error(t('failedLoadMessages'));
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  useEffect(() => { reload(); }, [reload]);
 
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
 
   return (
-    <div>
-      <PageHeader title="Messages" description={`Messages across all relationships${totalUnread > 0 ? ` · ${totalUnread} unread` : ''}`} />
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
+      <PageHeader title={t('messagesLabel')} description={`${t('messagesAcrossRels')}${totalUnread > 0 ? ` · ${totalUnread} ${t('unread')}` : ''}`} />
       <div className="p-6 space-y-3">
         {conversations.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No conversations yet</p>
-            <p className="text-xs mt-1">Messages appear once you have active relationships.</p>
+            <p>{t('noConversations')}</p>
+            <p className="text-xs mt-1">{t('messagesAppear')}</p>
           </div>
         )}
         {conversations.map(convo => (
@@ -88,11 +87,11 @@ export default function MessagesPage() {
                     {convo.lastMessage ? (
                       <p className="text-sm text-muted-foreground truncate mt-0.5">
                         {convo.lastMessage.message_type === 'system' ? '📋 ' : ''}
-                        {convo.lastMessage.sender_user_id === userId ? 'You: ' : ''}
+                        {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}
                         {convo.lastMessage.body}
                       </p>
                     ) : (
-                      <p className="text-sm text-muted-foreground italic mt-0.5">No messages yet</p>
+                      <p className="text-sm text-muted-foreground italic mt-0.5">{t('noMessagesShort')}</p>
                     )}
                   </div>
                 </div>
