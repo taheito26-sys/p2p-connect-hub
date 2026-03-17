@@ -414,6 +414,7 @@ export default function VaultPage() {
   const clearAll = async () => {
     if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟ لا يمكن التراجع إلا إذا كان لديك نسخة احتياطية.' : '⚠ Clear ALL data? This cannot be undone unless you have a backup.')) return;
     clearTrackerStorage(localStorage);
+    localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
