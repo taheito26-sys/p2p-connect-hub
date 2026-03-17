@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
+import { createDemoState } from '@/lib/tracker-demo-data';
+import { useTheme } from '@/lib/theme-context';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { StatCard } from '@/components/layout/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,8 +43,22 @@ const approvalStatusColors: Record<string, string> = {
 export default function RelationshipWorkspace() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useAuth();
+  const { settings } = useTheme();
   const navigate = useNavigate();
   const t = useT();
+
+  // Load shared customer/supplier data from TrackerState
+  const sharedData = useMemo(() => createDemoState({
+    lowStockThreshold: settings.lowStockThreshold,
+    priceAlertThreshold: settings.priceAlertThreshold,
+  }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
+
+  const sharedCustomers = sharedData.state.customers;
+  const sharedSuppliers = useMemo(() => {
+    const names = sharedData.state.batches.map(b => b.source.trim()).filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  }, [sharedData.state.batches]);
+
   const [rel, setRel] = useState<MerchantRelationship | null>(null);
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
@@ -361,6 +377,12 @@ export default function RelationshipWorkspace() {
                             {deal.metadata.pool_owner_share_pct && <span>{t('poolOwner')}: {String(deal.metadata.pool_owner_share_pct)}%</span>}
                           </div>
                         )}
+                        {(deal.metadata?.customer_name || deal.metadata?.supplier_name) && (
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                            {deal.metadata?.customer_name && <span>👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{String(deal.metadata.customer_name)}</strong></span>}
+                            {deal.metadata?.supplier_name && <span>📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{String(deal.metadata.supplier_name)}</strong></span>}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right space-y-1">
                         <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
@@ -491,6 +513,8 @@ export default function RelationshipWorkspace() {
         relationshipId={id!}
         counterpartyName={counterpartyName}
         onCreated={reload}
+        customers={sharedCustomers}
+        suppliers={sharedSuppliers}
       />
 
       {/* Settlement Dialog */}
