@@ -382,6 +382,49 @@ export default function OrdersPage() {
               </table>
             </div>
           )}
+
+          {/* ─── MERCHANT DEALS CONTEXT PANEL ─── */}
+          {allMerchantDeals.length > 0 && (
+            <div className="panel" style={{ marginTop: 12 }}>
+              <div className="panel-head">
+                <h2>🤝 {t('merchantDealsInOrders')}</h2>
+                <span className="pill">{allMerchantDeals.filter(d => ['active', 'due'].includes(d.status)).length} {t('activeDeals')}</span>
+              </div>
+              <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).map(deal => {
+                  const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                  const rel = relationships.find(r => r.id === deal.relationship_id);
+                  const custName = deal.metadata?.customer_name as string | undefined;
+                  const suppName = deal.metadata?.supplier_name as string | undefined;
+                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
+                  return (
+                    <div key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span>{cfg?.icon}</span>
+                        <span style={{ fontWeight: 700, fontSize: 11 }}>{deal.title}</span>
+                        <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
+                        {cfg?.hasCounterpartyShare && (
+                          <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                            {t('capitalShared')}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 9, color: 'var(--muted)' }}>
+                        <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>${deal.amount.toLocaleString()} {deal.currency}</strong></span>
+                        {rel?.counterparty?.display_name && <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--t1)' }}>{rel.counterparty.display_name}</strong></span>}
+                        {custName && <span>👤 {custName}</span>}
+                        {suppName && <span>📦 {suppName}</span>}
+                        <span>{t('orders')}: <strong style={{ color: 'var(--t1)' }}>{linkedOrderCount}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).length === 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
