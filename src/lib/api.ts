@@ -322,11 +322,11 @@ export const p2p = {
   status: () =>
     request<{ ok: boolean; lastUpdate: string }>('/api/status'),
 
-  latest: () =>
-    request<P2PSnapshot>('/api/latest'),
+  latest: (market?: string) =>
+    request<P2PSnapshot>(market && market !== 'qatar' ? `/api/latest?market=${market}` : '/api/latest'),
 
-  history: () =>
-    request<P2PHistoryPoint[]>('/api/history'),
+  history: (market?: string) =>
+    request<P2PHistoryPoint[]>(market && market !== 'qatar' ? `/api/history?market=${market}` : '/api/history'),
 };
 
 // ─── Financials API ─────────────────────────────────────────────────
