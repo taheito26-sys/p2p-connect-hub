@@ -7,13 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle, Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
 import { useT } from '@/lib/i18n';
 import type { DealType } from '@/types/domain';
-import type { Customer } from '@/lib/tracker-helpers';
+import type { Customer, TrackerState, Trade, Batch } from '@/lib/tracker-helpers';
+import { uid, computeFIFO, totalStock, fmtU } from '@/lib/tracker-helpers';
 
 interface Props {
   open: boolean;
@@ -25,16 +26,26 @@ interface Props {
   customers?: Customer[];
   /** Shared supplier names from batches + manual suppliers */
   suppliers?: string[];
+  /** Current tracker state for stock reservation */
+  trackerState?: TrackerState;
+  /** Callback to apply state changes (stock reservation) */
+  onStateChange?: (next: TrackerState) => void;
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
 
-export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated, customers = [], suppliers = [] }: Props) {
+/** Generate a structured deal label from deal type + customer + supplier */
+function generateDealLabel(dealType: DealType, customerName: string, supplierName: string): string {
+  const cfg = DEAL_TYPE_CONFIGS[dealType];
+  return `${cfg.label} · ${customerName} · ${supplierName}`;
+}
+
+export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated, customers = [], suppliers = [], trackerState, onStateChange }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
   const [form, setForm] = useState({
-    title: '',
+    customTitle: '', // optional custom label
     amount: '',
     currency: 'USDT',
     due_date: '',
@@ -55,6 +66,9 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
   const [supplierSearch, setSupplierSearch] = useState('');
   const [customerDropOpen, setCustomerDropOpen] = useState(false);
   const [supplierDropOpen, setSupplierDropOpen] = useState(false);
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
@@ -82,6 +96,32 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
     return 100 - cpShare;
   }, [selectedType, form, config]);
 
+  // Auto-generated title
+  const autoTitle = useMemo(() => {
+    if (!selectedType || !selectedCustomer || !selectedSupplierName) return '';
+    return generateDealLabel(selectedType, selectedCustomer.name, selectedSupplierName);
+  }, [selectedType, selectedCustomer, selectedSupplierName]);
+
+  const effectiveTitle = form.customTitle.trim() || autoTitle;
+
+  // Available stock check
+  const availableStock = useMemo(() => {
+    if (!trackerState) return null;
+    const derived = computeFIFO(trackerState.batches, trackerState.trades);
+    return totalStock(derived);
+  }, [trackerState]);
+
+  const dealAmountUSDT = useMemo(() => {
+    const amt = Number(form.amount);
+    if (!amt || amt <= 0) return 0;
+    // For USDT currency, amount is directly in USDT
+    if (form.currency === 'USDT') return amt;
+    // For QAR, we'd need a conversion - approximate with WACOP
+    return amt; // simplified: treat as USDT equivalent
+  }, [form.amount, form.currency]);
+
+  const hasInsufficientStock = availableStock !== null && dealAmountUSDT > 0 && form.currency === 'USDT' && dealAmountUSDT > availableStock;
+
   const ruleSummary = useMemo(() => {
     if (!selectedType || !form.amount) return '';
     return generateRuleSummary(selectedType, {
@@ -101,18 +141,30 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
   const resetAndClose = () => {
     setStep(1);
     setSelectedType(null);
-    setForm({ title: '', amount: '', currency: 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
+    setForm({ customTitle: '', amount: '', currency: 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
     setSelectedCustomerId('');
     setSelectedSupplierName('');
     setCustomerSearch('');
     setSupplierSearch('');
     setCustomerDropOpen(false);
     setSupplierDropOpen(false);
+    setValidationErrors([]);
     onOpenChange(false);
   };
 
+  const validateStep2 = (): boolean => {
+    const errs: string[] = [];
+    if (!form.amount || !(Number(form.amount) > 0)) errs.push(t('amount'));
+    if (!selectedCustomerId) errs.push(t('dealCustomerRequired'));
+    if (!selectedSupplierName) errs.push(t('dealSupplierRequired'));
+    setValidationErrors(errs);
+    return errs.length === 0;
+  };
+
   const handleSubmit = async () => {
-    if (!selectedType || !form.title || !form.amount) return;
+    if (!selectedType || !form.amount || !selectedCustomerId || !selectedSupplierName) return;
+    if (!effectiveTitle) return;
+
     setSubmitting(true);
     try {
       const metadata: Record<string, unknown> = {};
@@ -131,26 +183,70 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
       if (form.interest_rate) metadata.interest_rate = Number(form.interest_rate);
       if (form.notes) metadata.notes = form.notes;
 
-      // Persist customer/supplier references in metadata
-      if (selectedCustomerId && selectedCustomer) {
-        metadata.customer_id = selectedCustomerId;
-        metadata.customer_name = selectedCustomer.name;
-      }
-      if (selectedSupplierName) {
-        metadata.supplier_name = selectedSupplierName;
-      }
+      // Persist customer/supplier references in metadata (mandatory)
+      metadata.customer_id = selectedCustomerId;
+      metadata.customer_name = selectedCustomer!.name;
+      metadata.supplier_name = selectedSupplierName;
 
-      await api.deals.create({
+      const dealResult = await api.deals.create({
         relationship_id: relationshipId,
         deal_type: selectedType,
-        title: form.title,
+        title: effectiveTitle,
         amount: parseFloat(form.amount),
         currency: form.currency,
         due_date: form.due_date || undefined,
         expected_return: form.expected_return ? parseFloat(form.expected_return) : undefined,
         metadata,
       });
-      toast.success(t('dealCreated'));
+
+      // ── Stock reservation: create a linked trade entry in Orders ──
+      if (trackerState && onStateChange && form.currency === 'USDT' && dealAmountUSDT > 0) {
+        const dealId = dealResult.deal?.id || '';
+        // Ensure customer exists in tracker state
+        let nextCustomers = trackerState.customers;
+        let customerId = selectedCustomerId;
+        const existing = trackerState.customers.find(c => c.id === selectedCustomerId);
+        if (!existing && selectedCustomer) {
+          const newCust: Customer = {
+            id: selectedCustomerId,
+            name: selectedCustomer.name,
+            phone: selectedCustomer.phone || '',
+            tier: selectedCustomer.tier || 'C',
+            dailyLimitUSDT: 0,
+            notes: '',
+            createdAt: Date.now(),
+          };
+          nextCustomers = [...trackerState.customers, newCust];
+        }
+
+        // Create a merchant-linked trade that consumes stock
+        const trade: Trade = {
+          id: uid(),
+          ts: Date.now(),
+          inputMode: 'USDT',
+          amountUSDT: dealAmountUSDT,
+          sellPriceQAR: 0, // merchant deal - not a market sale, placeholder
+          feeQAR: 0,
+          note: `Merchant deal: ${effectiveTitle}`,
+          voided: false,
+          usesStock: true,
+          revisions: [],
+          customerId,
+          linkedDealId: dealId,
+          linkedRelId: relationshipId,
+        };
+
+        const nextState: TrackerState = {
+          ...trackerState,
+          customers: nextCustomers,
+          trades: [...trackerState.trades, trade],
+        };
+        onStateChange(nextState);
+        toast.success(t('dealCreatedAsOrder'));
+      } else {
+        toast.success(t('dealCreated'));
+      }
+
       resetAndClose();
       onCreated();
     } catch (err: any) {
@@ -211,7 +307,7 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
           </div>
         )}
 
-        {/* Step 2: Type-specific fields + Customer/Supplier */}
+        {/* Step 2: Type-specific fields + Customer/Supplier (both mandatory) */}
         {step === 2 && config && (
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-2 mb-2">
@@ -220,14 +316,88 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               <Badge variant="outline" className="text-xs">{t('with')} {counterpartyName}</Badge>
             </div>
 
+            {/* ─── CUSTOMER SELECTOR (MANDATORY) ─── */}
             <div className="space-y-2">
-              <Label>{t('dealTitle')} *</Label>
-              <Input placeholder={`e.g. ${config.label} - Q1 2026`} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              <Label className="flex items-center gap-1">
+                👤 {t('dealCustomer')} <span className="text-xs text-destructive font-bold">*</span>
+              </Label>
+              <div className="relative">
+                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealCustomerRequired')) ? 'border-destructive' : 'border-input'}`}>
+                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                  <input
+                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                    placeholder={t('searchCustomerPlaceholder')}
+                    value={customerSearch}
+                    onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
+                    onFocus={() => setCustomerDropOpen(true)}
+                  />
+                  {selectedCustomer && (
+                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+                  )}
+                </div>
+                {customerDropOpen && filteredCustomers.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                    {filteredCustomers.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
+                        onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealCustomerRequired'))); }}
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {validationErrors.includes(t('dealCustomerRequired')) && (
+                <p className="text-xs text-destructive">{t('dealCustomerRequired')}</p>
+              )}
+            </div>
+
+            {/* ─── SUPPLIER SELECTOR (MANDATORY) ─── */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                📦 {t('dealSupplier')} <span className="text-xs text-destructive font-bold">*</span>
+              </Label>
+              <div className="relative">
+                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealSupplierRequired')) ? 'border-destructive' : 'border-input'}`}>
+                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                  <input
+                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                    placeholder={t('searchSupplierPlaceholder')}
+                    value={supplierSearch}
+                    onChange={e => { setSupplierSearch(e.target.value); setSupplierDropOpen(true); }}
+                    onFocus={() => setSupplierDropOpen(true)}
+                  />
+                  {selectedSupplierName && (
+                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedSupplierName}</Badge>
+                  )}
+                </div>
+                {supplierDropOpen && filteredSuppliers.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                    {filteredSuppliers.map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${selectedSupplierName === s ? 'bg-accent/50' : ''}`}
+                        onClick={() => { setSelectedSupplierName(s); setSupplierSearch(''); setSupplierDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealSupplierRequired'))); }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {validationErrors.includes(t('dealSupplierRequired')) && (
+                <p className="text-xs text-destructive">{t('dealSupplierRequired')}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('amount')} *</Label>
+                <Label>{t('amount')} <span className="text-xs text-destructive font-bold">*</span></Label>
                 <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -242,6 +412,20 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
                 </Select>
               </div>
             </div>
+
+            {/* Stock availability indicator */}
+            {form.currency === 'USDT' && dealAmountUSDT > 0 && availableStock !== null && (
+              <div className={`flex items-center gap-2 text-xs p-2 rounded-md ${hasInsufficientStock ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}`}>
+                {hasInsufficientStock ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                <span>
+                  {hasInsufficientStock
+                    ? t('insufficientStock')
+                    : t('dealWillReserveStock').replace('{amount}', fmtU(dealAmountUSDT))
+                  }
+                  {' '}({t('availableUsdt')}: {fmtU(availableStock)})
+                </span>
+              </div>
+            )}
 
             {config.hasDueDate && (
               <div className="space-y-2">
@@ -318,79 +502,15 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               </div>
             )}
 
-            {/* ─── CUSTOMER SELECTOR ─── */}
+            {/* Optional custom label */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
-                👤 {t('dealCustomer')}
-                <span className="text-xs text-muted-foreground ml-1">({t('optional')})</span>
+                {t('dealTitleOptional')}
               </Label>
-              <div className="relative">
-                <div className="flex items-center border border-input rounded-md bg-background">
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchCustomerPlaceholder')}
-                    value={customerSearch}
-                    onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
-                    onFocus={() => setCustomerDropOpen(true)}
-                  />
-                  {selectedCustomer && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
-                  )}
-                </div>
-                {customerDropOpen && filteredCustomers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredCustomers.map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); }}
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ─── SUPPLIER SELECTOR ─── */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                📦 {t('dealSupplier')}
-                <span className="text-xs text-muted-foreground ml-1">({t('optional')})</span>
-              </Label>
-              <div className="relative">
-                <div className="flex items-center border border-input rounded-md bg-background">
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchSupplierPlaceholder')}
-                    value={supplierSearch}
-                    onChange={e => { setSupplierSearch(e.target.value); setSupplierDropOpen(true); }}
-                    onFocus={() => setSupplierDropOpen(true)}
-                  />
-                  {selectedSupplierName && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedSupplierName}</Badge>
-                  )}
-                </div>
-                {supplierDropOpen && filteredSuppliers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredSuppliers.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${selectedSupplierName === s ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedSupplierName(s); setSupplierSearch(''); setSupplierDropOpen(false); }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Input placeholder={autoTitle || t('dealAutoTitle')} value={form.customTitle} onChange={e => setForm(f => ({ ...f, customTitle: e.target.value }))} />
+              {autoTitle && !form.customTitle && (
+                <p className="text-xs text-muted-foreground">{t('dealAutoTitle')}: <strong>{autoTitle}</strong></p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -398,9 +518,17 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               <Textarea placeholder={t('additionalTerms')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
 
+            {/* Validation errors summary */}
+            {validationErrors.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded-md">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{t('fixFields')} {validationErrors.join(', ')}</span>
+              </div>
+            )}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)}>{t('backStep')}</Button>
-              <Button disabled={!form.title || !form.amount} onClick={() => setStep(3)}>{t('reviewAndConfirm')}</Button>
+              <Button disabled={!form.amount || !selectedCustomerId || !selectedSupplierName} onClick={() => { if (validateStep2()) setStep(3); }}>{t('reviewAndConfirm')}</Button>
             </DialogFooter>
           </div>
         )}
@@ -416,29 +544,37 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
 
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-4 space-y-2">
-                <p className="text-sm font-medium">{form.title}</p>
+                <p className="text-sm font-medium">{effectiveTitle}</p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span>{t('amount')}: <strong className="text-foreground">{Number(form.amount).toLocaleString()} {form.currency}</strong></span>
                   {form.due_date && <span>{t('dueDate')}: <strong className="text-foreground">{form.due_date}</strong></span>}
                   {form.expected_return && <span>{t('expectedReturn')}: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
                 </div>
-                {/* Customer/Supplier summary in review */}
-                {(selectedCustomer || selectedSupplierName) && (
-                  <div className="flex flex-wrap gap-3 text-xs mt-2 pt-2 border-t border-border/50">
-                    {selectedCustomer && (
-                      <span className="flex items-center gap-1">
-                        👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{selectedCustomer.name}</strong>
-                      </span>
-                    )}
-                    {selectedSupplierName && (
-                      <span className="flex items-center gap-1">
-                        📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{selectedSupplierName}</strong>
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* Customer/Supplier summary in review (always shown, both mandatory) */}
+                <div className="flex flex-wrap gap-3 text-xs mt-2 pt-2 border-t border-border/50">
+                  <span className="flex items-center gap-1">
+                    👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{selectedCustomer?.name}</strong>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{selectedSupplierName}</strong>
+                  </span>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Stock reservation notice */}
+            {form.currency === 'USDT' && dealAmountUSDT > 0 && (
+              <Card className="bg-warning/10 border-warning/30">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground">
+                      {t('dealWillReserveStock').replace('{amount}', fmtU(dealAmountUSDT))}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="bg-muted/30">
               <CardContent className="p-4">
@@ -477,7 +613,7 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(2)}>{t('backStep')}</Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
+              <Button onClick={handleSubmit} disabled={submitting || hasInsufficientStock}>
                 {submitting ? t('creating') : t('createDeal')}
               </Button>
             </DialogFooter>

@@ -565,6 +565,18 @@ const translations = {
   viewInWorkspace: { en: 'View in Workspace', ar: 'عرض في مساحة العمل' },
   counterpartyLabel: { en: 'Counterparty', ar: 'الطرف المقابل' },
   shareLabel: { en: 'Share', ar: 'الحصة' },
+
+  // ── Deal creation enhancements ──
+  dealCustomerRequired: { en: 'Customer is required', ar: 'العميل مطلوب' },
+  dealSupplierRequired: { en: 'Supplier is required', ar: 'المورد مطلوب' },
+  dealTitleOptional: { en: 'Custom Label (optional)', ar: 'تسمية مخصصة (اختياري)' },
+  dealAutoTitle: { en: 'Auto-generated from deal details', ar: 'يتم إنشاؤه تلقائياً من تفاصيل الصفقة' },
+  dealStockReserved: { en: 'Stock reserved: {amount} USDT allocated to this deal', ar: 'تم حجز المخزون: {amount} USDT مخصص لهذه الصفقة' },
+  dealCreatedAsOrder: { en: 'Deal created and linked as merchant order in Orders', ar: 'تم إنشاء الصفقة وربطها كطلب تجاري في الطلبات' },
+  requiredField: { en: 'Required', ar: 'مطلوب' },
+  stockReservation: { en: 'Stock Reservation', ar: 'حجز المخزون' },
+  dealWillReserveStock: { en: 'This deal will reserve {amount} USDT from available stock', ar: 'هذه الصفقة ستحجز {amount} USDT من المخزون المتاح' },
+  insufficientStock: { en: 'Insufficient stock for this deal amount', ar: 'المخزون غير كافٍ لمبلغ هذه الصفقة' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
