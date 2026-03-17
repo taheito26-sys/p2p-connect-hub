@@ -53,11 +53,13 @@ export default function RelationshipWorkspace() {
     priceAlertThreshold: settings.priceAlertThreshold,
   }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
 
-  const sharedCustomers = sharedData.state.customers;
+  const [trackerState, setTrackerState] = useState(sharedData.state);
+
+  const sharedCustomers = trackerState.customers;
   const sharedSuppliers = useMemo(() => {
-    const names = sharedData.state.batches.map(b => b.source.trim()).filter(Boolean);
+    const names = trackerState.batches.map(b => b.source.trim()).filter(Boolean);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
-  }, [sharedData.state.batches]);
+  }, [trackerState.batches]);
 
   const [rel, setRel] = useState<MerchantRelationship | null>(null);
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
