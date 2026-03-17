@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/i18n';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,7 @@ interface ConversationSummary {
 
 export default function NetworkPage() {
   const { userId } = useAuth();
+  const t = useT();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerchantSearchResult[]>([]);
   const [searched, setSearched] = useState(false);
@@ -80,7 +82,6 @@ export default function NetworkPage() {
       setAprInbox(aprIn);
       setAllDeals(deals);
 
-      // Load conversations
       const convoPromises = relationships.map(async (rel) => {
         const { messages } = await api.messages.list(rel.id);
         const unread = messages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
@@ -102,20 +103,18 @@ export default function NetworkPage() {
       });
       setConversations(convos);
     } catch {
-      toast.error('Failed to load network data');
+      toast.error(t('failedLoadNetwork'));
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
   useEffect(() => { reload(); }, [reload]);
-
-  // Realtime refresh
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update']);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.length < 2) { toast.error('Enter at least 2 characters'); return; }
+    if (query.length < 2) { toast.error(t('enterMin2Chars')); return; }
     try {
       const res = await api.merchant.search(query);
       setResults(res.results);
@@ -134,34 +133,34 @@ export default function NetworkPage() {
     try {
       await api.invites.send({
         to_merchant_id: inviteTarget.merchant_id,
-        purpose: inviteForm.purpose || 'General collaboration',
+        purpose: inviteForm.purpose || t('generalCollaboration'),
         requested_role: inviteForm.role,
         message: inviteForm.message,
       });
-      toast.success(`Invite sent to ${inviteTarget.display_name}`);
+      toast.success(`${t('inviteSentTo')} ${inviteTarget.display_name}`);
       setInviteDialogOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
   };
 
   const handleAccept = async (id: string) => {
-    try { await api.invites.accept(id); toast.success('Invite accepted — relationship created!'); await reload(); }
+    try { await api.invites.accept(id); toast.success(t('inviteAccepted')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleReject = async (id: string) => {
-    try { await api.invites.reject(id); toast.success('Invite rejected'); await reload(); }
+    try { await api.invites.reject(id); toast.success(t('inviteRejected')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleWithdraw = async (id: string) => {
-    try { await api.invites.withdraw(id); toast.success('Invite withdrawn'); await reload(); }
+    try { await api.invites.withdraw(id); toast.success(t('inviteWithdrawn')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleApprove = async (id: string) => {
-    try { await api.approvals.approve(id); toast.success('Approved'); await reload(); }
+    try { await api.approvals.approve(id); toast.success(t('approved')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleRejectApproval = async (id: string) => {
-    try { await api.approvals.reject(id); toast.success('Rejected'); await reload(); }
+    try { await api.approvals.reject(id); toast.success(t('rejected')); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
 
@@ -174,75 +173,73 @@ export default function NetworkPage() {
   if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
   return (
-    <div>
+    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
       <Breadcrumbs />
 
-      {/* Header */}
       <div className="px-6 pt-3 pb-4 border-b border-border">
-        <h1 className="text-xl font-display font-bold">Network</h1>
-        <p className="text-xs text-muted-foreground">Manage relationships, deals, approvals, and communications</p>
+        <h1 className="text-xl font-display font-bold">{t('networkTitle')}</h1>
+        <p className="text-xs text-muted-foreground">{t('networkDesc')}</p>
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Command Center: Action-needed cards */}
+        {/* Command Center */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card className={`${pendingInvites > 0 ? 'border-warning/50 bg-warning/5' : ''}`}>
             <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> Invitations</p>
+              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {t('invitations')}</p>
               <p className="text-xl font-bold mt-1">{pendingInvites}</p>
-              {pendingInvites > 0 && <p className="text-[10px] text-warning font-medium">Action needed</p>}
+              {pendingInvites > 0 && <p className="text-[10px] text-warning font-medium">{t('actionNeeded')}</p>}
             </CardContent>
           </Card>
 
           <Card className={`${pendingApprovals > 0 ? 'border-warning/50 bg-warning/5' : ''}`}>
             <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> Approvals</p>
+              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> {t('approvals')}</p>
               <p className="text-xl font-bold mt-1">{pendingApprovals}</p>
-              {pendingApprovals > 0 && <p className="text-[10px] text-warning font-medium">Action needed</p>}
+              {pendingApprovals > 0 && <p className="text-[10px] text-warning font-medium">{t('actionNeeded')}</p>}
             </CardContent>
           </Card>
 
           <Card className={`${totalUnread > 0 ? 'border-primary/50 bg-primary/5' : ''}`}>
             <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> Unread</p>
+              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t('unread')}</p>
               <p className="text-xl font-bold mt-1">{totalUnread}</p>
-              {totalUnread > 0 && <p className="text-[10px] text-primary font-medium">New messages</p>}
+              {totalUnread > 0 && <p className="text-[10px] text-primary font-medium">{t('newMessages')}</p>}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> Active Deals</p>
+              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> {t('activeDeals')}</p>
               <p className="text-xl font-bold mt-1">{activeDeals.length}</p>
-              {overdueDeals.length > 0 && <p className="text-[10px] text-destructive font-medium">{overdueDeals.length} overdue</p>}
+              {overdueDeals.length > 0 && <p className="text-[10px] text-destructive font-medium">{overdueDeals.length} {t('overdue')}</p>}
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> Relationships</p>
+              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> {t('relationships')}</p>
               <p className="text-xl font-bold mt-1">{rels.length}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Relationships - Primary Section */}
+        {/* Relationships */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-display font-bold uppercase tracking-wider text-muted-foreground">Relationships</h2>
+            <h2 className="text-sm font-display font-bold uppercase tracking-wider text-muted-foreground">{t('relationships')}</h2>
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Find merchant..." value={query} onChange={e => setQuery(e.target.value)} className="pl-8 h-8 text-xs w-48" />
+                <Input placeholder={t('findMerchant')} value={query} onChange={e => setQuery(e.target.value)} className="pl-8 h-8 text-xs w-48" />
               </div>
-              <Button type="submit" size="sm" className="h-8 text-xs">Search</Button>
+              <Button type="submit" size="sm" className="h-8 text-xs">{t('search')}</Button>
             </form>
           </div>
 
-          {/* Search Results */}
           {searched && results.length > 0 && (
             <div className="mb-4 space-y-2">
-              <p className="text-xs text-muted-foreground">Search results:</p>
+              <p className="text-xs text-muted-foreground">{t('searchResults')}</p>
               {results.map(r => (
                 <Card key={r.id} className="glass hover:border-primary/50 transition-colors">
                   <CardContent className="flex items-center justify-between p-3">
@@ -254,7 +251,7 @@ export default function NetworkPage() {
                       <p className="text-[10px] text-muted-foreground">@{r.nickname} • {r.region}</p>
                     </div>
                     <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={() => openInviteDialog(r)}>
-                      <UserPlus className="w-3 h-3" /> Invite
+                      <UserPlus className="w-3 h-3" /> {t('invite')}
                     </Button>
                   </CardContent>
                 </Card>
@@ -262,12 +259,11 @@ export default function NetworkPage() {
             </div>
           )}
 
-          {/* Relationship Cards */}
           {rels.length === 0 && !searched && (
             <Card className="glass"><CardContent className="py-8 text-center text-muted-foreground">
               <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No relationships yet</p>
-              <p className="text-xs mt-1">Search for a merchant above to start collaborating.</p>
+              <p>{t('noRelationshipsYet')}</p>
+              <p className="text-xs mt-1">{t('searchToCollaborate')}</p>
             </CardContent></Card>
           )}
           <div className="space-y-2">
@@ -291,21 +287,21 @@ export default function NetworkPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
-                            <span>Role: {rel.my_role}</span>
+                            <span>{t('role')}: {rel.my_role}</span>
                             <span>{rel.relationship_type}</span>
                             {rel.summary && (
                               <>
-                                <span>{rel.summary.totalDeals} deals</span>
-                                <span>Exposure: ${rel.summary.activeExposure.toLocaleString()}</span>
+                                <span>{rel.summary.totalDeals} {t('dealsLabel')}</span>
+                                <span>{t('exposure')}: ${rel.summary.activeExposure.toLocaleString()}</span>
                                 {rel.summary.pendingApprovals > 0 && (
-                                  <Badge className="bg-warning text-warning-foreground text-[10px] px-1 py-0">{rel.summary.pendingApprovals} pending</Badge>
+                                  <Badge className="bg-warning text-warning-foreground text-[10px] px-1 py-0">{rel.summary.pendingApprovals} {t('pending')}</Badge>
                                 )}
                               </>
                             )}
                           </div>
                           {convo?.lastMessage && (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {convo.lastMessage.sender_user_id === userId ? 'You: ' : ''}{convo.lastMessage.body}
+                              {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
                             </p>
                           )}
                         </div>
@@ -319,19 +315,18 @@ export default function NetworkPage() {
           </div>
         </div>
 
-        {/* Activity Section: Invitations + Approvals */}
+        {/* Activity: Invitations + Approvals */}
         <Tabs defaultValue="invitations">
           <TabsList>
             <TabsTrigger value="invitations" className="gap-1">
-              Invitations {pendingInvites > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
+              {t('invitations')} {pendingInvites > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="approvals" className="gap-1">
-              Approvals {pendingApprovals > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals}</Badge>}
+              {t('approvals')} {pendingApprovals > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals}</Badge>}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="invitations" className="mt-3 space-y-2">
-            {/* Pending first */}
             {inbox.filter(i => i.status === 'pending').map(inv => (
               <Card key={inv.id} className="border-warning/30 bg-warning/5">
                 <CardContent className="flex items-center justify-between p-3">
@@ -340,35 +335,34 @@ export default function NetworkPage() {
                       <p className="font-medium text-sm">{inv.from_display_name}</p>
                       <Badge className={inviteStatusColors[inv.status]}>{inv.status}</Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{inv.purpose} • Role: {inv.requested_role} • @{inv.from_nickname}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{inv.purpose} • {t('role')}: {inv.requested_role} • @{inv.from_nickname}</p>
                     {inv.message && <p className="text-xs text-muted-foreground italic mt-1">"{inv.message}"</p>}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> Accept</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> Reject</Button>
+                    <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> {t('accept')}</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> {t('reject')}</Button>
                   </div>
                 </CardContent>
               </Card>
             ))}
-            {/* Non-pending */}
             {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
               <Card key={inv.id} className="glass">
                 <CardContent className="flex items-center justify-between p-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm">{inv.from_display_name || `To: ${inv.to_display_name || inv.to_merchant_id}`}</p>
+                      <p className="text-sm">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</p>
                       <Badge className={inviteStatusColors[inv.status]}>{inv.status}</Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{inv.purpose || 'General collaboration'}</p>
+                    <p className="text-[10px] text-muted-foreground">{inv.purpose || t('generalCollaboration')}</p>
                   </div>
                   {inv.status === 'pending' && (inv as any).to_merchant_id && (
-                    <Button size="sm" variant="outline" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-7 text-xs"><RotateCcw className="w-3 h-3" /> Withdraw</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-7 text-xs"><RotateCcw className="w-3 h-3" /> {t('withdraw')}</Button>
                   )}
                 </CardContent>
               </Card>
             ))}
             {inbox.length + sent.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-sm">No invitations</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">{t('noInvitations')}</div>
             )}
           </TabsContent>
 
@@ -381,7 +375,7 @@ export default function NetworkPage() {
                       <p className="font-medium text-sm capitalize">{a.type.replace(/_/g, ' ')}</p>
                       <Badge className={approvalStatusColors[a.status]}>{a.status}</Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">Target: {a.target_entity_type} • {new Date(a.submitted_at).toLocaleDateString()}</p>
+                    <p className="text-[10px] text-muted-foreground">{t('target')}: {a.target_entity_type} • {new Date(a.submitted_at).toLocaleDateString()}</p>
                     {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
                       <div className="mt-1 text-[10px] text-muted-foreground">
                         {Object.entries(a.proposed_payload).map(([k, v]) => (
@@ -391,8 +385,8 @@ export default function NetworkPage() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> Approve</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> Reject</Button>
+                    <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> {t('approve')}</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> {t('reject')}</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -409,7 +403,7 @@ export default function NetworkPage() {
               </Card>
             ))}
             {aprInbox.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-sm">No approvals</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">{t('noApprovals')}</div>
             )}
           </TabsContent>
         </Tabs>
@@ -419,33 +413,33 @@ export default function NetworkPage() {
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Send Invite to {inviteTarget?.display_name}</DialogTitle>
+            <DialogTitle>{t('sendInviteTo')} {inviteTarget?.display_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Purpose</Label>
-              <Input placeholder="e.g. Lending Partnership" value={inviteForm.purpose} onChange={e => setInviteForm(f => ({ ...f, purpose: e.target.value }))} />
+              <Label>{t('purpose')}</Label>
+              <Input placeholder={t('purposePlaceholder')} value={inviteForm.purpose} onChange={e => setInviteForm(f => ({ ...f, purpose: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label>Requested Role</Label>
+              <Label>{t('requestedRole')}</Label>
               <Select value={inviteForm.role} onValueChange={v => setInviteForm(f => ({ ...f, role: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="partner">Partner</SelectItem>
-                  <SelectItem value="lender">Lender</SelectItem>
-                  <SelectItem value="borrower">Borrower</SelectItem>
-                  <SelectItem value="operator">Operator</SelectItem>
+                  <SelectItem value="partner">{t('partner')}</SelectItem>
+                  <SelectItem value="lender">{t('lender')}</SelectItem>
+                  <SelectItem value="borrower">{t('borrower')}</SelectItem>
+                  <SelectItem value="operator">{t('operator')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Message (optional)</Label>
-              <Textarea placeholder="Add a note..." value={inviteForm.message} onChange={e => setInviteForm(f => ({ ...f, message: e.target.value }))} rows={3} />
+              <Label>{t('messageOptional')}</Label>
+              <Textarea placeholder={t('addANote')} value={inviteForm.message} onChange={e => setInviteForm(f => ({ ...f, message: e.target.value }))} rows={3} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSendInvite}>Send Invite</Button>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSendInvite}>{t('sendInvite')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
