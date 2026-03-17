@@ -145,8 +145,8 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{cfg.icon}</span>
                       <div>
-                        <p className="font-medium text-sm">{cfg.label}</p>
-                        <p className="text-xs text-muted-foreground">{cfg.description}</p>
+                        <p className="font-medium text-sm">{t(`dealType_${dt}_label` as any)}</p>
+                        <p className="text-xs text-muted-foreground">{t(`dealType_${dt}_desc` as any)}</p>
                       </div>
                     </div>
                   </CardContent>
