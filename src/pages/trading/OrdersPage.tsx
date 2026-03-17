@@ -178,7 +178,11 @@ export default function OrdersPage() {
       nextCustomers = ensured.customers;
     } else { customerId = ''; }
 
-    const trade: Trade = { id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId };
+    const trade: Trade = {
+      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      linkedDealId: linkedDealId || undefined,
+      linkedRelId: linkedRelId || undefined,
+    };
     const next: TrackerState = { ...state, customers: nextCustomers, trades: [...state.trades, trade], range: inRange(ts, state.range) ? state.range : 'all' };
     applyState(next);
 

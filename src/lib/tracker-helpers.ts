@@ -96,6 +96,10 @@ export interface Trade {
   usesStock: boolean;
   revisions: any[];
   customerId: string;
+  /** Linked merchant deal ID (if this is a merchant order) */
+  linkedDealId?: string;
+  /** Linked relationship ID (if this is a merchant order) */
+  linkedRelId?: string;
 }
 
 export interface Customer {
