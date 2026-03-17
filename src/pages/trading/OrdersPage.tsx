@@ -61,6 +61,7 @@ export default function OrdersPage() {
   const [linkedRelId, setLinkedRelId] = useState('');
   const [linkedDealId, setLinkedDealId] = useState('');
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
+  const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
 
   useEffect(() => {
