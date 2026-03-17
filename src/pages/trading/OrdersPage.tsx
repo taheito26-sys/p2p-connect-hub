@@ -165,6 +165,7 @@ export default function OrdersPage() {
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
     if (!(raw > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
+    if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
     let nextCustomers = state.customers;
@@ -228,7 +229,7 @@ export default function OrdersPage() {
     if (!editingTradeId) return;
     const ts = new Date(editDate).getTime();
     const qty = Number(editQty); const sell = Number(editSell);
-    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
+    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0) || !editBuyer.trim()) return;
     let nextCustomers = state.customers; let customerId = '';
     if (editBuyer.trim()) { const ensured = ensureCustomer(editBuyer); nextCustomers = ensured.customers; customerId = ensured.id; }
     const nextTrades = state.trades.map(t => {

@@ -539,6 +539,10 @@ const translations = {
   dealType_general_label: { en: 'General Deal', ar: 'صفقة عامة' },
   dealType_general_desc: { en: 'A flexible deal type for agreements that do not fit other categories.', ar: 'نوع صفقة مرن للاتفاقيات التي لا تندرج تحت الفئات الأخرى.' },
   autoSaved: { en: 'Auto-saved', ar: 'تم الحفظ تلقائياً' },
+  buyerNameRequired: { en: 'Buyer name', ar: 'اسم المشتري' },
+  supplierNameRequired: { en: 'Supplier name', ar: 'اسم المورد' },
+  buyerNameRequiredMsg: { en: 'Buyer name is required', ar: 'اسم المشتري مطلوب' },
+  supplierNameRequiredMsg: { en: 'Supplier name is required', ar: 'اسم المورد مطلوب' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
