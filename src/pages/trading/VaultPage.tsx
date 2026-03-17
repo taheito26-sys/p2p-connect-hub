@@ -204,6 +204,7 @@ export default function VaultPage() {
     if (!snap?.state) { toast.error(t.lang === 'ar' ? 'النسخة غير موجودة' : 'Snapshot not found'); return; }
     try {
       const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(snap.state));
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
