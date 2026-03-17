@@ -517,6 +517,8 @@ export default function RelationshipWorkspace() {
         onCreated={reload}
         customers={sharedCustomers}
         suppliers={sharedSuppliers}
+        trackerState={trackerState}
+        onStateChange={setTrackerState}
       />
 
       {/* Settlement Dialog */}
