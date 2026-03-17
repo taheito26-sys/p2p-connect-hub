@@ -377,6 +377,12 @@ export default function RelationshipWorkspace() {
                             {deal.metadata.pool_owner_share_pct && <span>{t('poolOwner')}: {String(deal.metadata.pool_owner_share_pct)}%</span>}
                           </div>
                         )}
+                        {(deal.metadata?.customer_name || deal.metadata?.supplier_name) && (
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                            {deal.metadata?.customer_name && <span>👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{String(deal.metadata.customer_name)}</strong></span>}
+                            {deal.metadata?.supplier_name && <span>📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{String(deal.metadata.supplier_name)}</strong></span>}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right space-y-1">
                         <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
