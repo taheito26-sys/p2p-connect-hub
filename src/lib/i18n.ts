@@ -526,6 +526,19 @@ const translations = {
   failedCreateProfile: { en: 'Failed to create profile', ar: 'فشل إنشاء الملف الشخصي' },
   searchFailed: { en: 'Search failed', ar: 'فشل البحث' },
   relationship_rel: { en: 'relationship', ar: 'علاقة' },
+
+  // ── Deal Type Labels & Descriptions ──
+  dealType_lending_label: { en: 'Advance', ar: 'سلفة' },
+  dealType_lending_desc: { en: 'Capital advance with repayment terms. A principal amount is lent with expected return by a due date.', ar: 'سلفة رأسمالية بشروط سداد. يُقرض مبلغ أساسي مع عائد متوقع بحلول تاريخ الاستحقاق.' },
+  dealType_arbitrage_label: { en: 'Sales Deal', ar: 'صفقة بيع' },
+  dealType_arbitrage_desc: { en: 'Linked to sell orders. Capital owner funds a share of trading economics. Profit is split based on participation ratio.', ar: 'مرتبطة بأوامر البيع. يموّل مالك رأس المال حصة من اقتصاديات التداول. يُقسم الربح بناءً على نسبة المشاركة.' },
+  dealType_partnership_label: { en: 'Profit-Share Deal', ar: 'صفقة مشاركة أرباح' },
+  dealType_partnership_desc: { en: 'Partners share profits from linked order activity based on predefined ratios.', ar: 'يتشارك الشركاء الأرباح من نشاط الطلبات المرتبطة بناءً على نسب محددة مسبقاً.' },
+  dealType_capital_placement_label: { en: 'Capital Pool Deal', ar: 'صفقة مجمع رأس المال' },
+  dealType_capital_placement_desc: { en: 'Capital pool where a capital owner provides funds for the merchant to utilize in trading. Pool shares determine distribution.', ar: 'مجمع رأسمالي يوفر فيه المالك أموالاً للتاجر لاستخدامها في التداول. حصص المجمع تحدد التوزيع.' },
+  dealType_general_label: { en: 'General Deal', ar: 'صفقة عامة' },
+  dealType_general_desc: { en: 'A flexible deal type for agreements that do not fit other categories.', ar: 'نوع صفقة مرن للاتفاقيات التي لا تندرج تحت الفئات الأخرى.' },
+  autoSaved: { en: 'Auto-saved', ar: 'تم الحفظ تلقائياً' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
