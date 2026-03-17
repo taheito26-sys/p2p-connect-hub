@@ -47,9 +47,11 @@ type DemoOverrides = Partial<TrackerState['settings']> & {
 };
 
 export function createDemoState(overrides?: DemoOverrides): { state: TrackerState; derived: DerivedState } {
-  const batches = makeBatches();
-  const customers = makeCust();
-  const trades = makeTrades(batches);
+  const isCleared = typeof window !== 'undefined' && localStorage.getItem('tracker_data_cleared') === 'true';
+
+  const batches = isCleared ? [] : makeBatches();
+  const customers = isCleared ? [] : makeCust();
+  const trades = isCleared ? [] : makeTrades(batches);
 
   const state: TrackerState = {
     currency: overrides?.currency ?? 'QAR',
@@ -57,7 +59,7 @@ export function createDemoState(overrides?: DemoOverrides): { state: TrackerStat
     batches,
     trades,
     customers,
-    cashQAR: 45000,
+    cashQAR: isCleared ? 0 : 45000,
     cashOwner: 'Main Account',
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? 5000,
