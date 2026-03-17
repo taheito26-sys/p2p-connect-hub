@@ -543,6 +543,28 @@ const translations = {
   supplierNameRequired: { en: 'Supplier name', ar: 'اسم المورد' },
   buyerNameRequiredMsg: { en: 'Buyer name is required', ar: 'اسم المشتري مطلوب' },
   supplierNameRequiredMsg: { en: 'Supplier name is required', ar: 'اسم المورد مطلوب' },
+
+  // ── Merchant Deal Customer/Supplier ──
+  dealCustomer: { en: 'Customer', ar: 'العميل' },
+  dealSupplier: { en: 'Supplier', ar: 'المورد' },
+  selectCustomer: { en: 'Select customer...', ar: 'اختر العميل...' },
+  selectSupplierDeal: { en: 'Select supplier...', ar: 'اختر المورد...' },
+  searchCustomerPlaceholder: { en: 'Search customers...', ar: 'ابحث عن العملاء...' },
+  searchSupplierPlaceholder: { en: 'Search suppliers...', ar: 'ابحث عن الموردين...' },
+  noCustomerSelected: { en: 'No customer selected', ar: 'لم يتم اختيار عميل' },
+  noSupplierSelected: { en: 'No supplier selected', ar: 'لم يتم اختيار مورد' },
+  dealLinkedCustomer: { en: 'Customer', ar: 'العميل' },
+  dealLinkedSupplier: { en: 'Supplier', ar: 'المورد' },
+  merchantOrder: { en: 'Merchant Order', ar: 'طلب تجاري' },
+  linkedDeal: { en: 'Linked Deal', ar: 'صفقة مرتبطة' },
+  capitalShared: { en: 'Capital Shared', ar: 'رأس مال مشترك' },
+  merchantDealContext: { en: 'Merchant Deal Context', ar: 'سياق الصفقة التجارية' },
+  dealSummaryNote: { en: 'This deal is linked to {customer} and {supplier}. Orders associated with this deal will be treated as merchant orders, and the linked capital owner share will be reflected in the merchant workspace and order context automatically.', ar: 'هذه الصفقة مرتبطة بـ {customer} و {supplier}. الطلبات المرتبطة بهذه الصفقة ستُعامل كطلبات تجارية، وسيتم عرض حصة مالك رأس المال المرتبطة في مساحة العمل التجارية وسياق الطلب تلقائياً.' },
+  merchantDealsInOrders: { en: 'Merchant Deals', ar: 'الصفقات التجارية' },
+  noMerchantDeals: { en: 'No merchant deals linked', ar: 'لا توجد صفقات تجارية مرتبطة' },
+  viewInWorkspace: { en: 'View in Workspace', ar: 'عرض في مساحة العمل' },
+  counterpartyLabel: { en: 'Counterparty', ar: 'الطرف المقابل' },
+  shareLabel: { en: 'Share', ar: 'الحصة' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

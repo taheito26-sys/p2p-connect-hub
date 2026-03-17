@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,12 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
 import { useT } from '@/lib/i18n';
-import type { DealType, MerchantRelationship } from '@/types/domain';
+import type { DealType } from '@/types/domain';
+import type { Customer } from '@/lib/tracker-helpers';
 
 interface Props {
   open: boolean;
@@ -21,11 +21,15 @@ interface Props {
   relationshipId: string;
   counterpartyName: string;
   onCreated: () => void;
+  /** Shared customer list from TrackerState */
+  customers?: Customer[];
+  /** Shared supplier names from batches + manual suppliers */
+  suppliers?: string[];
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
 
-export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated }: Props) {
+export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated, customers = [], suppliers = [] }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
@@ -43,6 +47,28 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
     notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Customer/Supplier selection state
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [customerDropOpen, setCustomerDropOpen] = useState(false);
+  const [supplierDropOpen, setSupplierDropOpen] = useState(false);
+
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(customerSearch));
+  }, [customers, customerSearch]);
+
+  const filteredSuppliers = useMemo(() => {
+    const q = supplierSearch.trim().toLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter(s => s.toLowerCase().includes(q));
+  }, [suppliers, supplierSearch]);
 
   const config = selectedType ? DEAL_TYPE_CONFIGS[selectedType] : null;
 
@@ -76,6 +102,12 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
     setStep(1);
     setSelectedType(null);
     setForm({ title: '', amount: '', currency: 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
+    setSelectedCustomerId('');
+    setSelectedSupplierName('');
+    setCustomerSearch('');
+    setSupplierSearch('');
+    setCustomerDropOpen(false);
+    setSupplierDropOpen(false);
     onOpenChange(false);
   };
 
@@ -99,6 +131,15 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
       if (form.interest_rate) metadata.interest_rate = Number(form.interest_rate);
       if (form.notes) metadata.notes = form.notes;
 
+      // Persist customer/supplier references in metadata
+      if (selectedCustomerId && selectedCustomer) {
+        metadata.customer_id = selectedCustomerId;
+        metadata.customer_name = selectedCustomer.name;
+      }
+      if (selectedSupplierName) {
+        metadata.supplier_name = selectedSupplierName;
+      }
+
       await api.deals.create({
         relationship_id: relationshipId,
         deal_type: selectedType,
@@ -119,9 +160,19 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
     }
   };
 
+  // Build deal summary note with customer/supplier context
+  const dealContextSummary = useMemo(() => {
+    if (!selectedCustomer && !selectedSupplierName) return '';
+    const custName = selectedCustomer?.name || t('noCustomerSelected');
+    const suppName = selectedSupplierName || t('noSupplierSelected');
+    return t('dealSummaryNote')
+      .replace('{customer}', custName)
+      .replace('{supplier}', suppName);
+  }, [selectedCustomer, selectedSupplierName, t]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {t('createNewDeal')}
@@ -160,7 +211,7 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
           </div>
         )}
 
-        {/* Step 2: Type-specific fields */}
+        {/* Step 2: Type-specific fields + Customer/Supplier */}
         {step === 2 && config && (
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-2 mb-2">
@@ -267,6 +318,81 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               </div>
             )}
 
+            {/* ─── CUSTOMER SELECTOR ─── */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                👤 {t('dealCustomer')}
+                <span className="text-xs text-muted-foreground ml-1">({t('optional')})</span>
+              </Label>
+              <div className="relative">
+                <div className="flex items-center border border-input rounded-md bg-background">
+                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                  <input
+                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                    placeholder={t('searchCustomerPlaceholder')}
+                    value={customerSearch}
+                    onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
+                    onFocus={() => setCustomerDropOpen(true)}
+                  />
+                  {selectedCustomer && (
+                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+                  )}
+                </div>
+                {customerDropOpen && filteredCustomers.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                    {filteredCustomers.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
+                        onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); }}
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ─── SUPPLIER SELECTOR ─── */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                📦 {t('dealSupplier')}
+                <span className="text-xs text-muted-foreground ml-1">({t('optional')})</span>
+              </Label>
+              <div className="relative">
+                <div className="flex items-center border border-input rounded-md bg-background">
+                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                  <input
+                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                    placeholder={t('searchSupplierPlaceholder')}
+                    value={supplierSearch}
+                    onChange={e => { setSupplierSearch(e.target.value); setSupplierDropOpen(true); }}
+                    onFocus={() => setSupplierDropOpen(true)}
+                  />
+                  {selectedSupplierName && (
+                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedSupplierName}</Badge>
+                  )}
+                </div>
+                {supplierDropOpen && filteredSuppliers.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                    {filteredSuppliers.map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${selectedSupplierName === s ? 'bg-accent/50' : ''}`}
+                        onClick={() => { setSelectedSupplierName(s); setSupplierSearch(''); setSupplierDropOpen(false); }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>{t('notesOptional')}</Label>
               <Textarea placeholder={t('additionalTerms')} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
@@ -296,6 +422,21 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
                   {form.due_date && <span>{t('dueDate')}: <strong className="text-foreground">{form.due_date}</strong></span>}
                   {form.expected_return && <span>{t('expectedReturn')}: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
                 </div>
+                {/* Customer/Supplier summary in review */}
+                {(selectedCustomer || selectedSupplierName) && (
+                  <div className="flex flex-wrap gap-3 text-xs mt-2 pt-2 border-t border-border/50">
+                    {selectedCustomer && (
+                      <span className="flex items-center gap-1">
+                        👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{selectedCustomer.name}</strong>
+                      </span>
+                    )}
+                    {selectedSupplierName && (
+                      <span className="flex items-center gap-1">
+                        📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{selectedSupplierName}</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -307,6 +448,18 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
                 </div>
               </CardContent>
             </Card>
+
+            {/* Deal context summary with customer/supplier */}
+            {dealContextSummary && (
+              <Card className="bg-accent/10 border-accent/30">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-accent-foreground mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground">{dealContextSummary}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {config.requiresApproval && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
