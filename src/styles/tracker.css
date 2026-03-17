@@ -183,12 +183,12 @@
 .tracker-root .cal-day.selected { border-color: var(--brand) !important; box-shadow: 0 0 0 3px var(--brand3) !important; background: var(--brand3) !important; }
 .tracker-root .cal-day.empty-day { background: transparent; border: none; cursor: default; }
 .tracker-root .cal-day.empty-day:hover { transform: none; box-shadow: none; }
-.tracker-root .cal-num { font-weight: 700; font-size: calc(12px * var(--ui-scale,1)); line-height: 1; }
-.tracker-root .cal-profit { font-family: var(--lt-font-mono); font-size: calc(9px * var(--ui-scale,1)); font-weight: 700; margin-top: 2px; }
-.tracker-root .cal-count { font-size: calc(8px * var(--ui-scale,1)); color: var(--muted); margin-top: 1px; }
-.tracker-root .cal-detail { margin-top: 10px; }
-.tracker-root .cal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-.tracker-root .cal-stat { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-sm); padding: 10px 12px; transition: all var(--lt-tr); }
+.tracker-root .cal-num { font-weight: 700; font-size: calc(10px * var(--ui-scale,1)); line-height: 1; }
+.tracker-root .cal-profit { font-family: var(--lt-font-mono); font-size: calc(8px * var(--ui-scale,1)); font-weight: 700; margin-top: 1px; }
+.tracker-root .cal-count { font-size: calc(7px * var(--ui-scale,1)); color: var(--muted); margin-top: 0; }
+.tracker-root .cal-detail { margin-top: 8px; }
+.tracker-root .cal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.tracker-root .cal-stat { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-sm); padding: 8px 10px; transition: all var(--lt-tr); }
 .tracker-root .cal-stat:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 4px 12px var(--glow); }
 .tracker-root .cal-flag { font-size: 10px; }
 
