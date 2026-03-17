@@ -390,6 +390,7 @@ export default function VaultPage() {
           return;
         }
         const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
