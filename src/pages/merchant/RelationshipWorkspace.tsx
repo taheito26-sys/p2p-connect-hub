@@ -43,8 +43,22 @@ const approvalStatusColors: Record<string, string> = {
 export default function RelationshipWorkspace() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useAuth();
+  const { settings } = useTheme();
   const navigate = useNavigate();
   const t = useT();
+
+  // Load shared customer/supplier data from TrackerState
+  const sharedData = useMemo(() => createDemoState({
+    lowStockThreshold: settings.lowStockThreshold,
+    priceAlertThreshold: settings.priceAlertThreshold,
+  }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
+
+  const sharedCustomers = sharedData.state.customers;
+  const sharedSuppliers = useMemo(() => {
+    const names = sharedData.state.batches.map(b => b.source.trim()).filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  }, [sharedData.state.batches]);
+
   const [rel, setRel] = useState<MerchantRelationship | null>(null);
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
