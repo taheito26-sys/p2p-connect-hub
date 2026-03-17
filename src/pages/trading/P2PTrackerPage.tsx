@@ -8,9 +8,17 @@ import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
 import '@/styles/tracker.css';
 
 type CalcMode = 'sell' | 'buy' | 'target';
+type MarketId = 'qatar' | 'uae' | 'egypt';
+
+const MARKETS: { id: MarketId; label: string; labelAr: string; currency: string; pair: string }[] = [
+  { id: 'qatar', label: 'Qatar', labelAr: 'قطر', currency: 'QAR', pair: 'USDT/QAR' },
+  { id: 'uae', label: 'UAE', labelAr: 'الإمارات', currency: 'AED', pair: 'USDT/AED' },
+  { id: 'egypt', label: 'Egypt', labelAr: 'مصر', currency: 'EGP', pair: 'USDT/EGP' },
+];
 
 export default function P2PTrackerPage() {
   const t = useT();
+  const [market, setMarket] = useState<MarketId>('qatar');
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,16 +36,18 @@ export default function P2PTrackerPage() {
   const [calcAmount, setCalcAmount] = useState('1000');
   const [calcRate, setCalcRate] = useState('');
 
+  const currentMarket = MARKETS.find(m => m.id === market) || MARKETS[0];
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       if (getDemoMode()) {
-        const demo = generateP2PHistory();
+        const demo = generateP2PHistory(market);
         setSnapshot(demo.snapshot);
         setHistory(demo.history);
         setLastUpdate(new Date().toISOString());
       } else {
-        const [s, h] = await Promise.all([p2p.latest(), p2p.history()]);
+        const [s, h] = await Promise.all([p2p.latest(market), p2p.history(market)]);
         setSnapshot(s);
         setHistory(Array.isArray(h) ? h : []);
         setLastUpdate(new Date().toISOString());
@@ -48,7 +58,7 @@ export default function P2PTrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [market]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -72,20 +82,17 @@ export default function P2PTrackerPage() {
     };
   }, [history]);
 
-  // Price History: 24 hours only (like source repo)
   const last24hHistory = useMemo(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return history.filter(h => h.ts >= cutoff);
   }, [history]);
 
-  // Price history bars data (horizontal bars) — 24h only
   const priceBarData = useMemo(() => {
     const maxPoints = 80;
     const step = Math.max(1, Math.floor(last24hHistory.length / maxPoints));
     return last24hHistory.filter((_, i) => i % step === 0 || i === last24hHistory.length - 1);
   }, [last24hHistory]);
 
-  // Historical daily summaries for the lookback section
   const dailySummaries = useMemo(() => computeDailySummaries(history), [history]);
 
   const filteredSummaries = useMemo(() => {
@@ -94,7 +101,6 @@ export default function P2PTrackerPage() {
     return dailySummaries.filter(d => d.date >= cutoff);
   }, [dailySummaries, historyRange]);
 
-  // Position advisor calculations
   const targetPrice = useMemo(() => avPrice * (1 + targetMargin / 100), [avPrice, targetMargin]);
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
@@ -102,11 +108,9 @@ export default function P2PTrackerPage() {
   const gap = targetPrice - sellAvg;
   const isGoodRestock = buyAvg < avPrice;
 
-  // User's stock for "fits" checks (demo)
   const userStock = 8545.83;
   const userCash = 25000;
 
-  // Profit if sold now
   const profitIfSold = useMemo(() => {
     if (!snapshot?.sellAvg) return null;
     const revenue = userStock * snapshot.sellAvg;
@@ -114,7 +118,6 @@ export default function P2PTrackerPage() {
     return Math.round(revenue - cost);
   }, [snapshot, avPrice]);
 
-  // Calculator result
   const calcResult = useMemo(() => {
     const amt = parseFloat(calcAmount) || 0;
     const rate = parseFloat(calcRate) || (calcMode === 'sell' ? sellAvg : buyAvg);
@@ -131,7 +134,6 @@ export default function P2PTrackerPage() {
     }
   }, [snapshot, calcMode, calcRate]);
 
-  // Sell/Buy change from previous point (24h)
   const sellChange = useMemo(() => {
     if (last24hHistory.length < 2) return 0;
     const prev = last24hHistory[last24hHistory.length - 2];
@@ -146,7 +148,6 @@ export default function P2PTrackerPage() {
     return Math.round(((curr.buyAvg ?? 0) - (prev.buyAvg ?? 0)) * 1000) / 1000;
   }, [last24hHistory]);
 
-  // Check if offer fits user stock/cash
   const fitsStock = (o: P2POffer) => o.min <= userStock * o.price && o.max >= o.min;
   const fitsCash = (o: P2POffer) => o.min <= userCash;
 
@@ -155,7 +156,7 @@ export default function P2PTrackerPage() {
       <div className="tracker-root" style={{ padding: 10 }}>
         <div className="empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <div className="empty-t">Loading P2P data…</div>
+          <div className="empty-t">{t.lang === 'ar' ? 'جاري تحميل بيانات P2P…' : 'Loading P2P data…'}</div>
         </div>
       </div>
     );
@@ -163,70 +164,86 @@ export default function P2PTrackerPage() {
 
   if (!snapshot) return null;
 
+  const ccy = currentMarket.currency;
+
   return (
-    <div className="tracker-root" style={{ padding: 10 }}>
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 10 }}>
       {/* ── Status Bar ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        {/* Market selector */}
+        <div className="tracker-seg" style={{ marginRight: 4 }}>
+          {MARKETS.map(m => (
+            <button
+              key={m.id}
+              className={market === m.id ? 'active' : ''}
+              onClick={() => { setMarket(m.id); setCalcRate(''); }}
+            >
+              {t.isRTL ? m.labelAr : m.label}
+            </button>
+          ))}
+        </div>
+
         <button className="btn" onClick={load} disabled={loading} style={{ gap: 6 }}>
-          <span>🔄</span> Refresh
+          <span>🔄</span> {t.lang === 'ar' ? 'تحديث' : 'Refresh'}
         </button>
         {lastUpdate && (
           <span className="muted" style={{ fontSize: 11 }}>
-            Updated {new Date(lastUpdate).toLocaleTimeString()}
+            {t.lang === 'ar' ? 'آخر تحديث' : 'Updated'} {new Date(lastUpdate).toLocaleTimeString()}
           </span>
         )}
         <span className="pill good" style={{ cursor: 'pointer' }} onClick={() => setAutoRefresh(!autoRefresh)}>
-          ● {autoRefresh ? 'Backend · 24h monitoring active' : 'Backend · 24h monitoring'}
+          ● {autoRefresh ? (t.lang === 'ar' ? 'المراقبة نشطة' : 'Backend · 24h monitoring active') : (t.lang === 'ar' ? 'مراقبة 24 ساعة' : 'Backend · 24h monitoring')}
         </span>
         {snapshot.spread != null && snapshot.spreadPct != null && (
           <span className="pill warn">
-            Spread {snapshot.spread.toFixed(3)} ({snapshot.spreadPct.toFixed(2)}%)
+            {t.lang === 'ar' ? 'الفارق' : 'Spread'} {snapshot.spread.toFixed(3)} ({snapshot.spreadPct.toFixed(2)}%)
           </span>
         )}
         {isBelowTarget && (
-          <span className="pill bad">⚠ Below target</span>
+          <span className="pill bad">⚠ {t.lang === 'ar' ? 'أقل من الهدف' : 'Below target'}</span>
         )}
+        <span className="pill" style={{ fontWeight: 700 }}>{currentMarket.pair}</span>
       </div>
 
       {/* ── 6 KPI Cards ── */}
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', marginBottom: 10 }}>
         <div className="kpi-card">
-          <div className="kpi-lbl">BEST SELL</div>
-          <div className="kpi-val good">{snapshot.bestSell?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub">Top offer QAR</div>
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'أفضل بيع' : 'BEST SELL'}</div>
+          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
+          <div className="kpi-sub">{t.lang === 'ar' ? `أعلى عرض ${ccy}` : `Top offer ${ccy}`}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">SELL AVG (TOP 5)</div>
-          <div className="kpi-val good">{snapshot.sellAvg?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub good">
-            {snapshot.sellAvg && avPrice ? `+${((snapshot.sellAvg / avPrice - 1) * 100).toFixed(2)}% vs Av Price` : ''}
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'متوسط البيع (أعلى 5)' : 'SELL AVG (TOP 5)'}</div>
+          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
+          <div className="kpi-sub" style={{ color: 'var(--bad)' }}>
+            {snapshot.sellAvg && avPrice ? `+${((snapshot.sellAvg / avPrice - 1) * 100).toFixed(2)}% ${t.lang === 'ar' ? 'مقابل متوسط السعر' : 'vs Av Price'}` : ''}
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">BEST RESTOCK</div>
-          <div className="kpi-val good">{snapshot.bestBuy?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub good">
-            {snapshot.bestBuy && snapshot.bestBuy < avPrice ? '✓ Below Av Price' : ''}
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'أفضل شراء' : 'BEST RESTOCK'}</div>
+          <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
+          <div className="kpi-sub" style={{ color: 'var(--good)' }}>
+            {snapshot.bestBuy && snapshot.bestBuy < avPrice ? (t.lang === 'ar' ? '✓ أقل من متوسط السعر' : '✓ Below Av Price') : ''}
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">PROFIT IF SOLD NOW</div>
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'الربح إذا بعت الآن' : 'PROFIT IF SOLD NOW'}</div>
           <div className="kpi-val" style={{ color: profitIfSold && profitIfSold > 0 ? 'var(--good)' : 'var(--bad)' }}>
-            {profitIfSold != null ? `${profitIfSold > 0 ? '+' : ''}${profitIfSold} QAR` : '—'}
+            {profitIfSold != null ? `${profitIfSold > 0 ? '+' : ''}${profitIfSold} ${ccy}` : '—'}
           </div>
-          <div className="kpi-sub">{userStock.toLocaleString()} USDT @ market</div>
+          <div className="kpi-sub">{userStock.toLocaleString()} USDT @ {t.lang === 'ar' ? 'السوق' : 'market'}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">TODAY HIGH SELL</div>
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'أعلى بيع اليوم' : 'TODAY HIGH SELL'}</div>
           <div className="kpi-val">{todaySummary?.highSell.toFixed(2) || '—'}</div>
           <div className="kpi-sub">
-            Low {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} polls
+            {t.lang === 'ar' ? 'أدنى' : 'Low'} {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} {t.lang === 'ar' ? 'استطلاع' : 'polls'}
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">TODAY LOW BUY</div>
-          <div className="kpi-val bad">{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
+          <div className="kpi-lbl">{t.lang === 'ar' ? 'أدنى شراء اليوم' : 'TODAY LOW BUY'}</div>
+          <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
+          <div className="kpi-sub">{t.lang === 'ar' ? 'أعلى' : 'High'} {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
         </div>
       </div>
 
@@ -235,13 +252,15 @@ export default function P2PTrackerPage() {
         {/* Price History — 24h only */}
         <div className="panel">
           <div className="panel-head">
-            <h2>📊 Price History</h2>
-            <span className="pill">{last24hHistory.length} pts · 24h</span>
+            <h2>📊 {t.lang === 'ar' ? 'سجل الأسعار' : 'Price History'}</h2>
+            <span className="pill">{last24hHistory.length} {t.lang === 'ar' ? 'نقطة' : 'pts'} · 24h</span>
           </div>
           <div className="panel-body">
-            {/* SELL AVG bars */}
+            {/* SELL AVG bars — RED for sell */}
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>SELL AVG</div>
+              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
+                {t.lang === 'ar' ? 'متوسط البيع' : 'SELL AVG'}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1, height: 28 }}>
                   {priceBarData.map((pt, i) => {
@@ -249,17 +268,19 @@ export default function P2PTrackerPage() {
                     const maxS = Math.max(...priceBarData.map(p => p.sellAvg ?? 3.85));
                     const range = maxS - minS || 0.01;
                     const h = 6 + ((pt.sellAvg ?? minS) - minS) / range * 22;
-                    return <div key={i} style={{ flex: 1, minWidth: 2, height: h, background: 'var(--good)', borderRadius: 1, opacity: 0.8 }} />;
+                    return <div key={i} style={{ flex: 1, minWidth: 2, height: h, background: 'var(--bad)', borderRadius: 1, opacity: 0.8 }} />;
                   })}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--good)', minWidth: 40, textAlign: 'right' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bad)', minWidth: 40, textAlign: 'right' }}>
                   {snapshot.sellAvg?.toFixed(1)}
                 </span>
               </div>
             </div>
-            {/* BUY AVG bars */}
+            {/* BUY AVG bars — GREEN for buy */}
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>BUY AVG</div>
+              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
+                {t.lang === 'ar' ? 'متوسط الشراء' : 'BUY AVG'}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1, height: 28 }}>
                   {priceBarData.map((pt, i) => {
@@ -277,11 +298,11 @@ export default function P2PTrackerPage() {
             </div>
             {/* Change badges */}
             <div style={{ display: 'flex', gap: 6 }}>
-              <span className={`pill ${sellChange >= 0 ? 'good' : 'bad'}`}>
-                Sell {sellChange >= 0 ? '+' : ''}{sellChange.toFixed(3)}
+              <span className={`pill ${sellChange >= 0 ? 'bad' : 'good'}`}>
+                {t.lang === 'ar' ? 'بيع' : 'Sell'} {sellChange >= 0 ? '+' : ''}{sellChange.toFixed(3)}
               </span>
-              <span className={`pill ${buyChange >= 0 ? 'good' : 'bad'}`}>
-                Buy {buyChange >= 0 ? '+' : ''}{buyChange.toFixed(3)}
+              <span className={`pill ${buyChange <= 0 ? 'good' : 'bad'}`}>
+                {t.lang === 'ar' ? 'شراء' : 'Buy'} {buyChange >= 0 ? '+' : ''}{buyChange.toFixed(3)}
               </span>
             </div>
           </div>
@@ -290,44 +311,44 @@ export default function P2PTrackerPage() {
         {/* Position Advisor */}
         <div className="panel">
           <div className="panel-head">
-            <h2>🎯 Position Advisor</h2>
-            <button className="btn" style={{ fontSize: 10, padding: '3px 10px' }}>Monitor</button>
+            <h2>🎯 {t.lang === 'ar' ? 'مستشار المركز' : 'Position Advisor'}</h2>
+            <button className="btn" style={{ fontSize: 10, padding: '3px 10px' }}>{t.lang === 'ar' ? 'مراقبة' : 'Monitor'}</button>
           </div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid var(--line)' }}>
-              <span className="muted" style={{ fontSize: 11 }}>Your Av Price</span>
-              <span style={{ fontWeight: 800, fontSize: 14 }}>{avPrice.toFixed(4)} QAR</span>
+              <span className="muted" style={{ fontSize: 11 }}>{t.lang === 'ar' ? 'متوسط سعرك' : 'Your Av Price'}</span>
+              <span style={{ fontWeight: 800, fontSize: 14 }}>{avPrice.toFixed(4)} {ccy}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid var(--line)' }}>
-              <span className="muted" style={{ fontSize: 11 }}>Target ({targetMargin}% margin)</span>
-              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--good)' }}>{targetPrice.toFixed(5)} QAR</span>
+              <span className="muted" style={{ fontSize: 11 }}>{t.lang === 'ar' ? `الهدف (هامش ${targetMargin}%)` : `Target (${targetMargin}% margin)`}</span>
+              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--good)' }}>{targetPrice.toFixed(5)} {ccy}</span>
             </div>
 
             {isBelowTarget && (
               <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--warn) 40%, transparent)', background: 'color-mix(in srgb, var(--warn) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--warn)' }}>⚠ Hold — below target</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Gap: {gap.toFixed(5)} · need {targetPrice.toFixed(5)}</div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--warn)' }}>⚠ {t.lang === 'ar' ? 'انتظر — أقل من الهدف' : 'Hold — below target'}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'الفجوة' : 'Gap'}: {gap.toFixed(5)} · {t.lang === 'ar' ? 'تحتاج' : 'need'} {targetPrice.toFixed(5)}</div>
               </div>
             )}
             {!isBelowTarget && (
               <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--good) 40%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ Above target — sell opportunity</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Sell avg {sellAvg.toFixed(3)} &gt; target {targetPrice.toFixed(5)}</div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ {t.lang === 'ar' ? 'فوق الهدف — فرصة بيع' : 'Above target — sell opportunity'}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'متوسط البيع' : 'Sell avg'} {sellAvg.toFixed(3)} &gt; {t.lang === 'ar' ? 'الهدف' : 'target'} {targetPrice.toFixed(5)}</div>
               </div>
             )}
             {isGoodRestock && (
               <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--good) 40%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ Good restock opportunity</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Buy avg {buyAvg.toFixed(3)} &lt; Av Price — improves cost base</div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ {t.lang === 'ar' ? 'فرصة تعبئة جيدة' : 'Good restock opportunity'}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'متوسط الشراء' : 'Buy avg'} {buyAvg.toFixed(3)} &lt; {t.lang === 'ar' ? 'متوسط السعر — يحسن قاعدة التكلفة' : 'Av Price — improves cost base'}</div>
               </div>
             )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
               <button className="btn" style={{ justifyContent: 'center' }} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
-                Apply Sell Rate
+                {t.lang === 'ar' ? 'تطبيق سعر البيع' : 'Apply Sell Rate'}
               </button>
               <button className="btn secondary" style={{ justifyContent: 'center' }} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>
-                Apply Buy Rate
+                {t.lang === 'ar' ? 'تطبيق سعر الشراء' : 'Apply Buy Rate'}
               </button>
             </div>
           </div>
@@ -336,22 +357,22 @@ export default function P2PTrackerPage() {
 
       {/* ── Sell Offers + Restock Offers (2 col) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        {/* Sell Offers */}
+        {/* Sell Offers — RED color theme */}
         <div className="panel">
           <div className="panel-head">
-            <h2 style={{ color: 'var(--good)' }}>↑ Sell Offers</h2>
-            <span className="pill good">Highest first · ✓ fits your stock</span>
+            <h2 style={{ color: 'var(--bad)' }}>↑ {t.lang === 'ar' ? 'عروض البيع' : 'Sell Offers'}</h2>
+            <span className="pill bad">{t.lang === 'ar' ? 'الأعلى أولاً · ✓ يناسب مخزونك' : 'Highest first · ✓ fits your stock'}</span>
           </div>
           <div className="panel-body" style={{ padding: 0 }}>
             <div className="tableWrap">
               <table>
                 <thead>
                   <tr>
-                    <th>TRADER</th>
-                    <th>PRICE</th>
-                    <th>MIN</th>
-                    <th>MAX</th>
-                    <th>METHODS</th>
+                    <th>{t.lang === 'ar' ? 'التاجر' : 'TRADER'}</th>
+                    <th>{t.lang === 'ar' ? 'السعر' : 'PRICE'}</th>
+                    <th>{t.lang === 'ar' ? 'الحد الأدنى' : 'MIN'}</th>
+                    <th>{t.lang === 'ar' ? 'الحد الأقصى' : 'MAX'}</th>
+                    <th>{t.lang === 'ar' ? 'الطرق' : 'METHODS'}</th>
                     <th>✓</th>
                   </tr>
                 </thead>
@@ -366,9 +387,9 @@ export default function P2PTrackerPage() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 800, color: 'var(--good)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
+                            <span style={{ fontWeight: 800, color: 'var(--bad)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
                             <div style={{ width: 50, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-                              <div style={{ width: `${depthPct}%`, height: '100%', background: 'var(--good)', borderRadius: 3 }} />
+                              <div style={{ width: `${depthPct}%`, height: '100%', background: 'var(--bad)', borderRadius: 3 }} />
                             </div>
                           </div>
                         </td>
@@ -387,22 +408,22 @@ export default function P2PTrackerPage() {
           </div>
         </div>
 
-        {/* Restock Offers */}
+        {/* Restock Offers — GREEN color theme */}
         <div className="panel">
           <div className="panel-head">
-            <h2 style={{ color: 'var(--bad)' }}>↓ Restock Offers</h2>
-            <span className="pill bad">Cheapest first · ✓ fits your cash</span>
+            <h2 style={{ color: 'var(--good)' }}>↓ {t.lang === 'ar' ? 'عروض الشراء' : 'Restock Offers'}</h2>
+            <span className="pill good">{t.lang === 'ar' ? 'الأرخص أولاً · ✓ يناسب رصيدك' : 'Cheapest first · ✓ fits your cash'}</span>
           </div>
           <div className="panel-body" style={{ padding: 0 }}>
             <div className="tableWrap">
               <table>
                 <thead>
                   <tr>
-                    <th>TRADER</th>
-                    <th>PRICE</th>
-                    <th>MIN</th>
-                    <th>MAX</th>
-                    <th>METHODS</th>
+                    <th>{t.lang === 'ar' ? 'التاجر' : 'TRADER'}</th>
+                    <th>{t.lang === 'ar' ? 'السعر' : 'PRICE'}</th>
+                    <th>{t.lang === 'ar' ? 'الحد الأدنى' : 'MIN'}</th>
+                    <th>{t.lang === 'ar' ? 'الحد الأقصى' : 'MAX'}</th>
+                    <th>{t.lang === 'ar' ? 'الطرق' : 'METHODS'}</th>
                     <th>✓</th>
                   </tr>
                 </thead>
@@ -419,9 +440,9 @@ export default function P2PTrackerPage() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 800, color: 'var(--bad)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
+                            <span style={{ fontWeight: 800, color: 'var(--good)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
                             <div style={{ width: 50, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-                              <div style={{ width: `${100 - depthPct}%`, height: '100%', background: 'var(--bad)', borderRadius: 3 }} />
+                              <div style={{ width: `${100 - depthPct}%`, height: '100%', background: 'var(--good)', borderRadius: 3 }} />
                             </div>
                           </div>
                         </td>
@@ -444,23 +465,23 @@ export default function P2PTrackerPage() {
       {/* ── Calculator ── */}
       <div className="panel" style={{ marginBottom: 10 }}>
         <div className="panel-head">
-          <h2>🧮 Calculator</h2>
+          <h2>🧮 {t.lang === 'ar' ? 'الآلة الحاسبة' : 'Calculator'}</h2>
           <div className="modeToggle">
-            <button className={calcMode === 'sell' ? 'active' : ''} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>Sell</button>
-            <button className={calcMode === 'buy' ? 'active' : ''} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>Buy</button>
-            <button className={calcMode === 'target' ? 'active' : ''} onClick={() => { setCalcMode('target'); setCalcRate(targetPrice.toFixed(4)); }}>Target</button>
+            <button className={calcMode === 'sell' ? 'active' : ''} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>{t.lang === 'ar' ? 'بيع' : 'Sell'}</button>
+            <button className={calcMode === 'buy' ? 'active' : ''} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>{t.lang === 'ar' ? 'شراء' : 'Buy'}</button>
+            <button className={calcMode === 'target' ? 'active' : ''} onClick={() => { setCalcMode('target'); setCalcRate(targetPrice.toFixed(4)); }}>{t.lang === 'ar' ? 'مستهدف' : 'Target'}</button>
           </div>
         </div>
         <div className="panel-body">
           <div className="g2tight" style={{ marginBottom: 8 }}>
             <div className="field2">
-              <span className="lbl">Amount (USDT)</span>
+              <span className="lbl">{t.lang === 'ar' ? 'المبلغ (USDT)' : 'Amount (USDT)'}</span>
               <div className="inputBox">
                 <input type="number" value={calcAmount} onChange={e => setCalcAmount(e.target.value)} placeholder="1000" />
               </div>
             </div>
             <div className="field2">
-              <span className="lbl">Rate (QAR)</span>
+              <span className="lbl">{t.lang === 'ar' ? `السعر (${ccy})` : `Rate (${ccy})`}</span>
               <div className="inputBox">
                 <input type="number" step="0.001" value={calcRate} onChange={e => setCalcRate(e.target.value)} placeholder="3.80" />
               </div>
@@ -468,8 +489,8 @@ export default function P2PTrackerPage() {
           </div>
           {calcResult && (
             <div className="bannerRow">
-              <span className="bLbl">{calcMode === 'buy' ? 'Cost' : 'Revenue'}</span>
-              <span className="bVal">{calcResult.qar.toFixed(2)} QAR</span>
+              <span className="bLbl">{calcMode === 'buy' ? (t.lang === 'ar' ? 'التكلفة' : 'Cost') : (t.lang === 'ar' ? 'الإيراد' : 'Revenue')}</span>
+              <span className="bVal">{calcResult.qar.toFixed(2)} {ccy}</span>
               <span className="bSpacer" />
               <span className="bPill">@ {calcResult.rate.toFixed(3)}</span>
             </div>
@@ -480,7 +501,7 @@ export default function P2PTrackerPage() {
       {/* ── Historical Averages (collapsible) ── */}
       <div className="panel">
         <div className="panel-head" style={{ cursor: 'pointer' }} onClick={() => setShowHistory(!showHistory)}>
-          <h2>📅 Historical Averages</h2>
+          <h2>📅 {t.lang === 'ar' ? 'المتوسطات التاريخية' : 'Historical Averages'}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showHistory && (
               <div className="tracker-seg">
@@ -488,7 +509,7 @@ export default function P2PTrackerPage() {
                 <button className={historyRange === '15d' ? 'active' : ''} onClick={e => { e.stopPropagation(); setHistoryRange('15d'); }}>15D</button>
               </div>
             )}
-            <span className="pill">{showHistory ? '▼' : '▶'} {filteredSummaries.length} days</span>
+            <span className="pill">{showHistory ? '▼' : '▶'} {filteredSummaries.length} {t.lang === 'ar' ? 'يوم' : 'days'}</span>
           </div>
         </div>
         {showHistory && (
@@ -497,15 +518,15 @@ export default function P2PTrackerPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>DATE</th>
-                    <th>SELL HIGH</th>
-                    <th>SELL LOW</th>
-                    <th>SELL AVG</th>
-                    <th>BUY HIGH</th>
-                    <th>BUY LOW</th>
-                    <th>BUY AVG</th>
-                    <th>SPREAD</th>
-                    <th>POLLS</th>
+                    <th>{t.lang === 'ar' ? 'التاريخ' : 'DATE'}</th>
+                    <th>{t.lang === 'ar' ? 'أعلى بيع' : 'SELL HIGH'}</th>
+                    <th>{t.lang === 'ar' ? 'أدنى بيع' : 'SELL LOW'}</th>
+                    <th>{t.lang === 'ar' ? 'متوسط بيع' : 'SELL AVG'}</th>
+                    <th>{t.lang === 'ar' ? 'أعلى شراء' : 'BUY HIGH'}</th>
+                    <th>{t.lang === 'ar' ? 'أدنى شراء' : 'BUY LOW'}</th>
+                    <th>{t.lang === 'ar' ? 'متوسط شراء' : 'BUY AVG'}</th>
+                    <th>{t.lang === 'ar' ? 'الفارق' : 'SPREAD'}</th>
+                    <th>{t.lang === 'ar' ? 'استطلاعات' : 'POLLS'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -516,12 +537,12 @@ export default function P2PTrackerPage() {
                     return (
                       <tr key={d.date}>
                         <td className="mono">{d.date}</td>
-                        <td className="mono r good">{d.highSell.toFixed(3)}</td>
-                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--good) 60%, var(--muted))' }}>{d.lowSell?.toFixed(3) ?? '—'}</td>
-                        <td className="mono r good" style={{ fontWeight: 800 }}>{avgSell.toFixed(3)}</td>
-                        <td className="mono r bad">{d.highBuy.toFixed(3)}</td>
-                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--bad) 60%, var(--muted))' }}>{d.lowBuy?.toFixed(3) ?? '—'}</td>
-                        <td className="mono r bad" style={{ fontWeight: 800 }}>{avgBuy.toFixed(3)}</td>
+                        <td className="mono r bad">{d.highSell.toFixed(3)}</td>
+                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--bad) 60%, var(--muted))' }}>{d.lowSell?.toFixed(3) ?? '—'}</td>
+                        <td className="mono r bad" style={{ fontWeight: 800 }}>{avgSell.toFixed(3)}</td>
+                        <td className="mono r good">{d.highBuy.toFixed(3)}</td>
+                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--good) 60%, var(--muted))' }}>{d.lowBuy?.toFixed(3) ?? '—'}</td>
+                        <td className="mono r good" style={{ fontWeight: 800 }}>{avgBuy.toFixed(3)}</td>
                         <td className="mono r warn">{spread.toFixed(3)}</td>
                         <td className="mono r muted">{d.polls}</td>
                       </tr>

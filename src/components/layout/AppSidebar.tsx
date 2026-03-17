@@ -49,7 +49,7 @@ export function AppSidebar() {
       dir={t.isRTL ? 'rtl' : 'ltr'}
       className={cn(
         'h-screen flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
+        collapsed ? 'w-14' : 'w-52'
       )}
     >
       {/* Header */}

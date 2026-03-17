@@ -1,25 +1,63 @@
 // ─── P2P Demo Data Generator ─────────────────────────────────────
-// Generates realistic USDT/QAR price history matching
+// Generates realistic USDT price history matching
 // the source repo's Binance P2P scraper output format.
-// Extended to support 7d and 15d history.
+// Supports Qatar (QAR), UAE (AED), Egypt (EGP) markets.
 
 import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
 
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const HISTORY_DAYS = 15; // Generate 15 days for full range support
-const HISTORY_POINTS = (60 / 5) * 24 * HISTORY_DAYS; // 4320
+const POLL_INTERVAL_MS = 5 * 60 * 1000;
+const HISTORY_DAYS = 15;
+const HISTORY_POINTS = (60 / 5) * 24 * HISTORY_DAYS;
 
-const NICKS = [
+const NICKS_QA = [
   'NEWTECHD...', 'Issasalim', 'يو-خيد', 'GuinueineBoy',
   'ENG_ABDULLA', 'TAMIM_A7MED', 'EXCHANGE-R...', 'm7md1912',
   'HectorSrk', 'CRYPTOknightt16', 'AL-ISHFA -CRYP...', 'SMAK5',
   'QatarOTC', 'AhmedTrader', 'GulfExchange', 'DohaP2P',
 ];
 
-const METHODS = [
+const NICKS_AE = [
+  'DubaiOTC', 'UAE_Exchange', 'CryptoAbuDhabi', 'SharjahTrader',
+  'GulfP2P', 'AjmanCrypto', 'EmiratesOTC', 'DXBTrader',
+  'AlAinExchange', 'FujairahP2P', 'RAKTrader', 'UAEKnight',
+];
+
+const NICKS_EG = [
+  'CairoOTC', 'NileTrader', 'EgyptP2P', 'AlexExchange',
+  'GizaCrypto', 'MasrTrader', 'CairoKnight', 'NileCrypto',
+  'PyramidOTC', 'SuezTrader', 'LuxorP2P', 'AssiutExchange',
+];
+
+const METHODS_QA = [
   'Bank Transfer', 'Qatar National Bank QNB', 'Cash app', 'M Pay',
   'CB Pay', 'Cashpack', 'Qatar Islamic Bank QIB', 'Vodafone Cash',
 ];
+
+const METHODS_AE = [
+  'Bank Transfer', 'Emirates NBD', 'ADCB', 'FAB',
+  'Cash in Person', 'Mashreq Bank', 'DIB', 'RAKBANK',
+];
+
+const METHODS_EG = [
+  'Bank Transfer', 'CIB', 'Banque Misr', 'National Bank of Egypt',
+  'Vodafone Cash', 'Orange Cash', 'InstaPay', 'Fawry',
+];
+
+interface MarketConfig {
+  nicks: string[];
+  methods: string[];
+  baseSell: number;
+  baseBuy: number;
+  minSell: number;
+  maxSell: number;
+  seed: number;
+}
+
+const MARKET_CONFIGS: Record<string, MarketConfig> = {
+  qatar: { nicks: NICKS_QA, methods: METHODS_QA, baseSell: 3.79, baseBuy: 3.72, minSell: 3.75, maxSell: 3.85, seed: 42 },
+  uae: { nicks: NICKS_AE, methods: METHODS_AE, baseSell: 3.68, baseBuy: 3.62, minSell: 3.63, maxSell: 3.73, seed: 99 },
+  egypt: { nicks: NICKS_EG, methods: METHODS_EG, baseSell: 49.5, baseBuy: 48.8, minSell: 48.0, maxSell: 51.0, seed: 77 },
+};
 
 function seededRandom(seed: number): () => number {
   let s = seed;
@@ -29,30 +67,30 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-function generateOffers(rng: () => number, side: 'sell' | 'buy', basePrice: number): P2POffer[] {
+function generateOffers(rng: () => number, side: 'sell' | 'buy', basePrice: number, config: MarketConfig): P2POffer[] {
   const count = 8 + Math.floor(rng() * 5);
   const offers: P2POffer[] = [];
+  const spreadFactor = basePrice > 10 ? 0.5 : 0.03;
   for (let i = 0; i < count; i++) {
     const offset = side === 'sell'
-      ? basePrice + (rng() * 0.03 - 0.005)
-      : basePrice - (rng() * 0.03 - 0.005);
+      ? basePrice + (rng() * spreadFactor - spreadFactor * 0.15)
+      : basePrice - (rng() * spreadFactor - spreadFactor * 0.15);
     const price = Math.round(offset * 100) / 100;
     const methodCount = 1 + Math.floor(rng() * 3);
     const methods: string[] = [];
     for (let m = 0; m < methodCount; m++) {
-      const method = METHODS[Math.floor(rng() * METHODS.length)];
+      const method = config.methods[Math.floor(rng() * config.methods.length)];
       if (!methods.includes(method)) methods.push(method);
     }
     offers.push({
       price,
       min: Math.round((100 + rng() * 5000) / 10) * 10,
       max: Math.round((3000 + rng() * 75000) / 100) * 100,
-      nick: NICKS[Math.floor(rng() * NICKS.length)],
+      nick: config.nicks[Math.floor(rng() * config.nicks.length)],
       methods,
       available: Math.round((500 + rng() * 15000) * 100) / 100,
     });
   }
-  // Sort: sell = highest first (best for seller), buy = lowest first (best for buyer/restocking)
   offers.sort((a, b) => side === 'sell' ? b.price - a.price : a.price - b.price);
   return offers;
 }
@@ -69,24 +107,28 @@ function computeStats(offers: P2POffer[], side: 'sell' | 'buy') {
   return { avg, best, depth };
 }
 
-export function generateP2PHistory(): { snapshot: P2PSnapshot; history: P2PHistoryPoint[] } {
-  const rng = seededRandom(42);
+export function generateP2PHistory(market: string = 'qatar'): { snapshot: P2PSnapshot; history: P2PHistoryPoint[] } {
+  const config = MARKET_CONFIGS[market] || MARKET_CONFIGS.qatar;
+  const rng = seededRandom(config.seed);
   const now = Date.now();
   const startTs = now - HISTORY_DAYS * 24 * 60 * 60 * 1000;
 
   const history: P2PHistoryPoint[] = [];
-  let baseSell = 3.79;
-  let baseBuy = 3.72;
+  let baseSell = config.baseSell;
+  let baseBuy = config.baseBuy;
+  const driftScale = baseSell > 10 ? 0.05 : 0.002;
+  const noiseScale = baseSell > 10 ? 0.3 : 0.015;
+  const spreadBase = baseSell > 10 ? 1.2 : 0.06;
 
   for (let i = 0; i < HISTORY_POINTS; i++) {
     const ts = startTs + i * POLL_INTERVAL_MS;
     const hourOfDay = new Date(ts).getHours();
-    const dayFactor = Math.sin((hourOfDay - 6) * Math.PI / 12) * 0.005;
-    const noise = (rng() - 0.5) * 0.015;
-    const drift = (rng() - 0.5) * 0.002;
+    const dayFactor = Math.sin((hourOfDay - 6) * Math.PI / 12) * (baseSell > 10 ? 0.1 : 0.005);
+    const noise = (rng() - 0.5) * noiseScale;
+    const drift = (rng() - 0.5) * driftScale;
 
-    baseSell = Math.max(3.75, Math.min(3.85, baseSell + drift + dayFactor * 0.1));
-    baseBuy = baseSell - 0.06 - rng() * 0.02;
+    baseSell = Math.max(config.minSell, Math.min(config.maxSell, baseSell + drift + dayFactor * 0.1));
+    baseBuy = baseSell - spreadBase - rng() * (spreadBase * 0.3);
 
     const sellAvg = Math.round((baseSell + noise) * 1000) / 1000;
     const buyAvg = Math.round((baseBuy + noise * 0.8) * 1000) / 1000;
@@ -96,10 +138,9 @@ export function generateP2PHistory(): { snapshot: P2PSnapshot; history: P2PHisto
     history.push({ ts, sellAvg, buyAvg, spread, spreadPct });
   }
 
-  // Latest snapshot with full offer books
   const latest = history[history.length - 1];
-  const sellOffers = generateOffers(rng, 'sell', latest.sellAvg!);
-  const buyOffers = generateOffers(rng, 'buy', latest.buyAvg!);
+  const sellOffers = generateOffers(rng, 'sell', latest.sellAvg!, config);
+  const buyOffers = generateOffers(rng, 'buy', latest.buyAvg!, config);
   const sellStats = computeStats(sellOffers, 'sell');
   const buyStats = computeStats(buyOffers, 'buy');
 
@@ -123,7 +164,6 @@ export function generateP2PHistory(): { snapshot: P2PSnapshot; history: P2PHisto
   return { snapshot, history };
 }
 
-/** Compute daily high/low summary from history */
 export interface P2PDaySummary {
   date: string;
   highSell: number;
