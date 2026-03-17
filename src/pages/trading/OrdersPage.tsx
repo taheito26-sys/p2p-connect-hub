@@ -61,10 +61,12 @@ export default function OrdersPage() {
   const [linkedRelId, setLinkedRelId] = useState('');
   const [linkedDealId, setLinkedDealId] = useState('');
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
+  const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
 
   useEffect(() => {
     api.relationships.list().then(r => setRelationships(r.relationships)).catch(() => {});
+    api.deals.list().then(r => setAllMerchantDeals(r.deals)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -176,7 +178,11 @@ export default function OrdersPage() {
       nextCustomers = ensured.customers;
     } else { customerId = ''; }
 
-    const trade: Trade = { id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId };
+    const trade: Trade = {
+      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      linkedDealId: linkedDealId || undefined,
+      linkedRelId: linkedRelId || undefined,
+    };
     const next: TrackerState = { ...state, customers: nextCustomers, trades: [...state.trades, trade], range: inRange(ts, state.range) ? state.range : 'all' };
     applyState(next);
 
@@ -317,9 +323,40 @@ export default function OrdersPage() {
                     const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
                     const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                    const isMerchantOrder = !!(tr.linkedDealId || tr.linkedRelId);
+                    const linkedDeal = isMerchantOrder ? allMerchantDeals.find(d => d.id === tr.linkedDealId) : null;
+                    const linkedRel = isMerchantOrder ? relationships.find(r => r.id === tr.linkedRelId) : null;
+                    const dealCfg = linkedDeal ? DEAL_TYPE_CONFIGS[linkedDeal.deal_type] : null;
+                    const dealCustomerName = linkedDeal?.metadata?.customer_name as string | undefined;
+                    const dealSupplierName = linkedDeal?.metadata?.supplier_name as string | undefined;
                     return (
-                      <tr key={tr.id}>
-                        <td><div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0 }}><span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>{!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}</div></td>
+                      <tr key={tr.id} style={isMerchantOrder ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                        <td>
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
+                            <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
+                            {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
+                            {isMerchantOrder && (
+                              <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)', fontWeight: 700, letterSpacing: '.3px' }}>
+                                {t('merchantOrder')}
+                              </span>
+                            )}
+                          </div>
+                          {isMerchantOrder && linkedDeal && (
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 600 }}>{dealCfg?.icon} {linkedDeal.title}</span>
+                              {linkedRel?.counterparty?.display_name && (
+                                <span className="pill" style={{ fontSize: 8 }}>🤝 {linkedRel.counterparty.display_name}</span>
+                              )}
+                              {dealCfg?.hasCounterpartyShare && (
+                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                                  {t('capitalShared')}
+                                </span>
+                              )}
+                              {dealCustomerName && <span style={{ fontSize: 8 }}>👤 {dealCustomerName}</span>}
+                              {dealSupplierName && <span style={{ fontSize: 8 }}>📦 {dealSupplierName}</span>}
+                            </div>
+                          )}
+                        </td>
                         <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                         <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                         <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
@@ -343,6 +380,49 @@ export default function OrdersPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ─── MERCHANT DEALS CONTEXT PANEL ─── */}
+          {allMerchantDeals.length > 0 && (
+            <div className="panel" style={{ marginTop: 12 }}>
+              <div className="panel-head">
+                <h2>🤝 {t('merchantDealsInOrders')}</h2>
+                <span className="pill">{allMerchantDeals.filter(d => ['active', 'due'].includes(d.status)).length} {t('activeDeals')}</span>
+              </div>
+              <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).map(deal => {
+                  const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                  const rel = relationships.find(r => r.id === deal.relationship_id);
+                  const custName = deal.metadata?.customer_name as string | undefined;
+                  const suppName = deal.metadata?.supplier_name as string | undefined;
+                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
+                  return (
+                    <div key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span>{cfg?.icon}</span>
+                        <span style={{ fontWeight: 700, fontSize: 11 }}>{deal.title}</span>
+                        <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
+                        {cfg?.hasCounterpartyShare && (
+                          <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                            {t('capitalShared')}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 9, color: 'var(--muted)' }}>
+                        <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>${deal.amount.toLocaleString()} {deal.currency}</strong></span>
+                        {rel?.counterparty?.display_name && <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--t1)' }}>{rel.counterparty.display_name}</strong></span>}
+                        {custName && <span>👤 {custName}</span>}
+                        {suppName && <span>📦 {suppName}</span>}
+                        <span>{t('orders')}: <strong style={{ color: 'var(--t1)' }}>{linkedOrderCount}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).length === 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
+                )}
+              </div>
             </div>
           )}
         </div>
