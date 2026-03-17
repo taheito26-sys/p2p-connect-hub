@@ -396,7 +396,190 @@ const PULSE: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, AURORA, CARBON, PRISM, PULSE];
+// ═══ SOLID ADVISORY — Clean structured consulting ═══
+const SOLID_ADVISORY: LayoutDef = {
+  id: 'solid_advisory', name: 'Solid Advisory', desc: 'Structured consulting · professional',
+  font: 'DM Sans', fontMono: 'JetBrains Mono',
+  radius: '8px', radiusSm: '4px', radiusLg: '12px',
+  shadow: '0 1px 3px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.04)',
+  swatches: ['#f7f8fa','#1a365d','#2b6cb0','#276749','#c53030','#dd6b20','#2c5282','#2d3748'],
+  themes: {
+    t1: { // Navy Professional
+      bg:'#f7f8fa', panel:'#ffffff', panel2:'#edf2f7', panel3:'#e2e8f0',
+      text:'#1a202c', muted:'#4a5568', muted2:'#a0aec0',
+      line:'rgba(26,54,93,.08)', line2:'rgba(26,54,93,.04)',
+      brand:'#1a365d', brand2:'#2b6cb0', brand3:'rgba(26,54,93,.08)',
+      good:'#276749', bad:'#c53030', warn:'#dd6b20',
+      sidebarBg:'#1a365d', topbarBg:'rgba(247,248,250,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(26,54,93,.03)',
+      hoverCard:'rgba(26,54,93,.03)', glow:'rgba(43,108,176,.12)',
+    },
+    t2: { // Warm Stone
+      bg:'#faf9f7', panel:'#ffffff', panel2:'#f5f0eb', panel3:'#ebe0d5',
+      text:'#2d2319', muted:'#6b5c4d', muted2:'#a89b8c',
+      line:'rgba(45,35,25,.08)', line2:'rgba(45,35,25,.04)',
+      brand:'#7b5e3b', brand2:'#a37840', brand3:'rgba(123,94,59,.08)',
+      good:'#2f6846', bad:'#c53030', warn:'#b7791f',
+      sidebarBg:'#3d2e1e', topbarBg:'rgba(250,249,247,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(123,94,59,.03)',
+      hoverCard:'rgba(123,94,59,.03)', glow:'rgba(163,120,64,.12)',
+    },
+    t3: { // Forest Advisory
+      bg:'#f4f7f5', panel:'#ffffff', panel2:'#e6f0ea', panel3:'#d0e4d8',
+      text:'#1a2e22', muted:'#3d6b50', muted2:'#7aab90',
+      line:'rgba(26,46,34,.08)', line2:'rgba(26,46,34,.04)',
+      brand:'#1e5a3a', brand2:'#2f8a5a', brand3:'rgba(30,90,58,.08)',
+      good:'#276749', bad:'#c53030', warn:'#dd6b20',
+      sidebarBg:'#1a3328', topbarBg:'rgba(244,247,245,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(30,90,58,.03)',
+      hoverCard:'rgba(30,90,58,.03)', glow:'rgba(47,138,90,.12)',
+    },
+    t4: { // Slate Corp
+      bg:'#f8f9fb', panel:'#ffffff', panel2:'#eef1f6', panel3:'#dde3ed',
+      text:'#1e2a3a', muted:'#506278', muted2:'#8a9ab0',
+      line:'rgba(30,42,58,.08)', line2:'rgba(30,42,58,.04)',
+      brand:'#3a506b', brand2:'#5a7aa0', brand3:'rgba(58,80,107,.08)',
+      good:'#276749', bad:'#c53030', warn:'#dd6b20',
+      sidebarBg:'#283848', topbarBg:'rgba(248,249,251,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(58,80,107,.03)',
+      hoverCard:'rgba(58,80,107,.03)', glow:'rgba(90,122,160,.12)',
+    },
+    t5: { // Charcoal
+      bg:'#f5f5f5', panel:'#ffffff', panel2:'#ebebeb', panel3:'#d9d9d9',
+      text:'#1a1a1a', muted:'#555555', muted2:'#999999',
+      line:'rgba(0,0,0,.07)', line2:'rgba(0,0,0,.04)',
+      brand:'#333333', brand2:'#555555', brand3:'rgba(51,51,51,.08)',
+      good:'#276749', bad:'#c53030', warn:'#dd6b20',
+      sidebarBg:'#1a1a1a', topbarBg:'rgba(245,245,245,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(0,0,0,.02)',
+      hoverCard:'rgba(0,0,0,.02)', glow:'rgba(85,85,85,.1)',
+    },
+  },
+};
+
+// ═══ EDITORIAL FINANCE — Report-like editorial style ═══
+const EDITORIAL_FINANCE: LayoutDef = {
+  id: 'editorial_finance', name: 'Editorial Finance', desc: 'Editorial report · narrative',
+  font: 'Space Grotesk', fontMono: 'JetBrains Mono',
+  radius: '3px', radiusSm: '2px', radiusLg: '6px',
+  shadow: '0 1px 2px rgba(0,0,0,.05)',
+  swatches: ['#fefdfb','#1b1b1b','#8b0000','#004d40','#bf360c','#1a237e','#4a148c','#e65100'],
+  themes: {
+    t1: { // Classic Editorial
+      bg:'#fefdfb', panel:'#ffffff', panel2:'#f8f5f0', panel3:'#f0ebe3',
+      text:'#1b1b1b', muted:'#5c5c5c', muted2:'#9a9a9a',
+      line:'rgba(27,27,27,.1)', line2:'rgba(27,27,27,.05)',
+      brand:'#1b1b1b', brand2:'#3a3a3a', brand3:'rgba(27,27,27,.06)',
+      good:'#004d40', bad:'#8b0000', warn:'#bf360c',
+      sidebarBg:'#1b1b1b', topbarBg:'rgba(254,253,251,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(27,27,27,.03)',
+      hoverCard:'rgba(27,27,27,.02)', glow:'rgba(58,58,58,.08)',
+    },
+    t2: { // Burgundy Report
+      bg:'#fdf8f6', panel:'#ffffff', panel2:'#f5ebe6', panel3:'#ecddd5',
+      text:'#2a1515', muted:'#6b4040', muted2:'#a87878',
+      line:'rgba(139,0,0,.08)', line2:'rgba(139,0,0,.04)',
+      brand:'#8b0000', brand2:'#b71c1c', brand3:'rgba(139,0,0,.06)',
+      good:'#004d40', bad:'#6d0000', warn:'#bf360c',
+      sidebarBg:'#3c1010', topbarBg:'rgba(253,248,246,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(139,0,0,.03)',
+      hoverCard:'rgba(139,0,0,.02)', glow:'rgba(183,28,28,.1)',
+    },
+    t3: { // Teal Journal
+      bg:'#f5faf9', panel:'#ffffff', panel2:'#e0f2f0', panel3:'#c8e6e0',
+      text:'#0a2820', muted:'#2e6b5a', muted2:'#6aab98',
+      line:'rgba(0,77,64,.08)', line2:'rgba(0,77,64,.04)',
+      brand:'#004d40', brand2:'#00796b', brand3:'rgba(0,77,64,.06)',
+      good:'#1b5e20', bad:'#8b0000', warn:'#bf360c',
+      sidebarBg:'#002820', topbarBg:'rgba(245,250,249,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(0,77,64,.03)',
+      hoverCard:'rgba(0,77,64,.02)', glow:'rgba(0,121,107,.1)',
+    },
+    t4: { // Deep Indigo
+      bg:'#f8f8fc', panel:'#ffffff', panel2:'#eeedf8', panel3:'#dddcf0',
+      text:'#111330', muted:'#4040a0', muted2:'#8080c0',
+      line:'rgba(26,35,126,.08)', line2:'rgba(26,35,126,.04)',
+      brand:'#1a237e', brand2:'#3949ab', brand3:'rgba(26,35,126,.06)',
+      good:'#004d40', bad:'#8b0000', warn:'#e65100',
+      sidebarBg:'#111340', topbarBg:'rgba(248,248,252,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(26,35,126,.03)',
+      hoverCard:'rgba(26,35,126,.02)', glow:'rgba(57,73,171,.1)',
+    },
+    t5: { // Sepia Warm
+      bg:'#faf7f2', panel:'#ffffff', panel2:'#f2ece2', panel3:'#e8dfd0',
+      text:'#2a2015', muted:'#6b5840', muted2:'#a89878',
+      line:'rgba(42,32,21,.08)', line2:'rgba(42,32,21,.04)',
+      brand:'#5d4037', brand2:'#795548', brand3:'rgba(93,64,55,.06)',
+      good:'#2e7d32', bad:'#c62828', warn:'#e65100',
+      sidebarBg:'#3e2723', topbarBg:'rgba(250,247,242,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(93,64,55,.03)',
+      hoverCard:'rgba(93,64,55,.02)', glow:'rgba(121,85,72,.1)',
+    },
+  },
+};
+
+// ═══ DARK LEDGER — Premium dark finance dashboard ═══
+const DARK_LEDGER: LayoutDef = {
+  id: 'dark_ledger', name: 'Dark Ledger', desc: 'Premium dark · high-contrast data',
+  font: 'Inter', fontMono: 'JetBrains Mono',
+  radius: '6px', radiusSm: '3px', radiusLg: '10px',
+  shadow: '0 2px 8px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04)',
+  swatches: ['#0d1117','#58a6ff','#3fb950','#f85149','#d29922','#bc8cff','#79c0ff','#e3b341'],
+  themes: {
+    t1: { // GitHub Dark
+      bg:'#0d1117', panel:'#161b22', panel2:'#21262d', panel3:'#30363d',
+      text:'#c9d1d9', muted:'#8b949e', muted2:'#6e7681',
+      line:'rgba(240,246,252,.06)', line2:'rgba(240,246,252,.03)',
+      brand:'#58a6ff', brand2:'#79c0ff', brand3:'rgba(88,166,255,.1)',
+      good:'#3fb950', bad:'#f85149', warn:'#d29922',
+      sidebarBg:'#010409', topbarBg:'rgba(13,17,23,.98)',
+      cardBg:'#161b22', inputBg:'rgba(88,166,255,.06)',
+      hoverCard:'rgba(88,166,255,.04)', glow:'rgba(88,166,255,.15)',
+    },
+    t2: { // Violet Night
+      bg:'#0f0b1a', panel:'#1a1428', panel2:'#241e38', panel3:'#2e2848',
+      text:'#d8ccf0', muted:'#8a78b0', muted2:'#6a58a0',
+      line:'rgba(188,140,255,.08)', line2:'rgba(188,140,255,.04)',
+      brand:'#bc8cff', brand2:'#a855f7', brand3:'rgba(188,140,255,.1)',
+      good:'#3fb950', bad:'#f85149', warn:'#e3b341',
+      sidebarBg:'#0a0612', topbarBg:'rgba(15,11,26,.98)',
+      cardBg:'#1a1428', inputBg:'rgba(188,140,255,.06)',
+      hoverCard:'rgba(188,140,255,.04)', glow:'rgba(168,85,247,.2)',
+    },
+    t3: { // Emerald Terminal
+      bg:'#0a1210', panel:'#0f1c18', panel2:'#142620', panel3:'#1a3028',
+      text:'#c8f0d8', muted:'#58a878', muted2:'#388858',
+      line:'rgba(63,185,80,.08)', line2:'rgba(63,185,80,.04)',
+      brand:'#3fb950', brand2:'#56d364', brand3:'rgba(63,185,80,.1)',
+      good:'#3fb950', bad:'#f85149', warn:'#d29922',
+      sidebarBg:'#06100c', topbarBg:'rgba(10,18,16,.98)',
+      cardBg:'#0f1c18', inputBg:'rgba(63,185,80,.06)',
+      hoverCard:'rgba(63,185,80,.04)', glow:'rgba(86,211,100,.15)',
+    },
+    t4: { // Amber Trading
+      bg:'#12100a', panel:'#1c1810', panel2:'#262018', panel3:'#302820',
+      text:'#f0dca8', muted:'#b09848', muted2:'#907828',
+      line:'rgba(227,179,65,.08)', line2:'rgba(227,179,65,.04)',
+      brand:'#e3b341', brand2:'#d29922', brand3:'rgba(227,179,65,.1)',
+      good:'#3fb950', bad:'#f85149', warn:'#d29922',
+      sidebarBg:'#100e06', topbarBg:'rgba(18,16,10,.98)',
+      cardBg:'#1c1810', inputBg:'rgba(227,179,65,.06)',
+      hoverCard:'rgba(227,179,65,.04)', glow:'rgba(210,153,34,.2)',
+    },
+    t5: { // Ice Steel
+      bg:'#0c1016', panel:'#121820', panel2:'#18202a', panel3:'#1e2834',
+      text:'#c0d4e8', muted:'#6890b0', muted2:'#487098',
+      line:'rgba(121,192,255,.08)', line2:'rgba(121,192,255,.04)',
+      brand:'#79c0ff', brand2:'#58a6ff', brand3:'rgba(121,192,255,.1)',
+      good:'#3fb950', bad:'#f85149', warn:'#e3b341',
+      sidebarBg:'#080c12', topbarBg:'rgba(12,16,22,.98)',
+      cardBg:'#121820', inputBg:'rgba(121,192,255,.06)',
+      hoverCard:'rgba(121,192,255,.04)', glow:'rgba(88,166,255,.15)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto'];
 export const FONT_SIZES = [9,10,11,12,13,14];
