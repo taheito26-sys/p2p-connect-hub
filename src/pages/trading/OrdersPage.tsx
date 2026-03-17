@@ -323,9 +323,40 @@ export default function OrdersPage() {
                     const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
                     const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                    const isMerchantOrder = !!(tr.linkedDealId || tr.linkedRelId);
+                    const linkedDeal = isMerchantOrder ? allMerchantDeals.find(d => d.id === tr.linkedDealId) : null;
+                    const linkedRel = isMerchantOrder ? relationships.find(r => r.id === tr.linkedRelId) : null;
+                    const dealCfg = linkedDeal ? DEAL_TYPE_CONFIGS[linkedDeal.deal_type] : null;
+                    const dealCustomerName = linkedDeal?.metadata?.customer_name as string | undefined;
+                    const dealSupplierName = linkedDeal?.metadata?.supplier_name as string | undefined;
                     return (
-                      <tr key={tr.id}>
-                        <td><div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0 }}><span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>{!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}</div></td>
+                      <tr key={tr.id} style={isMerchantOrder ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                        <td>
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
+                            <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
+                            {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
+                            {isMerchantOrder && (
+                              <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)', fontWeight: 700, letterSpacing: '.3px' }}>
+                                {t('merchantOrder')}
+                              </span>
+                            )}
+                          </div>
+                          {isMerchantOrder && linkedDeal && (
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 600 }}>{dealCfg?.icon} {linkedDeal.title}</span>
+                              {linkedRel?.counterparty?.display_name && (
+                                <span className="pill" style={{ fontSize: 8 }}>🤝 {linkedRel.counterparty.display_name}</span>
+                              )}
+                              {dealCfg?.hasCounterpartyShare && (
+                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                                  {t('capitalShared')}
+                                </span>
+                              )}
+                              {dealCustomerName && <span style={{ fontSize: 8 }}>👤 {dealCustomerName}</span>}
+                              {dealSupplierName && <span style={{ fontSize: 8 }}>📦 {dealSupplierName}</span>}
+                            </div>
+                          )}
+                        </td>
                         <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                         <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                         <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
