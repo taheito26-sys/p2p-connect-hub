@@ -34,7 +34,7 @@ export interface PortfolioAnalytics {
 }
 
 // ─── Configuration ──────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://tracker-platform.taheito26.workers.dev';
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
