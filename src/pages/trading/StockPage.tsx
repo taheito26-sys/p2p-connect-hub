@@ -198,7 +198,9 @@ export default function StockPage() {
     const qty = Number(editQty);
     const px = Number(editPrice);
     const src = editSource.trim();
-    if (!Number.isFinite(ts) || !(qty > 0) || !(px > 0) || !src) return;
+    if (!Number.isFinite(ts) || !(qty > 0) || !(px > 0) || !src) {
+      return;
+    }
 
     const nextBatches = state.batches.map((b) => {
       if (b.id !== editingBatchId) return b;
