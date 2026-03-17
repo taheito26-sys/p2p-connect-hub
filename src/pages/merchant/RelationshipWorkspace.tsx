@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { StatCard } from '@/components/layout/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
+import { DEAL_TYPE_CONFIGS, calculateOutstanding } from '@/lib/deal-engine';
+import { useRealtimeRefresh } from '@/hooks/use-realtime';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
-import { Loader2, Send, Users, Briefcase, DollarSign, CheckSquare, Shield, MessageSquare, Check, X, Plus, ArrowRight, Lock } from 'lucide-react';
+  Loader2, Send, Users, Briefcase, DollarSign, CheckSquare, Shield,
+  Plus, ArrowRight, Lock, ArrowLeft, Check, X, AlertTriangle, Clock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerchantRelationship, MerchantMessage, MerchantDeal, MerchantApproval, AuditLog } from '@/types/domain';
 
@@ -37,17 +40,18 @@ const approvalStatusColors: Record<string, string> = {
 export default function RelationshipWorkspace() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [rel, setRel] = useState<MerchantRelationship | null>(null);
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
   const [relApprovals, setRelApprovals] = useState<MerchantApproval[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [msgInput, setMsgInput] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Dialogs
   const [createDealOpen, setCreateDealOpen] = useState(false);
-  const [dealForm, setDealForm] = useState({ title: '', deal_type: 'lending', amount: '', due_date: '', expected_return: '' });
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
   const [settlementForm, setSettlementForm] = useState({ amount: '', note: '' });
@@ -88,9 +92,10 @@ export default function RelationshipWorkspace() {
     }
   }, [id]);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  useEffect(() => { reload(); }, [reload]);
+
+  // Realtime refresh for messages and approvals
+  useRealtimeRefresh(reload, ['new_message', 'approval_update', 'deal_update']);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -105,27 +110,9 @@ export default function RelationshipWorkspace() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleCreateDeal = async () => {
-    if (!id || !dealForm.title || !dealForm.amount) return;
-    try {
-      await api.deals.create({
-        relationship_id: id, deal_type: dealForm.deal_type as any, title: dealForm.title,
-        amount: parseFloat(dealForm.amount), due_date: dealForm.due_date || undefined,
-        expected_return: dealForm.expected_return ? parseFloat(dealForm.expected_return) : undefined,
-      });
-      toast.success(`Deal created`);
-      setCreateDealOpen(false);
-      setDealForm({ title: '', deal_type: 'lending', amount: '', due_date: '', expected_return: '' });
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
   const handleActivateDeal = async (dealId: string) => {
-    try { 
-      await api.deals.update(dealId, { status: 'active' }); 
-      toast.success('Deal activated'); 
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
+    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal activated'); await reload(); }
+    catch (err: any) { toast.error(err.message); }
   };
 
   const openSettlement = (dealId: string) => {
@@ -137,9 +124,7 @@ export default function RelationshipWorkspace() {
   const handleSubmitSettlement = async () => {
     if (!settlementForm.amount) return;
     try {
-      await api.deals.submitSettlement(settleDealId, {
-        amount: parseFloat(settlementForm.amount), note: settlementForm.note,
-      });
+      await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
       toast.success('Settlement submitted for approval');
       setSettlementOpen(false);
       await reload();
@@ -155,9 +140,7 @@ export default function RelationshipWorkspace() {
   const handleRecordProfit = async () => {
     if (!profitForm.amount) return;
     try {
-      await api.deals.recordProfit(profitDealId, {
-        amount: parseFloat(profitForm.amount), period_key: profitForm.period_key, note: profitForm.note,
-      });
+      await api.deals.recordProfit(profitDealId, { amount: parseFloat(profitForm.amount), period_key: profitForm.period_key, note: profitForm.note });
       toast.success('Profit recorded — pending approval');
       setProfitOpen(false);
       await reload();
@@ -165,15 +148,12 @@ export default function RelationshipWorkspace() {
   };
 
   const handleCloseDeal = async (dealId: string) => {
-    try { 
-      await api.deals.close(dealId); 
-      toast.success('Close request submitted'); 
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
+    try { await api.deals.close(dealId); toast.success('Close request submitted'); await reload(); }
+    catch (err: any) { toast.error(err.message); }
   };
 
   const handleApprove = async (approvalId: string) => {
-    try { await api.approvals.approve(approvalId); toast.success('Approved — business data mutated'); await reload(); }
+    try { await api.approvals.approve(approvalId); toast.success('Approved — business data updated'); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
   const handleReject = async (approvalId: string) => {
@@ -190,53 +170,232 @@ export default function RelationshipWorkspace() {
     suspended: 'bg-destructive text-destructive-foreground',
   };
 
+  const pendingApprovals = relApprovals.filter(a => a.status === 'pending');
+  const unreadMsgs = msgs.filter(m => !m.is_read && m.sender_user_id !== userId);
+  const activeDeals = relDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
+  const counterpartyName = rel.counterparty?.display_name || 'Workspace';
+
   return (
     <div>
-      <PageHeader title={rel.counterparty?.display_name || 'Workspace'} description={`Merchant ID: ${rel.counterparty?.merchant_id} • Role: ${rel.my_role}`}>
-        <Badge className={statusColors[rel.status] || 'bg-muted text-muted-foreground'}>{rel.status}</Badge>
-      </PageHeader>
+      <Breadcrumbs counterpartyName={counterpartyName} />
+
+      {/* Header with back button */}
+      <div className="px-6 pt-3 pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/network')}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-display font-bold">{counterpartyName}</h1>
+              <Badge className={statusColors[rel.status] || 'bg-muted text-muted-foreground'}>{rel.status}</Badge>
+              <Badge variant="outline" className="text-xs font-mono">{rel.counterparty?.merchant_id}</Badge>
+              <Badge variant="outline" className="text-xs capitalize">{rel.my_role}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {rel.relationship_type} relationship • Created {new Date(rel.created_at).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Deals" value={rel.summary?.totalDeals || 0} icon={Briefcase} />
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard label="Deals" value={rel.summary?.totalDeals || 0} icon={Briefcase} />
           <StatCard label="Active Exposure" value={`$${(rel.summary?.activeExposure || 0).toLocaleString()}`} icon={DollarSign} />
-          <StatCard label="Realized Profit" value={`$${(rel.summary?.realizedProfit || 0).toLocaleString()}`} icon={Users} />
-          <StatCard label="Pending Approvals" value={rel.summary?.pendingApprovals || 0} icon={CheckSquare} />
+          <StatCard label="Realized P&L" value={`$${(rel.summary?.realizedProfit || 0).toLocaleString()}`} icon={Users} />
+          <StatCard label="Pending Approvals" value={pendingApprovals.length} icon={CheckSquare} />
+          <StatCard label="Unread Messages" value={unreadMsgs.length} icon={Send} />
         </div>
 
-        <Tabs defaultValue="messages">
+        {/* Action Alerts */}
+        {(pendingApprovals.length > 0 || activeDeals.some(d => d.status === 'overdue')) && (
+          <div className="space-y-2">
+            {pendingApprovals.length > 0 && (
+              <Card className="border-warning/50 bg-warning/5">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                  <span className="text-sm">{pendingApprovals.length} approval(s) need your attention</span>
+                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => setActiveTab('approvals')}>Review</Button>
+                </CardContent>
+              </Card>
+            )}
+            {activeDeals.filter(d => d.status === 'overdue').map(d => (
+              <Card key={d.id} className="border-destructive/50 bg-destructive/5">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-destructive shrink-0" />
+                  <span className="text-sm">Deal "{d.title}" is <strong>overdue</strong> — due {d.due_date}</span>
+                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => openSettlement(d.id)}>Settle</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Main Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-5 w-full">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="messages">Messages {msgs.filter(m => !m.is_read && m.sender_user_id !== userId).length > 0 && <Badge className="ml-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{msgs.filter(m => !m.is_read && m.sender_user_id !== userId).length}</Badge>}</TabsTrigger>
-            <TabsTrigger value="deals">Deals ({relDeals.length})</TabsTrigger>
-            <TabsTrigger value="approvals">Approvals ({relApprovals.filter(a => a.status === 'pending').length})</TabsTrigger>
-            <TabsTrigger value="audit">Audit ({auditLogs.length})</TabsTrigger>
+            <TabsTrigger value="deals" className="gap-1">
+              Deals {relDeals.length > 0 && <Badge className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">{relDeals.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="messages" className="gap-1">
+              Messages {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{unreadMsgs.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="approvals" className="gap-1">
+              Approvals {pendingApprovals.length > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
 
           {/* OVERVIEW */}
-          <TabsContent value="overview" className="mt-4">
-            <Card className="glass">
-              <CardHeader><CardTitle className="text-sm font-display">Relationship Details</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{rel.relationship_type}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Your Role</span><span className="capitalize">{rel.my_role}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Shared Fields</span><span>{rel.shared_fields?.join(', ') || 'All'}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{new Date(rel.created_at).toLocaleDateString()}</span></div>
-                {rel.approval_policy && (
-                  <>
-                    <div className="border-t border-border pt-2 mt-2">
-                      <p className="text-xs font-mono uppercase text-muted-foreground mb-1">Approval Policy</p>
-                    </div>
-                    {Object.entries(rel.approval_policy).map(([key, val]) => (
-                      <div key={key} className="flex justify-between">
-                        <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
-                        <span>{String(val)}</span>
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="glass">
+                <CardHeader><CardTitle className="text-sm font-display">Relationship Details</CardTitle></CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{rel.relationship_type}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Your Role</span><span className="capitalize">{rel.my_role}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Shared Fields</span><span>{rel.shared_fields?.join(', ') || 'All'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Created</span><span>{new Date(rel.created_at).toLocaleDateString()}</span></div>
+                  {rel.approval_policy && Object.keys(rel.approval_policy).length > 0 && (
+                    <>
+                      <div className="border-t border-border pt-2 mt-2">
+                        <p className="text-xs font-mono uppercase text-muted-foreground mb-1">Approval Policy</p>
                       </div>
-                    ))}
-                  </>
-                )}
+                      {Object.entries(rel.approval_policy).map(([key, val]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                          <span>{String(val)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Active Deals Summary */}
+              <Card className="glass">
+                <CardHeader>
+                  <CardTitle className="text-sm font-display flex items-center justify-between">
+                    Active Deals
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setCreateDealOpen(true)}>
+                      <Plus className="w-3 h-3 mr-1" /> New Deal
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {activeDeals.length === 0 && <p className="text-sm text-muted-foreground">No active deals</p>}
+                  {activeDeals.slice(0, 5).map(deal => {
+                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                    const outstanding = calculateOutstanding(deal);
+                    return (
+                      <div key={deal.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span>{cfg?.icon || '📋'}</span>
+                          <div>
+                            <p className="font-medium text-xs">{deal.title}</p>
+                            <p className="text-[10px] text-muted-foreground">{cfg?.label} • {deal.status}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-xs font-bold">${deal.amount.toLocaleString()}</p>
+                          {outstanding.outstanding > 0 && (
+                            <p className="text-[10px] text-warning">Outstanding: ${outstanding.outstanding.toLocaleString()}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Activity */}
+            <Card className="glass">
+              <CardHeader><CardTitle className="text-sm font-display">Recent Activity</CardTitle></CardHeader>
+              <CardContent className="space-y-1.5">
+                {auditLogs.slice(0, 8).map(log => (
+                  <div key={log.id} className="flex items-center gap-2 text-xs">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                    <span className="font-medium">{log.action.replace(/_/g, ' ')}</span>
+                    <Badge variant="outline" className="text-[9px] font-mono">{log.entity_type}</Badge>
+                    <span className="text-muted-foreground ml-auto">{new Date(log.created_at).toLocaleDateString()}</span>
+                  </div>
+                ))}
+                {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">No activity yet</p>}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* DEALS */}
+          <TabsContent value="deals" className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => setCreateDealOpen(true)} className="gap-1"><Plus className="w-3.5 h-3.5" /> New Deal</Button>
+            </div>
+            {relDeals.length === 0 && <p className="text-center text-muted-foreground py-8">No deals yet — create one above</p>}
+            {relDeals.map(deal => {
+              const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+              const outstanding = calculateOutstanding(deal);
+              return (
+                <Card key={deal.id} className="glass">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span>{cfg?.icon || '📋'}</span>
+                          <p className="font-medium">{deal.title}</p>
+                          <Badge variant="outline" className="text-xs">{cfg?.label || deal.deal_type}</Badge>
+                          <Badge className={dealStatusColors[deal.status] || 'bg-muted text-muted-foreground'}>{deal.status}</Badge>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                          <span>Issued: {deal.issue_date}</span>
+                          {deal.due_date && <span>Due: {deal.due_date}</span>}
+                          {deal.expected_return != null && <span>Expected: ${deal.expected_return.toLocaleString()}</span>}
+                          {deal.realized_pnl != null && deal.realized_pnl !== 0 && <span className="text-success">P&L: ${deal.realized_pnl.toLocaleString()}</span>}
+                          {outstanding.outstanding > 0 && outstanding.isOverdue && (
+                            <Badge className="bg-destructive text-destructive-foreground text-[10px]">OVERDUE</Badge>
+                          )}
+                        </div>
+                        {/* Deal metadata summary */}
+                        {deal.metadata && (deal.metadata.counterparty_share_pct || deal.metadata.partner_ratio || deal.metadata.pool_owner_share_pct) && (
+                          <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                            {deal.metadata.counterparty_share_pct && <span>CP Share: {String(deal.metadata.counterparty_share_pct)}%</span>}
+                            {deal.metadata.partner_ratio && <span>Partner: {String(deal.metadata.partner_ratio)}%</span>}
+                            {deal.metadata.pool_owner_share_pct && <span>Pool Owner: {String(deal.metadata.pool_owner_share_pct)}%</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{deal.currency}</p>
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          {deal.status === 'draft' && (
+                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleActivateDeal(deal.id)}>
+                              <ArrowRight className="w-3 h-3 mr-1" /> Activate
+                            </Button>
+                          )}
+                          {['active', 'due', 'overdue'].includes(deal.status) && (
+                            <>
+                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
+                                <DollarSign className="w-3 h-3 mr-1" /> Settle
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
+                                <Plus className="w-3 h-3 mr-1" /> Profit
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
+                                <Lock className="w-3 h-3 mr-1" /> Close
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
 
           {/* MESSAGES */}
@@ -265,59 +424,6 @@ export default function RelationshipWorkspace() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* DEALS */}
-          <TabsContent value="deals" className="mt-4 space-y-3">
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => setCreateDealOpen(true)} className="gap-1"><Plus className="w-3.5 h-3.5" /> New Deal</Button>
-            </div>
-            {relDeals.length === 0 && <p className="text-center text-muted-foreground py-8">No deals yet — create one above</p>}
-            {relDeals.map(deal => (
-              <Card key={deal.id} className="glass">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{deal.title}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">{deal.deal_type}</Badge>
-                        <Badge className={dealStatusColors[deal.status] || 'bg-muted text-muted-foreground'}>{deal.status}</Badge>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                        <span>Issued: {deal.issue_date}</span>
-                        {deal.due_date && <span>Due: {deal.due_date}</span>}
-                        {deal.expected_return != null && <span>Expected: ${deal.expected_return.toLocaleString()}</span>}
-                        {deal.realized_pnl != null && <span className="text-success">P&L: ${deal.realized_pnl.toLocaleString()}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right space-y-1">
-                      <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">{deal.currency}</p>
-                      <div className="flex gap-1 justify-end flex-wrap">
-                        {deal.status === 'draft' && (
-                          <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleActivateDeal(deal.id)}>
-                            <ArrowRight className="w-3 h-3 mr-1" /> Activate
-                          </Button>
-                        )}
-                        {['active', 'due', 'overdue'].includes(deal.status) && (
-                          <>
-                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
-                              <DollarSign className="w-3 h-3 mr-1" /> Settle
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
-                              <Plus className="w-3 h-3 mr-1" /> Profit
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
-                              <Lock className="w-3 h-3 mr-1" /> Close
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </TabsContent>
 
           {/* APPROVALS */}
@@ -385,50 +491,13 @@ export default function RelationshipWorkspace() {
       </div>
 
       {/* Create Deal Dialog */}
-      <Dialog open={createDealOpen} onOpenChange={setCreateDealOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Create New Deal</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input placeholder="e.g. Working Capital Facility" value={dealForm.title} onChange={e => setDealForm(f => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={dealForm.deal_type} onValueChange={v => setDealForm(f => ({ ...f, deal_type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lending">Lending</SelectItem>
-                    <SelectItem value="arbitrage">Arbitrage</SelectItem>
-                    <SelectItem value="partnership">Partnership</SelectItem>
-                    <SelectItem value="capital_placement">Capital Placement</SelectItem>
-                    <SelectItem value="general">General</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Amount (USDT)</Label>
-                <Input type="number" placeholder="10000" value={dealForm.amount} onChange={e => setDealForm(f => ({ ...f, amount: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Due Date (optional)</Label>
-                <Input type="date" value={dealForm.due_date} onChange={e => setDealForm(f => ({ ...f, due_date: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Expected Return</Label>
-                <Input type="number" placeholder="500" value={dealForm.expected_return} onChange={e => setDealForm(f => ({ ...f, expected_return: e.target.value }))} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDealOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateDeal}>Create Deal</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateDealDialog
+        open={createDealOpen}
+        onOpenChange={setCreateDealOpen}
+        relationshipId={id!}
+        counterpartyName={counterpartyName}
+        onCreated={reload}
+      />
 
       {/* Settlement Dialog */}
       <Dialog open={settlementOpen} onOpenChange={setSettlementOpen}>

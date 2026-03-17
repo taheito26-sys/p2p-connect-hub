@@ -2,10 +2,14 @@ import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { TrackerTopbar } from './TrackerTopbar';
 import { useTheme } from '@/lib/theme-context';
+import { useRealtime } from '@/hooks/use-realtime';
 
 export function AppLayout() {
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
+  
+  // Start realtime polling engine
+  useRealtime();
 
   return (
     <div className="flex h-screen overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
