@@ -757,16 +757,31 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.head.appendChild(link);
   }, []);
 
+  // Auto-save timer ref
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const update = useCallback((patch: Partial<AppSettings>) => {
     const changed = (Object.keys(patch) as (keyof AppSettings)[]).filter((key) => draft[key] !== patch[key]);
     if (changed.length === 0) return;
 
-    setDraft(prev => ({ ...prev, ...patch }));
+    const next = { ...draft, ...patch };
+    setDraft(next);
     setDirty(true);
 
     const isTypingOnly = changed.length === 1 && changed[0] === 'searchQuery';
     if (!(patch.logsEnabled === false && changed.length === 1) && !isTypingOnly) {
       pushLog('info', `Settings updated: ${changed.join(', ')}`);
+    }
+
+    // Auto-save after 800ms debounce
+    if (!isTypingOnly) {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(() => {
+        localStorage.setItem('tracker_settings', JSON.stringify(next));
+        setSaved(next);
+        setDirty(false);
+        pushLog('info', 'Auto-saved settings');
+      }, 800);
     }
   }, [draft, pushLog]);
 
