@@ -66,6 +66,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     api.relationships.list().then(r => setRelationships(r.relationships)).catch(() => {});
+    api.deals.list().then(r => setAllMerchantDeals(r.deals)).catch(() => {});
   }, []);
 
   useEffect(() => {
