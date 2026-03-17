@@ -391,7 +391,7 @@ export default function OrdersPage() {
                 <span className="pill">{allMerchantDeals.filter(d => ['active', 'due'].includes(d.status)).length} {t('activeDeals')}</span>
               </div>
               <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).map(deal => {
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue', 'draft'].includes(d.status)).map(deal => {
                   const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                   const rel = relationships.find(r => r.id === deal.relationship_id);
                   const custName = deal.metadata?.customer_name as string | undefined;
