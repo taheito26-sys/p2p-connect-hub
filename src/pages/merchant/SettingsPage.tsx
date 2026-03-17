@@ -60,7 +60,7 @@ export default function SettingsPage() {
         )}
       </PageHeader>
 
-      <div className="p-6 space-y-4 max-w-6xl">
+      <div className="p-6 space-y-4">
         {/* ── Layout Templates ── */}
         <Card className="glass">
           <CardHeader className="pb-2">
