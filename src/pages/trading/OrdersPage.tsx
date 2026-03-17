@@ -419,7 +419,7 @@ export default function OrdersPage() {
                     </div>
                   );
                 })}
-                {allMerchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status)).length === 0 && (
+                {allMerchantDeals.filter(d => ['active', 'due', 'overdue', 'draft'].includes(d.status)).length === 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
                 )}
               </div>
