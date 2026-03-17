@@ -573,10 +573,22 @@ function isDark(hex: string): boolean {
   return lum < 0.4;
 }
 
+// Removed layout IDs that must migrate to valid replacements
+const REMOVED_LAYOUTS: Record<string, string> = { aurora: 'pulse', carbon: 'cipher' };
+
 function loadSavedSettings(): AppSettings {
   try {
     const raw = localStorage.getItem('tracker_settings');
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      // Migrate removed layouts
+      if (REMOVED_LAYOUTS[parsed.layout]) {
+        parsed.layout = REMOVED_LAYOUTS[parsed.layout];
+        parsed.theme = 't1';
+        localStorage.setItem('tracker_settings', JSON.stringify(parsed));
+      }
+      return parsed;
+    }
   } catch {}
   return { ...DEFAULT_SETTINGS };
 }
