@@ -160,8 +160,6 @@ export default function RelationshipWorkspace() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  };
-
   const handleApprove = async (approvalId: string) => {
     try { await api.approvals.approve(approvalId); toast.success(t('approvedMutation')); await reload(); }
     catch (err: any) { toast.error(err.message); }
