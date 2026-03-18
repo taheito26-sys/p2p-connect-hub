@@ -32,14 +32,22 @@ interface Props {
   onStateChange?: (next: TrackerState) => void;
   /** Whether creating a deal should also reserve/add a tracker trade */
   reserveTrackerTradeOnCreate?: boolean;
+  /** Pre-filled amount from new sale flow (locks the field) */
+  prefillAmount?: string;
+  /** Pre-filled currency from new sale flow */
+  prefillCurrency?: string;
+  /** Pre-filled customer ID from new sale flow (locks the field) */
+  prefillCustomerId?: string;
+  /** Pre-filled customer name from new sale flow */
+  prefillCustomerName?: string;
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
 
-/** Generate a structured deal label from deal type + customer + supplier */
-function generateDealLabel(dealType: DealType, customerName: string, supplierName: string): string {
+/** Generate a structured deal label from deal type + customer */
+function generateDealLabel(dealType: DealType, customerName: string): string {
   const cfg = DEAL_TYPE_CONFIGS[dealType];
-  return `${cfg.label} · ${customerName} · ${supplierName}`;
+  return `${cfg.label} · ${customerName}`;
 }
 
 export function CreateDealDialog({
@@ -53,14 +61,18 @@ export function CreateDealDialog({
   trackerState,
   onStateChange,
   reserveTrackerTradeOnCreate = true,
+  prefillAmount,
+  prefillCurrency,
+  prefillCustomerId,
+  prefillCustomerName,
 }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
   const [form, setForm] = useState({
-    customTitle: '', // optional custom label
-    amount: '',
-    currency: 'USDT',
+    customTitle: '',
+    amount: prefillAmount || '',
+    currency: prefillCurrency || 'USDT',
     due_date: '',
     expected_return: '',
     counterparty_share_pct: '60',
@@ -72,30 +84,32 @@ export function CreateDealDialog({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Customer/Supplier selection state
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const hasPrefillAmount = !!prefillAmount;
+  const hasPrefillCustomer = !!prefillCustomerId;
+
+  // Customer selection state
+  const [selectedCustomerId, setSelectedCustomerId] = useState(prefillCustomerId || '');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [supplierSearch, setSupplierSearch] = useState('');
   const [customerDropOpen, setCustomerDropOpen] = useState(false);
-  const [supplierDropOpen, setSupplierDropOpen] = useState(false);
+
+  // Auto-select supplier from batches (system-assigned)
+  const autoSupplierName = useMemo(() => {
+    const supplierNames = [...new Set(suppliers.filter(Boolean))];
+    return supplierNames.length > 0 ? supplierNames[0] : 'System';
+  }, [suppliers]);
 
   // Validation errors
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const selectedCustomer = prefillCustomerId
+    ? customers.find(c => c.id === prefillCustomerId) || (prefillCustomerName ? { id: prefillCustomerId, name: prefillCustomerName, phone: '', tier: 'C' as const, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() } : undefined)
+    : customers.find(c => c.id === selectedCustomerId);
 
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.trim().toLowerCase();
     if (!q) return customers;
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(customerSearch));
   }, [customers, customerSearch]);
-
-  const filteredSuppliers = useMemo(() => {
-    const q = supplierSearch.trim().toLowerCase();
-    if (!q) return suppliers;
-    return suppliers.filter(s => s.toLowerCase().includes(q));
-  }, [suppliers, supplierSearch]);
 
   const config = selectedType ? DEAL_TYPE_CONFIGS[selectedType] : null;
 
@@ -111,9 +125,9 @@ export function CreateDealDialog({
 
   // Auto-generated title
   const autoTitle = useMemo(() => {
-    if (!selectedType || !selectedCustomer || !selectedSupplierName) return '';
-    return generateDealLabel(selectedType, selectedCustomer.name, selectedSupplierName);
-  }, [selectedType, selectedCustomer, selectedSupplierName]);
+    if (!selectedType || !selectedCustomer) return '';
+    return generateDealLabel(selectedType, selectedCustomer.name);
+  }, [selectedType, selectedCustomer]);
 
   const effectiveTitle = form.customTitle.trim() || autoTitle;
 
@@ -154,13 +168,10 @@ export function CreateDealDialog({
   const resetAndClose = () => {
     setStep(1);
     setSelectedType(null);
-    setForm({ customTitle: '', amount: '', currency: 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
-    setSelectedCustomerId('');
-    setSelectedSupplierName('');
+    setForm({ customTitle: '', amount: prefillAmount || '', currency: prefillCurrency || 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
+    if (!hasPrefillCustomer) setSelectedCustomerId('');
     setCustomerSearch('');
-    setSupplierSearch('');
     setCustomerDropOpen(false);
-    setSupplierDropOpen(false);
     setValidationErrors([]);
     onOpenChange(false);
   };
@@ -169,13 +180,12 @@ export function CreateDealDialog({
     const errs: string[] = [];
     if (!form.amount || !(Number(form.amount) > 0)) errs.push(t('amount'));
     if (!selectedCustomerId) errs.push(t('dealCustomerRequired'));
-    if (!selectedSupplierName) errs.push(t('dealSupplierRequired'));
     setValidationErrors(errs);
     return errs.length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!selectedType || !form.amount || !selectedCustomerId || !selectedSupplierName) return;
+    if (!selectedType || !form.amount || !selectedCustomerId) return;
     if (!effectiveTitle) return;
 
     setSubmitting(true);
@@ -199,7 +209,7 @@ export function CreateDealDialog({
       // Persist customer/supplier references in metadata (mandatory)
       metadata.customer_id = selectedCustomerId;
       metadata.customer_name = selectedCustomer!.name;
-      metadata.supplier_name = selectedSupplierName;
+      metadata.supplier_name = autoSupplierName;
 
       const dealResult = await api.deals.create({
         relationship_id: relationshipId,
@@ -271,15 +281,14 @@ export function CreateDealDialog({
     }
   };
 
-  // Build deal summary note with customer/supplier context
+  // Build deal summary note with customer context
   const dealContextSummary = useMemo(() => {
-    if (!selectedCustomer && !selectedSupplierName) return '';
+    if (!selectedCustomer) return '';
     const custName = selectedCustomer?.name || t('noCustomerSelected');
-    const suppName = selectedSupplierName || t('noSupplierSelected');
     return t('dealSummaryNote')
       .replace('{customer}', custName)
-      .replace('{supplier}', suppName);
-  }, [selectedCustomer, selectedSupplierName, t]);
+      .replace('{supplier}', autoSupplierName);
+  }, [selectedCustomer, autoSupplierName, t]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
@@ -331,93 +340,61 @@ export function CreateDealDialog({
               <Badge variant="outline" className="text-xs">{t('with')} {counterpartyName}</Badge>
             </div>
 
-            {/* ─── CUSTOMER SELECTOR (MANDATORY) ─── */}
+            {/* ─── CUSTOMER SELECTOR ─── */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
                 👤 {t('dealCustomer')} <span className="text-xs text-destructive font-bold">*</span>
               </Label>
-              <div className="relative">
-                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealCustomerRequired')) ? 'border-destructive' : 'border-input'}`}>
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchCustomerPlaceholder')}
-                    value={customerSearch}
-                    onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
-                    onFocus={() => setCustomerDropOpen(true)}
-                  />
-                  {selectedCustomer && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+              {hasPrefillCustomer ? (
+                <div className="flex items-center border rounded-md bg-muted/30 border-input px-3 h-9">
+                  <span className="text-sm text-foreground font-medium">{selectedCustomer?.name || prefillCustomerName}</span>
+                  <Badge variant="secondary" className="ml-auto text-xs">{t('fromOrder')}</Badge>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealCustomerRequired')) ? 'border-destructive' : 'border-input'}`}>
+                    <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                    <input
+                      className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                      placeholder={t('searchCustomerPlaceholder')}
+                      value={customerSearch}
+                      onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
+                      onFocus={() => setCustomerDropOpen(true)}
+                    />
+                    {selectedCustomer && (
+                      <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+                    )}
+                  </div>
+                  {customerDropOpen && filteredCustomers.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                      {filteredCustomers.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
+                          onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealCustomerRequired'))); }}
+                        >
+                          <span className="font-medium">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {customerDropOpen && filteredCustomers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredCustomers.map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealCustomerRequired'))); }}
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
               {validationErrors.includes(t('dealCustomerRequired')) && (
                 <p className="text-xs text-destructive">{t('dealCustomerRequired')}</p>
               )}
             </div>
 
-            {/* ─── SUPPLIER SELECTOR (MANDATORY) ─── */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                📦 {t('dealSupplier')} <span className="text-xs text-destructive font-bold">*</span>
-              </Label>
-              <div className="relative">
-                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealSupplierRequired')) ? 'border-destructive' : 'border-input'}`}>
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchSupplierPlaceholder')}
-                    value={supplierSearch}
-                    onChange={e => { setSupplierSearch(e.target.value); setSupplierDropOpen(true); }}
-                    onFocus={() => setSupplierDropOpen(true)}
-                  />
-                  {selectedSupplierName && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedSupplierName}</Badge>
-                  )}
-                </div>
-                {supplierDropOpen && filteredSuppliers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredSuppliers.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${selectedSupplierName === s ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedSupplierName(s); setSupplierSearch(''); setSupplierDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealSupplierRequired'))); }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {validationErrors.includes(t('dealSupplierRequired')) && (
-                <p className="text-xs text-destructive">{t('dealSupplierRequired')}</p>
-              )}
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('amount')} <span className="text-xs text-destructive font-bold">*</span></Label>
-                <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+                <Label className="flex items-center gap-1">{t('amount')} <span className="text-xs text-destructive font-bold">*</span>{hasPrefillAmount && <Badge variant="secondary" className="ml-1 text-[9px]">{t('fromOrder')}</Badge>}</Label>
+                <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} disabled={hasPrefillAmount} className={hasPrefillAmount ? 'opacity-70' : ''} />
               </div>
               <div className="space-y-2">
                 <Label>{t('currency')}</Label>
-                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))} disabled={hasPrefillAmount}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USDT">USDT</SelectItem>
@@ -540,7 +517,7 @@ export function CreateDealDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)}>{t('backStep')}</Button>
-              <Button disabled={!form.amount || !selectedCustomerId || !selectedSupplierName} onClick={() => { if (validateStep2()) setStep(3); }}>{t('reviewAndConfirm')}</Button>
+              <Button disabled={!form.amount || !selectedCustomerId} onClick={() => { if (validateStep2()) setStep(3); }}>{t('reviewAndConfirm')}</Button>
             </DialogFooter>
           </div>
         )}
@@ -562,13 +539,10 @@ export function CreateDealDialog({
                   {form.due_date && <span>{t('dueDate')}: <strong className="text-foreground">{form.due_date}</strong></span>}
                   {form.expected_return && <span>{t('expectedReturn')}: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
                 </div>
-                {/* Customer/Supplier summary in review (always shown, both mandatory) */}
+                {/* Customer summary in review */}
                 <div className="flex flex-wrap gap-3 text-xs mt-2 pt-2 border-t border-border/50">
                   <span className="flex items-center gap-1">
                     👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{selectedCustomer?.name}</strong>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{selectedSupplierName}</strong>
                   </span>
                 </div>
               </CardContent>

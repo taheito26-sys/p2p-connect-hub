@@ -570,6 +570,7 @@ const translations = {
   shareLabel: { en: 'Share', ar: 'الحصة' },
 
   // ── Deal creation enhancements ──
+  fromOrder: { en: 'From order', ar: 'من الطلب' },
   dealCustomerRequired: { en: 'Customer is required', ar: 'العميل مطلوب' },
   dealSupplierRequired: { en: 'Supplier is required', ar: 'المورد مطلوب' },
   dealTitleOptional: { en: 'Custom Label (optional)', ar: 'تسمية مخصصة (اختياري)' },

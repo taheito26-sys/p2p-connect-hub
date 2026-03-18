@@ -725,6 +725,10 @@ export default function OrdersPage() {
           trackerState={state}
           onStateChange={applyState}
           reserveTrackerTradeOnCreate={false}
+          prefillAmount={saleAmount || undefined}
+          prefillCurrency={saleMode === 'QAR' ? 'QAR' : 'USDT'}
+          prefillCustomerId={buyerId || undefined}
+          prefillCustomerName={buyerName || undefined}
         />
       )}
     </div>
