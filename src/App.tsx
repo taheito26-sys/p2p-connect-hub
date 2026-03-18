@@ -18,7 +18,9 @@ import RelationshipWorkspace from "./pages/merchant/RelationshipWorkspace";
 import MessagesPage from "./pages/merchant/MessagesPage";
 import DealsPage from "./pages/merchant/DealsPage";
 import AnalyticsPage from "./pages/merchant/AnalyticsPage";
-import AuditPage from "./pages/merchant/AuditPage";
+import InvitationsPage from "./pages/merchant/InvitationsPage";
+import ApprovalsPage from "./pages/merchant/ApprovalsPage";
+import RelationshipsPage from "./pages/merchant/RelationshipsPage";
 import SettingsPage from "./pages/merchant/SettingsPage";
 import CRMPage from "./pages/merchant/CRMPage";
 import P2PTrackerPage from "./pages/trading/P2PTrackerPage";
@@ -80,9 +82,11 @@ const App = () => (
               {/* Supporting */}
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/deals" element={<DealsPage />} />
+              <Route path="/invitations" element={<InvitationsPage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/relationships" element={<RelationshipsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/vault" element={<VaultPage />} />
-              <Route path="/audit" element={<AuditPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
             </Route>

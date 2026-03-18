@@ -78,6 +78,7 @@ export default function NetworkPage() {
   const [inviteTarget, setInviteTarget] = useState<MerchantSearchResult | null>(null);
   const [inviteForm, setInviteForm] = useState({ purpose: '', role: 'partner', message: '' });
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('invitations');
 
   // Inbox state
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
@@ -177,13 +178,42 @@ export default function NetworkPage() {
     catch (err: any) { toast.error(err.message); }
   };
   const handleApprove = async (id: string) => {
-    try { await api.approvals.approve(id); toast.success(t('approved')); await reload(); }
+    try {
+      await api.approvals.approve(id);
+      toast.success(t('approved'));
+      await reload(); // Reload everything including deals to reflect status change
+    }
     catch (err: any) { toast.error(err.message); }
   };
   const handleRejectApproval = async (id: string) => {
-    try { await api.approvals.reject(id); toast.success(t('rejected')); await reload(); }
+    try {
+      await api.approvals.reject(id);
+      toast.success(t('rejected'));
+      await reload();
+    }
     catch (err: any) { toast.error(err.message); }
   };
+
+  // Mark messages as read when opening a conversation
+  const markConvoRead = useCallback(async (relId: string) => {
+    const convo = conversations.find(c => c.relationshipId === relId);
+    if (!convo || convo.unreadCount === 0) return;
+    try {
+      const unreadMsgs = convo.messages.filter(m => !m.is_read && m.sender_user_id !== userId);
+      await Promise.all(unreadMsgs.map(m => api.messages.markRead(m.id)));
+      // Update local state immediately
+      setConversations(prev => prev.map(c =>
+        c.relationshipId === relId
+          ? { ...c, unreadCount: 0, messages: c.messages.map(m => ({ ...m, is_read: true })) }
+          : c
+      ));
+    } catch {}
+  }, [conversations, userId]);
+
+  const handleSelectConvo = useCallback((relId: string) => {
+    setActiveConvoId(relId);
+    markConvoRead(relId);
+  }, [markConvoRead]);
 
   const sendMsg = async () => {
     if (!msgInput.trim() || !activeConvoId) return;
@@ -217,7 +247,7 @@ export default function NetworkPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingInvites > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => navigate('/invitations')}
+            onClick={() => setActiveTab('invitations')}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {t('invitations')}</p>
@@ -228,7 +258,7 @@ export default function NetworkPage() {
 
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingApprovals > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => navigate('/approvals')}
+            onClick={() => setActiveTab('approvals')}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> {t('approvals')}</p>
@@ -240,8 +270,9 @@ export default function NetworkPage() {
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${totalUnread > 0 ? 'border-primary/40 bg-primary/5' : ''}`}
             onClick={() => {
+              setActiveTab('inbox');
               const firstUnread = conversations.find(c => c.unreadCount > 0);
-              if (firstUnread) setActiveConvoId(firstUnread.relationshipId);
+              if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
             }}
           >
             <CardContent className="p-3">
@@ -251,7 +282,7 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/deals')}>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => setActiveTab('deals')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> {t('activeDeals')}</p>
               <p className="text-xl font-bold mt-1">{activeDeals.length}</p>
@@ -259,7 +290,7 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/relationships')}>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/network')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> {t('relationships')}</p>
               <p className="text-xl font-bold mt-1">{rels.length}</p>
@@ -359,7 +390,7 @@ export default function NetworkPage() {
         </div>
 
         {/* Activity: Invitations + Approvals + Deals */}
-        <Tabs defaultValue="invitations">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="invitations" className="gap-1">
               {t('invitations')} {pendingInvites > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
@@ -471,9 +502,12 @@ export default function NetworkPage() {
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('type')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('buyer')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('supplier')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('qty')}</th>
                       <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('amount')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('volume')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('net')}</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('margin')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('statusEdit')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">P&L</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('actions')}</th>
                     </tr>
                   </thead>
@@ -482,9 +516,12 @@ export default function NetworkPage() {
                       const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                       const custName = deal.metadata?.customer_name as string | undefined;
                       const suppName = deal.metadata?.supplier_name as string | undefined;
+                      const volume = deal.amount * (deal.expected_return || 1);
+                      const net = deal.realized_pnl ?? 0;
+                      const margin = volume > 0 ? (net / volume) * 100 : 0;
                       return (
                         <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{deal.issue_date}</td>
+                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</td>
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm">{cfg?.icon || '📋'}</span>
@@ -493,16 +530,25 @@ export default function NetworkPage() {
                           </td>
                           <td className="px-3 py-2.5 text-xs">{custName ? <span className="font-medium">👤 {custName}</span> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-3 py-2.5 text-xs">{suppName ? <span className="font-medium">📦 {suppName}</span> : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-3 py-2.5 text-xs text-right font-mono">{deal.amount.toLocaleString()}</td>
                           <td className="px-3 py-2.5 text-xs text-right font-mono font-bold">${deal.amount.toLocaleString()}</td>
-                          <td className="px-3 py-2.5">
-                            <Badge className={`text-[10px] ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
-                          </td>
+                          <td className="px-3 py-2.5 text-xs text-right font-mono">${volume.toLocaleString()}</td>
                           <td className="px-3 py-2.5 text-xs text-right font-mono">
-                            {deal.realized_pnl != null && deal.realized_pnl !== 0 ? (
-                              <span className={deal.realized_pnl >= 0 ? 'text-success font-bold' : 'text-destructive font-bold'}>
-                                {deal.realized_pnl >= 0 ? '+' : ''}${deal.realized_pnl.toLocaleString()}
+                            {net !== 0 ? (
+                              <span className={net >= 0 ? 'text-success font-bold' : 'text-destructive font-bold'}>
+                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
                               </span>
                             ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            {net !== 0 ? (
+                              <span className={`font-mono ${margin >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {margin.toFixed(2)}%
+                              </span>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Badge className={`text-[10px] ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
                           </td>
                           <td className="px-3 py-2.5">
                             <Button
@@ -514,7 +560,7 @@ export default function NetworkPage() {
                                 if (rel) navigate(`/network/relationships/${rel.id}`);
                               }}
                             >
-                              {t('viewInWorkspace')} →
+                              {t('details')} →
                             </Button>
                           </td>
                         </tr>
@@ -543,7 +589,7 @@ export default function NetworkPage() {
                       <button
                         key={convo.relationshipId}
                         className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-accent/50 transition-colors flex items-center gap-3 ${activeConvoId === convo.relationshipId ? 'bg-accent' : ''}`}
-                        onClick={() => setActiveConvoId(convo.relationshipId)}
+                        onClick={() => handleSelectConvo(convo.relationshipId)}
                       >
                         <div className="relative shrink-0">
                           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
