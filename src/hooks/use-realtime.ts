@@ -7,10 +7,7 @@ export function useRealtime(onEvent?: (event: RealtimeEvent) => void) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      realtime.stop();
-      return;
-    }
+    if (!isAuthenticated) return;
 
     const unsub = realtime.subscribe((event) => {
       if (event.type === 'notification_count') {
@@ -19,10 +16,11 @@ export function useRealtime(onEvent?: (event: RealtimeEvent) => void) {
       onEvent?.(event);
     });
 
-    realtime.start();
+    realtime.retain();
 
     return () => {
       unsub();
+      realtime.release();
     };
   }, [isAuthenticated, onEvent]);
 
@@ -30,14 +28,23 @@ export function useRealtime(onEvent?: (event: RealtimeEvent) => void) {
 }
 
 export function useRealtimeRefresh(callback: () => void, eventTypes: RealtimeEvent['type'][]) {
+  const { isAuthenticated } = useAuth();
   const stableCallback = useCallback(callback, [callback]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const unsub = realtime.subscribe((event) => {
       if (eventTypes.includes(event.type)) {
         stableCallback();
       }
     });
-    return unsub;
-  }, [stableCallback, eventTypes]);
+
+    realtime.retain();
+
+    return () => {
+      unsub();
+      realtime.release();
+    };
+  }, [isAuthenticated, stableCallback, eventTypes]);
 }

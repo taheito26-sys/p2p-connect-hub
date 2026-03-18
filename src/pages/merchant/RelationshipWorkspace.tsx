@@ -15,16 +15,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { DEAL_TYPE_CONFIGS, calculateOutstanding } from '@/lib/deal-engine';
 import { useRealtimeRefresh } from '@/hooks/use-realtime';
 import {
-  Loader2, Send, Users, Briefcase, DollarSign, CheckSquare, Shield,
-  Plus, ArrowRight, Lock, ArrowLeft, Check, X, AlertTriangle, Clock,
+  Loader2, Send, Users, Briefcase, DollarSign, CheckSquare,
+  Plus, ArrowLeft, Check, X, AlertTriangle, Clock, MoreVertical, MailCheck, MailOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { MerchantRelationship, MerchantMessage, MerchantDeal, MerchantApproval, AuditLog } from '@/types/domain';
+import type { MerchantRelationship, MerchantMessage, MerchantDeal, MerchantApproval } from '@/types/domain';
 
 const dealStatusColors: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -66,9 +67,8 @@ export default function RelationshipWorkspace() {
   const [msgs, setMsgs] = useState<MerchantMessage[]>([]);
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
   const [relApprovals, setRelApprovals] = useState<MerchantApproval[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [msgInput, setMsgInput] = useState('');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('deals');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [createDealOpen, setCreateDealOpen] = useState(false);
@@ -91,22 +91,19 @@ export default function RelationshipWorkspace() {
         { messages },
         { deals: relDealsData },
         { approvals: inbox },
-        { approvals: sent },
-        { logs }
+        { approvals: sent }
       ] = await Promise.all([
         api.relationships.get(id),
         api.messages.list(id),
         api.deals.list(id),
         api.approvals.inbox(),
-        api.approvals.sent(),
-        api.audit.relationship(id)
+        api.approvals.sent()
       ]);
 
       setRel(relationship);
       setMsgs(messages);
       setRelDeals(relDealsData);
       setRelApprovals([...inbox, ...sent].filter(a => a.relationship_id === id));
-      setAuditLogs(logs);
     } catch (err: any) {
       toast.error(t('failedLoadWorkspace'));
     } finally {
@@ -203,6 +200,25 @@ export default function RelationshipWorkspace() {
     catch (err: any) { toast.error(err.message); }
   };
 
+  const handleMarkRead = async (messageId: string) => {
+    const target = msgs.find(msg => msg.id === messageId);
+    if (!target || target.is_read) return;
+
+    const previousMsgs = msgs;
+    setMsgs(current => current.map(msg => msg.id === messageId ? { ...msg, is_read: true } : msg));
+
+    try {
+      await api.messages.markRead(messageId);
+    } catch (err: any) {
+      setMsgs(previousMsgs);
+      toast.error(err.message || t('failedLoadMessages'));
+    }
+  };
+
+  const handleMarkUnread = (messageId: string) => {
+    setMsgs(current => current.map(msg => msg.id === messageId ? { ...msg, is_read: false } : msg));
+  };
+
   if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (!rel) return <div className="p-6 text-center text-muted-foreground">{t('relationshipNotFound')}</div>;
 
@@ -276,8 +292,7 @@ export default function RelationshipWorkspace() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
+          <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="deals" className="gap-1">
               {t('dealsLabel')} {relDeals.length > 0 && <Badge className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">{relDeals.length}</Badge>}
             </TabsTrigger>
@@ -287,86 +302,7 @@ export default function RelationshipWorkspace() {
             <TabsTrigger value="approvals" className="gap-1">
               {t('approvalsLabel')} {pendingApprovals.length > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="audit">{t('auditLabel')}</TabsTrigger>
           </TabsList>
-
-          {/* OVERVIEW */}
-          <TabsContent value="overview" className="mt-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="glass">
-                <CardHeader><CardTitle className="text-sm font-display">{t('relationshipDetails')}</CardTitle></CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('type')}</span><span className="capitalize">{rel.relationship_type}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('yourRole')}</span><span className="capitalize">{rel.my_role}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('sharedFields')}</span><span>{rel.shared_fields?.join(', ') || t('all')}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">{t('created')}</span><span>{new Date(rel.created_at).toLocaleDateString()}</span></div>
-                  {rel.approval_policy && Object.keys(rel.approval_policy).length > 0 && (
-                    <>
-                      <div className="border-t border-border pt-2 mt-2">
-                        <p className="text-xs font-mono uppercase text-muted-foreground mb-1">{t('approvalPolicy')}</p>
-                      </div>
-                      {Object.entries(rel.approval_policy).map(([key, val]) => (
-                        <div key={key} className="flex justify-between">
-                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
-                          <span>{String(val)}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="glass">
-                <CardHeader>
-                  <CardTitle className="text-sm font-display flex items-center justify-between">
-                    {t('activeDeals')}
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setCreateDealOpen(true)}>
-                      <Plus className="w-3 h-3 mr-1" /> {t('newDeal')}
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {activeDeals.length === 0 && <p className="text-sm text-muted-foreground">{t('noActiveDealsShort')}</p>}
-                  {activeDeals.slice(0, 5).map(deal => {
-                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                    const outstandingVal = calculateOutstanding(deal);
-                    return (
-                      <div key={deal.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span>{cfg?.icon || '📋'}</span>
-                          <div>
-                            <p className="font-medium text-xs">{deal.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{cfg?.label} • {deal.status}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-mono text-xs font-bold">${deal.amount.toLocaleString()}</p>
-                          {outstandingVal.outstanding > 0 && (
-                            <p className="text-[10px] text-warning">{t('outstanding')}: ${outstandingVal.outstanding.toLocaleString()}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="glass">
-              <CardHeader><CardTitle className="text-sm font-display">{t('recentActivity')}</CardTitle></CardHeader>
-              <CardContent className="space-y-1.5">
-                {auditLogs.slice(0, 8).map(log => (
-                  <div key={log.id} className="flex items-center gap-2 text-xs">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                    <span className="font-medium">{log.action.replace(/_/g, ' ')}</span>
-                    <Badge variant="outline" className="text-[9px] font-mono">{log.entity_type}</Badge>
-                    <span className="text-muted-foreground ml-auto">{new Date(log.created_at).toLocaleDateString()}</span>
-                  </div>
-                ))}
-                {auditLogs.length === 0 && <p className="text-sm text-muted-foreground">{t('noActivityYet')}</p>}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* DEALS */}
           <TabsContent value="deals" className="mt-4 space-y-3">
@@ -452,21 +388,61 @@ export default function RelationshipWorkspace() {
           {/* MESSAGES */}
           <TabsContent value="messages" className="mt-4">
             <Card className="glass">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b px-4 py-3">
+                <div>
+                  <CardTitle className="text-sm font-display">{t('messagesLabel')}</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {unreadMsgs.length > 0 ? `${unreadMsgs.length} ${t('unread').toLowerCase()}` : t('noMessagesShort')}
+                  </p>
+                </div>
+                {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground">{unreadMsgs.length}</Badge>}
+              </CardHeader>
               <CardContent className="p-0">
                 <div className="h-80 overflow-y-auto p-4 space-y-3">
                   {msgs.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">{t('noMessagesYet')}</p>}
-                  {msgs.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.message_type === 'system' ? 'justify-center' : msg.sender_user_id === userId ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
-                        msg.message_type === 'system' ? 'bg-muted text-muted-foreground text-center w-full text-xs italic'
-                          : msg.sender_user_id === userId ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-                      }`}>
-                        {msg.message_type !== 'system' && <p className="text-[10px] font-mono opacity-70 mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>}
-                        <p>{msg.body}</p>
-                        <p className="text-[10px] opacity-50 mt-0.5">{new Date(msg.created_at).toLocaleTimeString()}</p>
+                  {msgs.map(msg => {
+                    const isSystem = msg.message_type === 'system';
+                    const isOwn = msg.sender_user_id === userId;
+
+                    return (
+                      <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[78%] rounded-lg px-3 py-2 text-sm ${
+                          isSystem ? 'bg-muted text-muted-foreground text-center w-full text-xs italic'
+                            : isOwn ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+                        }`}>
+                          {!isSystem && (
+                            <div className="mb-1 flex items-start justify-between gap-2">
+                              <p className="text-[10px] font-mono opacity-70">{msg.sender_name || msg.sender_merchant_id}</p>
+                              <div className="flex items-center gap-2">
+                                {!msg.is_read && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{t('unread')}</Badge>}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className={`h-6 w-6 shrink-0 ${isOwn ? 'text-primary-foreground hover:bg-primary-foreground/10' : 'text-muted-foreground hover:bg-background/80'}`}
+                                    >
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align={isOwn ? 'end' : 'start'}>
+                                    {msg.is_read ? (
+                                      <DropdownMenuItem onClick={() => handleMarkUnread(msg.id)}><MailOpen className="mr-2 h-3.5 w-3.5" />Mark as unread</DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem onClick={() => handleMarkRead(msg.id)}><MailCheck className="mr-2 h-3.5 w-3.5" />Mark as read</DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          )}
+                          <p>{msg.body}</p>
+                          <p className="text-[10px] opacity-50 mt-0.5">{new Date(msg.created_at).toLocaleTimeString()}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
                 <div className="border-t p-3 flex gap-2">
@@ -564,33 +540,6 @@ export default function RelationshipWorkspace() {
             })}
           </TabsContent>
 
-          {/* AUDIT */}
-          <TabsContent value="audit" className="mt-4 space-y-2">
-            {auditLogs.length === 0 && (
-              <Card className="glass"><CardContent className="py-8 text-center text-muted-foreground">
-                <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" /><p>{t('noAuditEvents')}</p>
-              </CardContent></Card>
-            )}
-            {auditLogs.map(log => (
-              <Card key={log.id} className="glass">
-                <CardContent className="flex items-center gap-3 p-3">
-                  <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{log.action.replace(/_/g, ' ')}</span>
-                      <Badge variant="outline" className="text-[10px] font-mono">{log.entity_type}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</p>
-                    {log.detail_json && Object.keys(log.detail_json).length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {Object.entries(log.detail_json).map(([k, v]) => `${k}: ${v}`).join(' • ')}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </TabsContent>
         </Tabs>
       </div>
 

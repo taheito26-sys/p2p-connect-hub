@@ -61,6 +61,10 @@ interface ConversationSummary {
   messages: MerchantMessage[];
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong';
+}
+
 export default function NetworkPage() {
   const { userId } = useAuth();
   const t = useT();
@@ -125,7 +129,7 @@ export default function NetworkPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [t, userId]);
 
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update']);
@@ -141,7 +145,7 @@ export default function NetworkPage() {
       const res = await api.merchant.search(query);
       setResults(res.results);
       setSearched(true);
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
 
   const openInviteDialog = (merchant: MerchantSearchResult) => {
@@ -162,20 +166,20 @@ export default function NetworkPage() {
       toast.success(`${t('inviteSentTo')} ${inviteTarget.display_name}`);
       setInviteDialogOpen(false);
       await reload();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
 
   const handleAccept = async (id: string) => {
     try { await api.invites.accept(id); toast.success(t('inviteAccepted')); await reload(); }
-    catch (err: any) { toast.error(err.message); }
+    catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
   const handleReject = async (id: string) => {
     try { await api.invites.reject(id); toast.success(t('inviteRejected')); await reload(); }
-    catch (err: any) { toast.error(err.message); }
+    catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
   const handleWithdraw = async (id: string) => {
     try { await api.invites.withdraw(id); toast.success(t('inviteWithdrawn')); await reload(); }
-    catch (err: any) { toast.error(err.message); }
+    catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
   const handleApprove = async (id: string) => {
     try {
@@ -183,7 +187,7 @@ export default function NetworkPage() {
       toast.success(t('approved'));
       await reload(); // Reload everything including deals to reflect status change
     }
-    catch (err: any) { toast.error(err.message); }
+    catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
   const handleRejectApproval = async (id: string) => {
     try {
@@ -191,28 +195,40 @@ export default function NetworkPage() {
       toast.success(t('rejected'));
       await reload();
     }
-    catch (err: any) { toast.error(err.message); }
+    catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
 
   // Mark messages as read when opening a conversation
   const markConvoRead = useCallback(async (relId: string) => {
     const convo = conversations.find(c => c.relationshipId === relId);
     if (!convo || convo.unreadCount === 0) return;
+
+    const unreadIds = convo.messages
+      .filter(m => !m.is_read && m.sender_user_id !== userId)
+      .map(m => m.id);
+
+    if (unreadIds.length === 0) return;
+
+    setConversations(prev => prev.map(c =>
+      c.relationshipId === relId
+        ? {
+            ...c,
+            unreadCount: 0,
+            messages: c.messages.map(m => unreadIds.includes(m.id) ? { ...m, is_read: true } : m),
+          }
+        : c
+    ));
+
     try {
-      const unreadMsgs = convo.messages.filter(m => !m.is_read && m.sender_user_id !== userId);
-      await Promise.all(unreadMsgs.map(m => api.messages.markRead(m.id)));
-      // Update local state immediately
-      setConversations(prev => prev.map(c =>
-        c.relationshipId === relId
-          ? { ...c, unreadCount: 0, messages: c.messages.map(m => ({ ...m, is_read: true })) }
-          : c
-      ));
-    } catch {}
-  }, [conversations, userId]);
+      await Promise.all(unreadIds.map(messageId => api.messages.markRead(messageId)));
+    } catch {
+      await reload();
+    }
+  }, [conversations, reload, userId]);
 
   const handleSelectConvo = useCallback((relId: string) => {
     setActiveConvoId(relId);
-    markConvoRead(relId);
+    void markConvoRead(relId);
   }, [markConvoRead]);
 
   const sendMsg = async () => {
@@ -221,7 +237,7 @@ export default function NetworkPage() {
       await api.messages.send(activeConvoId, msgInput.trim());
       setMsgInput('');
       await reload();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
   };
 
   const pendingInvites = inbox.filter(i => i.status === 'pending').length;
@@ -437,7 +453,7 @@ export default function NetworkPage() {
                     </div>
                     <p className="text-[10px] text-muted-foreground">{inv.purpose || t('generalCollaboration')}</p>
                   </div>
-                  {inv.status === 'pending' && (inv as any).to_merchant_id && (
+                  {inv.status === 'pending' && inv.to_merchant_id && (
                     <Button size="sm" variant="outline" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-7 text-xs"><RotateCcw className="w-3 h-3" /> {t('withdraw')}</Button>
                   )}
                 </CardContent>
@@ -585,27 +601,39 @@ export default function NetworkPage() {
                         <p>{t('noConversations')}</p>
                       </div>
                     )}
-                    {conversations.map(convo => (
-                      <button
+                    {conversations.map(convo => {
+                      const isSelected = activeConvoId === convo.relationshipId;
+                      const hasUnread = convo.unreadCount > 0;
+
+                      return (
+                        <button
                         key={convo.relationshipId}
-                        className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-accent/50 transition-colors flex items-center gap-3 ${activeConvoId === convo.relationshipId ? 'bg-accent' : ''}`}
+                        className={`w-full text-left px-4 py-3 border-b transition-colors flex items-center gap-3 ${
+                          isSelected
+                            ? hasUnread
+                              ? 'border-primary/40 bg-primary/12 shadow-[inset_3px_0_0_theme(colors.primary.DEFAULT)]'
+                              : 'border-border/50 bg-accent'
+                            : hasUnread
+                              ? 'border-primary/20 bg-primary/8 hover:bg-primary/12'
+                              : 'border-border/50 hover:bg-accent/50'
+                        }`}
                         onClick={() => handleSelectConvo(convo.relationshipId)}
                       >
                         <div className="relative shrink-0">
                           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
                             <Users className="w-4 h-4 text-primary" />
                           </div>
-                          {convo.unreadCount > 0 && (
-                            <div className="absolute -top-1 -right-1 rounded-full bg-destructive text-destructive-foreground text-[8px] font-bold flex items-center justify-center" style={{ width: 18, height: 18 }}>
+                          {hasUnread && (
+                            <div className="absolute -top-1 -right-1 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center ring-2 ring-background" style={{ width: 18, height: 18 }}>
                               {convo.unreadCount}
                             </div>
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className={`font-medium text-sm truncate ${convo.unreadCount > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{convo.counterpartyName}</p>
+                            <p className={`font-medium text-sm truncate ${hasUnread ? 'text-foreground' : 'text-muted-foreground'}`}>{convo.counterpartyName}</p>
                             {convo.lastMessage && (
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                              <span className={`text-[10px] whitespace-nowrap shrink-0 ${hasUnread ? 'text-primary' : 'text-muted-foreground'}`}>
                                 {(() => {
                                   const d = new Date(convo.lastMessage.created_at);
                                   const now = new Date();
@@ -618,15 +646,16 @@ export default function NetworkPage() {
                             )}
                           </div>
                           {convo.lastMessage ? (
-                            <p className={`text-xs truncate mt-0.5 ${convo.unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                            <p className={`text-xs truncate mt-0.5 ${hasUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
                               {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
                             </p>
                           ) : (
                             <p className="text-xs text-muted-foreground italic mt-0.5">{t('noMessagesShort')}</p>
                           )}
                         </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Message pane */}
