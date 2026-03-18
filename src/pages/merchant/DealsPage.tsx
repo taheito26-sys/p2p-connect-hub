@@ -39,7 +39,7 @@ export default function DealsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { reload(); }, [reload]);
 
