@@ -261,7 +261,11 @@ export default function NetworkPage() {
 
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${totalUnread > 0 ? 'border-primary/40 bg-primary/5' : ''}`}
-            onClick={() => setActiveTab('inbox')}
+            onClick={() => {
+              setActiveTab('inbox');
+              const firstUnread = conversations.find(c => c.unreadCount > 0);
+              if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
+            }}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t('unread')}</p>
