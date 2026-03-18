@@ -317,7 +317,7 @@ export default function StockPage() {
                         </tr>
                       )}
                       </React.Fragment>
-                  })}
+                    );})
                 </tbody>
               </table>
             </div>
