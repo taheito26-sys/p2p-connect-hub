@@ -330,7 +330,8 @@ export default function OrdersPage() {
                     const dealCustomerName = linkedDeal?.metadata?.customer_name as string | undefined;
                     const dealSupplierName = linkedDeal?.metadata?.supplier_name as string | undefined;
                     return (
-                      <tr key={tr.id} style={isMerchantOrder ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                      <React.Fragment key={tr.id}>
+                        <tr style={isMerchantOrder ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                         <td>
                           <div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
                             <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
@@ -377,12 +378,13 @@ export default function OrdersPage() {
                         </td>
                       </tr>
                       {detailsOpen[tr.id] && (
-                        <tr key={`${tr.id}-detail`}>
+                        <tr>
                           <td colSpan={9} style={{ padding: 0 }}>
                             {renderDetail(tr, c)}
                           </td>
                         </tr>
                       )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
