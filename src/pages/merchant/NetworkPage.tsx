@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
@@ -18,28 +18,37 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import {
   Loader2, Search, UserPlus, Check, X, RotateCcw, Mail, Users,
   ExternalLink, CheckSquare, MessageCircle, AlertCircle, Briefcase,
-  DollarSign, ArrowRight, Clock,
+  DollarSign, ArrowRight, Clock, Send, ChevronLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerchantSearchResult, MerchantInvite, MerchantRelationship, MerchantApproval, MerchantMessage, MerchantDeal } from '@/types/domain';
 
 const inviteStatusColors: Record<string, string> = {
-  pending: 'bg-warning text-warning-foreground',
-  accepted: 'bg-success text-success-foreground',
-  rejected: 'bg-destructive text-destructive-foreground',
+  pending: 'bg-destructive/15 text-destructive border-destructive/30',
+  accepted: 'bg-success/15 text-success border-success/30',
+  rejected: 'bg-destructive/15 text-destructive border-destructive/30',
   withdrawn: 'bg-muted text-muted-foreground',
   expired: 'bg-muted text-muted-foreground',
 };
 const relStatusColors: Record<string, string> = {
-  active: 'bg-success text-success-foreground',
-  restricted: 'bg-warning text-warning-foreground',
-  suspended: 'bg-destructive text-destructive-foreground',
+  active: 'bg-success/15 text-success border-success/30',
+  restricted: 'bg-warning/15 text-warning border-warning/30',
+  suspended: 'bg-destructive/15 text-destructive border-destructive/30',
   terminated: 'bg-muted text-muted-foreground',
 };
 const approvalStatusColors: Record<string, string> = {
-  pending: 'bg-warning text-warning-foreground',
-  approved: 'bg-success text-success-foreground',
-  rejected: 'bg-destructive text-destructive-foreground',
+  pending: 'bg-destructive/15 text-destructive border-destructive/30',
+  approved: 'bg-success/15 text-success border-success/30',
+  rejected: 'bg-destructive/15 text-destructive border-destructive/30',
+};
+const dealStatusColors: Record<string, string> = {
+  draft: 'bg-muted text-muted-foreground',
+  active: 'bg-success/15 text-success border-success/30',
+  due: 'bg-warning/15 text-warning border-warning/30',
+  settled: 'bg-primary/15 text-primary border-primary/30',
+  closed: 'bg-secondary text-secondary-foreground',
+  overdue: 'bg-destructive/15 text-destructive border-destructive/30',
+  cancelled: 'bg-muted text-muted-foreground',
 };
 
 interface ConversationSummary {
@@ -49,11 +58,13 @@ interface ConversationSummary {
   status: string;
   lastMessage: MerchantMessage | null;
   unreadCount: number;
+  messages: MerchantMessage[];
 }
 
 export default function NetworkPage() {
   const { userId } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerchantSearchResult[]>([]);
   const [searched, setSearched] = useState(false);
@@ -67,6 +78,11 @@ export default function NetworkPage() {
   const [inviteTarget, setInviteTarget] = useState<MerchantSearchResult | null>(null);
   const [inviteForm, setInviteForm] = useState({ purpose: '', role: 'partner', message: '' });
   const [loading, setLoading] = useState(true);
+
+  // Inbox state
+  const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
+  const [msgInput, setMsgInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -92,6 +108,7 @@ export default function NetworkPage() {
           status: rel.status,
           lastMessage: messages.length > 0 ? messages[messages.length - 1] : null,
           unreadCount: unread,
+          messages,
         };
       });
 
@@ -111,6 +128,10 @@ export default function NetworkPage() {
 
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update']);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeConvoId, conversations]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,11 +185,21 @@ export default function NetworkPage() {
     catch (err: any) { toast.error(err.message); }
   };
 
+  const sendMsg = async () => {
+    if (!msgInput.trim() || !activeConvoId) return;
+    try {
+      await api.messages.send(activeConvoId, msgInput.trim());
+      setMsgInput('');
+      await reload();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   const pendingInvites = inbox.filter(i => i.status === 'pending').length;
   const pendingApprovals = aprInbox.filter(a => a.status === 'pending').length;
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
   const overdueDeals = allDeals.filter(d => d.status === 'overdue');
   const activeDeals = allDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
+  const activeConvo = conversations.find(c => c.relationshipId === activeConvoId);
 
   if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
@@ -182,33 +213,45 @@ export default function NetworkPage() {
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Command Center */}
+        {/* ── Command Center KPIs (clickable, color-coded) ── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Card className={`${pendingInvites > 0 ? 'border-warning/50 bg-warning/5' : ''}`}>
+          <Card
+            className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingInvites > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
+            onClick={() => navigate('/invitations')}
+          >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {t('invitations')}</p>
-              <p className="text-xl font-bold mt-1">{pendingInvites}</p>
-              {pendingInvites > 0 && <p className="text-[10px] text-warning font-medium">{t('actionNeeded')}</p>}
+              <p className={`text-xl font-bold mt-1 ${pendingInvites > 0 ? 'text-destructive' : ''}`}>{pendingInvites}</p>
+              {pendingInvites > 0 && <p className="text-[10px] text-destructive font-medium">{t('actionNeeded')}</p>}
             </CardContent>
           </Card>
 
-          <Card className={`${pendingApprovals > 0 ? 'border-warning/50 bg-warning/5' : ''}`}>
+          <Card
+            className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingApprovals > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
+            onClick={() => navigate('/approvals')}
+          >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> {t('approvals')}</p>
-              <p className="text-xl font-bold mt-1">{pendingApprovals}</p>
-              {pendingApprovals > 0 && <p className="text-[10px] text-warning font-medium">{t('actionNeeded')}</p>}
+              <p className={`text-xl font-bold mt-1 ${pendingApprovals > 0 ? 'text-destructive' : ''}`}>{pendingApprovals}</p>
+              {pendingApprovals > 0 && <p className="text-[10px] text-destructive font-medium">{t('actionNeeded')}</p>}
             </CardContent>
           </Card>
 
-          <Card className={`${totalUnread > 0 ? 'border-primary/50 bg-primary/5' : ''}`}>
+          <Card
+            className={`cursor-pointer transition-colors hover:border-primary/50 ${totalUnread > 0 ? 'border-primary/40 bg-primary/5' : ''}`}
+            onClick={() => {
+              const firstUnread = conversations.find(c => c.unreadCount > 0);
+              if (firstUnread) setActiveConvoId(firstUnread.relationshipId);
+            }}
+          >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t('unread')}</p>
-              <p className="text-xl font-bold mt-1">{totalUnread}</p>
+              <p className={`text-xl font-bold mt-1 ${totalUnread > 0 ? 'text-primary' : ''}`}>{totalUnread}</p>
               {totalUnread > 0 && <p className="text-[10px] text-primary font-medium">{t('newMessages')}</p>}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/deals')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> {t('activeDeals')}</p>
               <p className="text-xl font-bold mt-1">{activeDeals.length}</p>
@@ -216,13 +259,150 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/relationships')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> {t('relationships')}</p>
               <p className="text-xl font-bold mt-1">{rels.length}</p>
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Global Merchant Inbox ── */}
+        <Card className="glass overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" />
+              {t('globalInbox')}
+              {totalUnread > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5">{totalUnread}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex" style={{ minHeight: 340 }}>
+              {/* Conversation list */}
+              <div className={`border-r border-border overflow-y-auto ${activeConvoId ? 'hidden md:block' : ''}`} style={{ width: 320, minWidth: 280 }}>
+                {conversations.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground text-sm px-4">
+                    <MessageCircle className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                    <p>{t('noConversations')}</p>
+                  </div>
+                )}
+                {conversations.map(convo => (
+                  <button
+                    key={convo.relationshipId}
+                    className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-accent/50 transition-colors flex items-center gap-3 ${activeConvoId === convo.relationshipId ? 'bg-accent' : ''}`}
+                    onClick={() => setActiveConvoId(convo.relationshipId)}
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-primary" />
+                      </div>
+                      {convo.unreadCount > 0 && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                          {convo.unreadCount}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`font-medium text-sm truncate ${convo.unreadCount > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{convo.counterpartyName}</p>
+                        {convo.lastMessage && (
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                            {(() => {
+                              const d = new Date(convo.lastMessage.created_at);
+                              const now = new Date();
+                              const diffMs = now.getTime() - d.getTime();
+                              if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)} min`;
+                              if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)} hour`;
+                              return d.toLocaleDateString();
+                            })()}
+                          </span>
+                        )}
+                      </div>
+                      {convo.lastMessage ? (
+                        <p className={`text-xs truncate mt-0.5 ${convo.unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                          {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic mt-0.5">{t('noMessagesShort')}</p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Message pane */}
+              <div className={`flex-1 flex flex-col ${!activeConvoId ? 'hidden md:flex' : 'flex'}`}>
+                {!activeConvoId ? (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                    <div className="text-center">
+                      <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p>{t('selectConversation')}</p>
+                    </div>
+                  </div>
+                ) : activeConvo ? (
+                  <>
+                    {/* Chat header */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                      <Button variant="ghost" size="icon" className="md:hidden shrink-0" onClick={() => setActiveConvoId(null)}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <Users className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{activeConvo.counterpartyName}</p>
+                        <p className="text-[10px] text-muted-foreground">{activeConvo.counterpartyMerchantId}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(`/network/relationships/${activeConvoId}`)}>
+                        <ExternalLink className="w-3 h-3 mr-1" /> {t('viewInWorkspace')}
+                      </Button>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ maxHeight: 260 }}>
+                      {activeConvo.messages.length === 0 && (
+                        <p className="text-center text-muted-foreground text-sm py-4">{t('noMessagesYet')}</p>
+                      )}
+                      {activeConvo.messages.map(msg => {
+                        const isOwn = msg.sender_user_id === userId;
+                        const isSystem = msg.message_type === 'system';
+                        return (
+                          <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                              isSystem ? 'bg-muted text-muted-foreground text-center w-full text-xs italic rounded-lg'
+                                : isOwn ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-secondary text-secondary-foreground rounded-bl-md'
+                            }`}>
+                              {!isSystem && !isOwn && <p className="text-[10px] font-medium opacity-70 mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>}
+                              <p>{msg.body}</p>
+                              <p className={`text-[10px] mt-1 ${isOwn ? 'text-primary-foreground/50' : 'text-muted-foreground'}`}>
+                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input */}
+                    <div className="border-t border-border p-3 flex gap-2 items-center">
+                      <Input
+                        placeholder={t('typeMessage')}
+                        value={msgInput}
+                        onChange={e => setMsgInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendMsg()}
+                        className="flex-1"
+                      />
+                      <Button onClick={sendMsg} size="icon" className="shrink-0 rounded-full">
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Relationships */}
         <div>
@@ -294,7 +474,7 @@ export default function NetworkPage() {
                                 <span>{rel.summary.totalDeals} {t('dealsLabel')}</span>
                                 <span>{t('exposure')}: ${rel.summary.activeExposure.toLocaleString()}</span>
                                 {rel.summary.pendingApprovals > 0 && (
-                                  <Badge className="bg-warning text-warning-foreground text-[10px] px-1 py-0">{rel.summary.pendingApprovals} {t('pending')}</Badge>
+                                  <Badge className="bg-destructive/15 text-destructive text-[10px] px-1 py-0">{rel.summary.pendingApprovals} {t('pending')}</Badge>
                                 )}
                               </>
                             )}
@@ -315,20 +495,23 @@ export default function NetworkPage() {
           </div>
         </div>
 
-        {/* Activity: Invitations + Approvals */}
+        {/* Activity: Invitations + Approvals + Deals */}
         <Tabs defaultValue="invitations">
           <TabsList>
             <TabsTrigger value="invitations" className="gap-1">
-              {t('invitations')} {pendingInvites > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
+              {t('invitations')} {pendingInvites > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="approvals" className="gap-1">
-              {t('approvals')} {pendingApprovals > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals}</Badge>}
+              {t('approvals')} {pendingApprovals > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingApprovals}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="deals" className="gap-1">
+              {t('dealsLabel')} {activeDeals.length > 0 && <Badge className="bg-primary/15 text-primary text-[10px] px-1.5 py-0">{activeDeals.length}</Badge>}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="invitations" className="mt-3 space-y-2">
             {inbox.filter(i => i.status === 'pending').map(inv => (
-              <Card key={inv.id} className="border-warning/30 bg-warning/5">
+              <Card key={inv.id} className="border-destructive/30 bg-destructive/5">
                 <CardContent className="flex items-center justify-between p-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -339,8 +522,8 @@ export default function NetworkPage() {
                     {inv.message && <p className="text-xs text-muted-foreground italic mt-1">"{inv.message}"</p>}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> {t('accept')}</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> {t('reject')}</Button>
+                    <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs bg-success hover:bg-success/90 text-success-foreground"><Check className="w-3 h-3" /> {t('accept')}</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"><X className="w-3 h-3" /> {t('reject')}</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -368,7 +551,7 @@ export default function NetworkPage() {
 
           <TabsContent value="approvals" className="mt-3 space-y-2">
             {aprInbox.filter(a => a.status === 'pending').map(a => (
-              <Card key={a.id} className="border-warning/30 bg-warning/5">
+              <Card key={a.id} className="border-destructive/30 bg-destructive/5">
                 <CardContent className="flex items-center justify-between p-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -385,8 +568,8 @@ export default function NetworkPage() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs"><Check className="w-3 h-3" /> {t('approve')}</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs"><X className="w-3 h-3" /> {t('reject')}</Button>
+                    <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs bg-success hover:bg-success/90 text-success-foreground"><Check className="w-3 h-3" /> {t('approve')}</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"><X className="w-3 h-3" /> {t('reject')}</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -405,6 +588,77 @@ export default function NetworkPage() {
             {aprInbox.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">{t('noApprovals')}</div>
             )}
+          </TabsContent>
+
+          {/* ── Deals Tab with richer detail ── */}
+          <TabsContent value="deals" className="mt-3 space-y-2">
+            {allDeals.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-sm">{t('noDeals')}</div>
+            )}
+            {allDeals.map(deal => {
+              const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+              const custName = deal.metadata?.customer_name as string | undefined;
+              const suppName = deal.metadata?.supplier_name as string | undefined;
+              return (
+                <Card key={deal.id} className={`glass border-l-4 ${
+                  deal.status === 'overdue' ? 'border-l-destructive' :
+                  deal.status === 'due' ? 'border-l-warning' :
+                  deal.status === 'active' ? 'border-l-success' :
+                  deal.status === 'settled' ? 'border-l-primary' :
+                  'border-l-muted'
+                }`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{cfg?.icon || '📋'}</span>
+                          <p className="font-medium text-sm">{deal.title}</p>
+                          <Badge className={dealStatusColors[deal.status]}>{deal.status}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{cfg?.label}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+                          <span>{t('issued')}: {deal.issue_date}</span>
+                          {deal.due_date && <span>{t('due')}: <strong className={deal.status === 'overdue' ? 'text-destructive' : 'text-foreground'}>{deal.due_date}</strong></span>}
+                          {deal.realized_pnl != null && deal.realized_pnl !== 0 && (
+                            <span className={deal.realized_pnl >= 0 ? 'text-success' : 'text-destructive'}>
+                              P&L: ${deal.realized_pnl.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        {(custName || suppName) && (
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                            {custName && <span>👤 {custName}</span>}
+                            {suppName && <span>📦 {suppName}</span>}
+                          </div>
+                        )}
+                        {deal.metadata && (deal.metadata.counterparty_share_pct || deal.metadata.partner_ratio || deal.metadata.pool_owner_share_pct) && (
+                          <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                            {deal.metadata.counterparty_share_pct && <span>{t('cpShare')}: {String(deal.metadata.counterparty_share_pct)}%</span>}
+                            {deal.metadata.partner_ratio && <span>{t('partnerLabel')}: {String(deal.metadata.partner_ratio)}%</span>}
+                            {deal.metadata.pool_owner_share_pct && <span>{t('poolOwner')}: {String(deal.metadata.pool_owner_share_pct)}%</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0 ml-4">
+                        <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{deal.currency}</p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs mt-1 h-6"
+                          onClick={() => {
+                            const rel = rels.find(r => r.id === deal.relationship_id);
+                            if (rel) navigate(`/network/relationships/${rel.id}`);
+                          }}
+                        >
+                          {t('viewInWorkspace')} →
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
         </Tabs>
       </div>

@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import {
   fmtQWithUnit, fmtU, fmtQ, fmtPct, fmtP,
@@ -7,11 +8,14 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import * as api from '@/lib/api';
+import type { MerchantDeal, MerchantApproval } from '@/types/domain';
 import '@/styles/tracker.css';
 
 export default function DashboardPage() {
   const { settings } = useTheme();
   const t = useT();
+  const navigate = useNavigate();
   const { state, derived } = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
@@ -35,7 +39,30 @@ export default function DashboardPage() {
   const LOW = num(state.settings?.lowStockThreshold, 5000);
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
-  const p2pSellAvg: number | null = 3.82;
+  // ── Merchant Deal KPIs ──
+  const [merchantDeals, setMerchantDeals] = useState<MerchantDeal[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<MerchantApproval[]>([]);
+
+  useEffect(() => {
+    api.deals.list().then(r => setMerchantDeals(r.deals)).catch(() => {});
+    api.approvals.inbox().then(r => setPendingApprovals(r.approvals.filter(a => a.status === 'pending'))).catch(() => {});
+  }, []);
+
+  const activeDeals = merchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
+  const merchantExposure = activeDeals.reduce((s, d) => s + d.amount, 0);
+  const merchantPnL = merchantDeals.reduce((s, d) => s + (d.realized_pnl || 0), 0);
+  const overdueDeals = merchantDeals.filter(d => d.status === 'overdue');
+  const settlementsDue = merchantDeals.filter(d => d.status === 'due');
+
+  // ── P2P Averages from real trade data ──
+  const p2pAvgs = useMemo(() => {
+    const sellTrades = allTrades.filter(t => t.usesStock && t.sellPriceQAR > 0);
+    const avgSell = sellTrades.length ? sellTrades.reduce((s, t) => s + t.sellPriceQAR, 0) / sellTrades.length : null;
+    // Avg buy from batches
+    const batches = state.batches.filter(b => b.buyPriceQAR > 0);
+    const avgBuy = batches.length ? batches.reduce((s, b) => s + b.buyPriceQAR, 0) / batches.length : null;
+    return { avgSell, avgBuy };
+  }, [allTrades, state.batches]);
 
   const badgeStyle = (condition: string) => {
     const color = condition === 'good' ? 'var(--good)' : condition === 'bad' ? 'var(--bad)' : 'var(--warn)';
@@ -116,7 +143,7 @@ export default function DashboardPage() {
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{wacop ? fmtP(wacop) + ' QAR' : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
-              const sp = wacop && p2pSellAvg ? ((p2pSellAvg - wacop) / wacop * 100).toFixed(2) : null;
+              const sp = wacop && p2pAvgs.avgSell ? ((p2pAvgs.avgSell - wacop) / wacop * 100).toFixed(2) : null;
               return sp !== null
                 ? <span className={Number(sp) >= 0 ? 'good' : 'bad'} style={{ fontWeight: 700 }}>{Number(sp) >= 0 ? '+' : ''}{sp}% vs P2P</span>
                 : t('sellAboveAvPrice');
@@ -125,8 +152,24 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards Row 2 — Cash Position */}
+      {/* P2P Average Buy/Sell + Cash Position */}
       <div className="kpis" style={{ marginTop: 0 }}>
+        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/p2p')}>
+          <div className="kpi-head">
+            <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>P2P</span>
+          </div>
+          <div className="kpi-lbl">{t('p2pAvgSell')}</div>
+          <div className="kpi-val" style={{ color: 'var(--good)', fontSize: 17 }}>{p2pAvgs.avgSell ? fmtP(p2pAvgs.avgSell) + ' QAR' : '—'}</div>
+          <div className="kpi-sub">{t('avgFromTrades')}</div>
+        </div>
+        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/p2p')}>
+          <div className="kpi-head">
+            <span className="kpi-badge" style={{ color: 'var(--bad)', borderColor: 'color-mix(in srgb,var(--bad) 30%,transparent)', background: 'color-mix(in srgb,var(--bad) 10%,transparent)' }}>P2P</span>
+          </div>
+          <div className="kpi-lbl">{t('p2pAvgBuy')}</div>
+          <div className="kpi-val" style={{ color: 'var(--bad)', fontSize: 17 }}>{p2pAvgs.avgBuy ? fmtP(p2pAvgs.avgBuy) + ' QAR' : '—'}</div>
+          <div className="kpi-sub">{t('avgFromBatches')}</div>
+        </div>
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>{t('cash')}</span>
@@ -140,29 +183,51 @@ export default function DashboardPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>{wacop ? '@' + t('avPrice') : '—'}</span>
-          </div>
-          <div className="kpi-lbl">{t('buyingPower')}</div>
-          <div className="kpi-val" style={{ color: 'var(--t5)' }}>
-            {wacop && num(state.cashQAR, 0) > 0 ? fmtU(num(state.cashQAR, 0) / wacop, 0) + ' USDT' : t('setCash')}
-          </div>
-          <div className="kpi-sub">{wacop ? '@ ' + fmtP(wacop) + ' QAR' : t('addBatchesFirst')}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-head">
             <span className="kpi-badge good" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>{t('net')}</span>
           </div>
           <div className="kpi-lbl">{t('netPosition')}</div>
           <div className="kpi-val good">{fmtQWithUnit(stCost + num(state.cashQAR, 0))}</div>
           <div className="kpi-sub">{t('stock')} {fmtQWithUnit(stCost)} + {t('cash')} {fmtQWithUnit(num(state.cashQAR, 0))}</div>
         </div>
-        <div className="kpi-card">
+      </div>
+
+      {/* ── Merchant Deal KPIs ── */}
+      <div className="kpis" style={{ marginTop: 0 }}>
+        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/deals')}>
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'var(--line)' }}>{state.batches.length} {t('batch')}</span>
+            <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>🤝</span>
           </div>
-          <div className="kpi-lbl">{t('stockCostEst')}</div>
-          <div className="kpi-val" style={{ fontSize: 17 }}>{fmtQWithUnit(stCost)}</div>
-          <div className="kpi-sub">{t('avPrice')} {wacop ? fmtP(wacop) + ' QAR' : '—'}</div>
+          <div className="kpi-lbl">{t('activeMerchantDeals')}</div>
+          <div className="kpi-val" style={{ color: 'var(--brand)' }}>{activeDeals.length}</div>
+          <div className="kpi-sub">{merchantDeals.length} {t('totalDealsLabel')}</div>
+        </div>
+        <div className="kpi-card" style={{ cursor: pendingApprovals.length > 0 ? 'pointer' : undefined }} onClick={() => pendingApprovals.length > 0 && navigate('/approvals')}>
+          <div className="kpi-head">
+            <span className="kpi-badge" style={badgeStyle(pendingApprovals.length > 0 ? 'bad' : 'good')}>{pendingApprovals.length > 0 ? '⚠' : '✓'}</span>
+          </div>
+          <div className="kpi-lbl">{t('pendingMerchantApprovals')}</div>
+          <div className={`kpi-val ${pendingApprovals.length > 0 ? 'bad' : 'good'}`}>{pendingApprovals.length}</div>
+          <div className="kpi-sub">{pendingApprovals.length > 0 ? t('actionNeeded') : t('allClear')}</div>
+        </div>
+        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/deals')}>
+          <div className="kpi-head">
+            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>💰</span>
+          </div>
+          <div className="kpi-lbl">{t('merchantExposure')}</div>
+          <div className="kpi-val" style={{ fontSize: 17 }}>${merchantExposure.toLocaleString()}</div>
+          <div className="kpi-sub">{activeDeals.length} {t('activeDeals')}</div>
+        </div>
+        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/analytics')}>
+          <div className="kpi-head">
+            <span className="kpi-badge" style={badgeStyle(merchantPnL >= 0 ? 'good' : 'bad')}>P&L</span>
+          </div>
+          <div className="kpi-lbl">{t('merchantRealizedPnl')}</div>
+          <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${merchantPnL.toLocaleString()}</div>
+          <div className="kpi-sub">
+            {overdueDeals.length > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{overdueDeals.length} {t('overdue')}</span>}
+            {settlementsDue.length > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementsDue.length} {t('due')}</span>}
+            {overdueDeals.length === 0 && settlementsDue.length === 0 && <span>{t('allClear')}</span>}
+          </div>
         </div>
       </div>
 
