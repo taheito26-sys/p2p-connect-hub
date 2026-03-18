@@ -168,13 +168,10 @@ export function CreateDealDialog({
   const resetAndClose = () => {
     setStep(1);
     setSelectedType(null);
-    setForm({ customTitle: '', amount: '', currency: 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
-    setSelectedCustomerId('');
-    setSelectedSupplierName('');
+    setForm({ customTitle: '', amount: prefillAmount || '', currency: prefillCurrency || 'USDT', due_date: '', expected_return: '', counterparty_share_pct: '60', partner_ratio: '50', pool_owner_share_pct: '60', settlement_period: 'monthly', interest_rate: '', notes: '' });
+    if (!hasPrefillCustomer) setSelectedCustomerId('');
     setCustomerSearch('');
-    setSupplierSearch('');
     setCustomerDropOpen(false);
-    setSupplierDropOpen(false);
     setValidationErrors([]);
     onOpenChange(false);
   };
