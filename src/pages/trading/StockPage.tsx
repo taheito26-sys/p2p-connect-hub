@@ -62,6 +62,7 @@ export default function StockPage() {
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editSource, setEditSource] = useState('');
+  const [editSupplierCustom, setEditSupplierCustom] = useState('');
   const [editQty, setEditQty] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editNote, setEditNote] = useState('');
@@ -188,6 +189,7 @@ export default function StockPage() {
     setEditingBatchId(id);
     setEditDate(inputFromTs(b.ts));
     setEditSource(b.source);
+    setEditSupplierCustom('');
     setEditQty(String(b.initialUSDT));
     setEditPrice(String(b.buyPriceQAR));
     setEditNote(b.note || '');
@@ -458,41 +460,140 @@ export default function StockPage() {
         </div>
       </div>
 
-      <Dialog open={!!editingBatchId} onOpenChange={(open) => !open && setEditingBatchId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('editBatch')}</DialogTitle>
-          </DialogHeader>
+      {/* ─── EDIT BATCH DIALOG ─── */}
+      {(() => {
+        const editBatch = editingBatchId ? state.batches.find(b => b.id === editingBatchId) : null;
+        const editDerived = editingBatchId ? derived.batches.find(b => b.id === editingBatchId) : null;
+        const editRemaining = editDerived ? Math.max(0, editDerived.remainingUSDT) : (editBatch?.initialUSDT ?? 0);
+        const editUsed = (editBatch?.initialUSDT ?? 0) - editRemaining;
+        const editInvested = editBatch ? editBatch.initialUSDT * editBatch.buyPriceQAR : 0;
+        const editFullyDepleted = editRemaining <= 1e-9 && (editBatch?.initialUSDT ?? 0) > 0;
+        const editPartial = editUsed > 1e-9 && !editFullyDepleted;
+        let editProfit = 0;
+        for (const [, c] of derived.tradeCalc) {
+          if (!c.ok) continue;
+          const sl = c.slices.find(s => s.batchId === editingBatchId);
+          if (sl) editProfit += sl.qty * c.ppu;
+        }
+        const knownSuppliers = [...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
-          <div className="field2" style={{ marginTop: 4 }}>
-            <div className="lbl">{t('dateTime')}</div>
-            <div className="inputBox"><input type="datetime-local" value={editDate} onChange={(e) => setEditDate(e.target.value)} /></div>
-          </div>
-          <div className="field2" style={{ marginTop: 8 }}>
-            <div className="lbl">{t('supplier')}</div>
-            <div className="inputBox"><input value={editSource} onChange={(e) => setEditSource(e.target.value)} /></div>
-          </div>
-          <div className="g2tight" style={{ marginTop: 8 }}>
-            <div className="field2">
-              <div className="lbl">{t('qtyUsdt')}</div>
-              <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-            </div>
-            <div className="field2">
-              <div className="lbl">{t('buyPriceQar')}</div>
-              <div className="inputBox"><input inputMode="decimal" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
-            </div>
-          </div>
-          <div className="field2" style={{ marginTop: 8 }}>
-            <div className="lbl">{t('note')}</div>
-            <div className="inputBox"><input value={editNote} onChange={(e) => setEditNote(e.target.value)} /></div>
-          </div>
+        return (
+          <Dialog open={!!editingBatchId} onOpenChange={(open) => !open && setEditingBatchId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: `1px solid ${editFullyDepleted ? 'color-mix(in srgb, var(--bad) 30%, var(--line))' : 'color-mix(in srgb, var(--good) 25%, var(--line))'}`, borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 14 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('editBatchInPlace')}</DialogTitle>
+              </DialogHeader>
 
-          <DialogFooter>
-            <button className="btn secondary" onClick={deleteBatch}>{t('delete')}</button>
-            <button className="btn" onClick={saveBatchEdit}>{t('saveChanges')}</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {/* Depletion warning */}
+              {(editFullyDepleted || editPartial) && (
+                <div style={{ background: `color-mix(in srgb, ${editFullyDepleted ? 'var(--bad)' : 'var(--warn)'} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${editFullyDepleted ? 'var(--bad)' : 'var(--warn)'} 28%, transparent)`, borderRadius: 6, padding: '8px 12px', fontSize: 11, color: editFullyDepleted ? 'var(--bad)' : 'var(--warn)', marginBottom: 14, lineHeight: 1.5, display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                  <span style={{ flexShrink: 0 }}>⚠</span>
+                  <span>{editFullyDepleted ? t('batchFullyDepletedWarn') : t('batchPartialWarn')}</span>
+                </div>
+              )}
+
+              {/* Date & time */}
+              <div className="field2" style={{ marginBottom: 10 }}>
+                <div className="lbl">{t('dateTime')}</div>
+                <div className="inputBox"><input type="datetime-local" value={editDate} onChange={(e) => setEditDate(e.target.value)} /></div>
+              </div>
+
+              {/* Supplier — dropdown + custom input */}
+              <div className="field2" style={{ marginBottom: 4 }}>
+                <div className="lbl">{t('supplier')}</div>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={knownSuppliers.includes(editSource) && !editSupplierCustom ? editSource : ''}
+                    onChange={e => { setEditSource(e.target.value); setEditSupplierCustom(''); }}
+                    style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                  >
+                    <option value="">{t('noneSelected')}</option>
+                    {knownSuppliers.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--muted)' }}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+              <div className="inputBox" style={{ marginBottom: 10 }}>
+                <input
+                  value={editSupplierCustom}
+                  onChange={e => { setEditSupplierCustom(e.target.value); setEditSource(e.target.value); }}
+                  placeholder={t('customSupplierPlaceholder')}
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Qty USDT | Buy price QAR */}
+              <div className="g2tight" style={{ marginBottom: 4 }}>
+                <div className="field2">
+                  <div className="lbl">{t('qtyUsdt')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
+                </div>
+                <div className="field2">
+                  <div className="lbl">{t('buyPriceQar')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
+                </div>
+              </div>
+              {editUsed > 1e-9 && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>
+                  Min {fmtU(editUsed)} (already used)
+                </div>
+              )}
+
+              {/* Note */}
+              <div className="field2" style={{ marginBottom: 14 }}>
+                <div className="lbl">{t('note')}</div>
+                <div className="inputBox" style={{ padding: 0 }}>
+                  <textarea
+                    value={editNote}
+                    onChange={(e) => setEditNote(e.target.value)}
+                    rows={2}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Batch stats pills */}
+              {editBatch && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+                    {t('remaining')} <strong style={{ color: 'var(--text)' }}>{fmtU(editRemaining)}</strong>
+                  </span>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+                    {t('usedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtU(editUsed)}</strong>
+                  </span>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 30%, transparent)`, background: `color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 10%, transparent)`, fontSize: 11, color: editProfit >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                    Profit {editProfit >= 0 ? '+' : ''}{fmtQ(editProfit)}
+                  </span>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+                    {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtQ(editInvested)}</strong>
+                  </span>
+                </div>
+              )}
+
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button className="btn secondary" style={{ minWidth: 72 }} onClick={() => setEditingBatchId(null)}>{t('cancel')}</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={deleteBatch}
+                    style={{ padding: '8px 14px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    {t('deleteBatch')}
+                  </button>
+                  <button
+                    onClick={saveBatchEdit}
+                    style={{ padding: '8px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                  >
+                    {t('saveChanges')}
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

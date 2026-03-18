@@ -58,6 +58,9 @@ export default function OrdersPage() {
   const [editSell, setEditSell] = useState('');
   const [editBuyer, setEditBuyer] = useState('');
   const [editUsesStock, setEditUsesStock] = useState(true);
+  const [editFee, setEditFee] = useState('0');
+  const [editNote, setEditNote] = useState('');
+  const [editCustomerId, setEditCustomerId] = useState('');
 
   // ─── Merchant Deal Linking ────────────────────────────────────────
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
@@ -255,26 +258,36 @@ export default function OrdersPage() {
   };
 
   const openEdit = (id: string) => {
-    const t = state.trades.find(x => x.id === id);
-    if (!t) return;
-    const cn = state.customers.find(c => c.id === t.customerId)?.name || '';
-    setEditingTradeId(id); setEditDate(toInputFromTs(t.ts)); setEditQty(String(t.amountUSDT)); setEditSell(String(t.sellPriceQAR)); setEditBuyer(cn); setEditUsesStock(t.usesStock);
+    const tr = state.trades.find(x => x.id === id);
+    if (!tr) return;
+    const cn = state.customers.find(c => c.id === tr.customerId)?.name || '';
+    setEditingTradeId(id);
+    setEditDate(toInputFromTs(tr.ts));
+    setEditQty(String(tr.amountUSDT));
+    setEditSell(String(tr.sellPriceQAR));
+    setEditBuyer(cn);
+    setEditUsesStock(tr.usesStock);
+    setEditFee(String(tr.feeQAR ?? 0));
+    setEditNote(tr.note ?? '');
+    setEditCustomerId(tr.customerId ?? '');
   };
 
   const saveTradeEdit = () => {
     if (!editingTradeId) return;
     const ts = new Date(editDate).getTime();
-    const qty = Number(editQty); const sell = Number(editSell);
-    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0) || !editBuyer.trim()) return;
-    let nextCustomers = state.customers; let customerId = '';
-    if (editBuyer.trim()) { const ensured = ensureCustomer(editBuyer); nextCustomers = ensured.customers; customerId = ensured.id; }
-    const nextTrades = state.trades.map(t => {
-      if (t.id !== editingTradeId) return t;
-      return { ...t, ts, amountUSDT: qty, sellPriceQAR: sell, customerId, usesStock: editUsesStock,
-        revisions: [{ at: Date.now(), before: { ts: t.ts, amountUSDT: t.amountUSDT, sellPriceQAR: t.sellPriceQAR, customerId: t.customerId, usesStock: t.usesStock } }, ...t.revisions].slice(0, 20),
+    const qty = Number(editQty);
+    const sell = Number(editSell);
+    const fee = Number(editFee) || 0;
+    if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
+    const nextTrades = state.trades.map(tr => {
+      if (tr.id !== editingTradeId) return tr;
+      return {
+        ...tr, ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
+        customerId: editCustomerId, usesStock: editUsesStock,
+        revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
-    applyState({ ...state, customers: nextCustomers, trades: nextTrades });
+    applyState({ ...state, trades: nextTrades });
     setEditingTradeId(null);
   };
 
@@ -703,24 +716,128 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <Dialog open={!!editingTradeId} onOpenChange={open => !open && setEditingTradeId(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{t('editTrade')}</DialogTitle></DialogHeader>
-          <div className="field2" style={{ marginTop: 4 }}><div className="lbl">{t('dateTime')}</div><div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} /></div></div>
-          <div className="g2tight" style={{ marginTop: 8 }}>
-            <div className="field2"><div className="lbl">{t('quantityUsdt')}</div><div className="inputBox"><input inputMode="decimal" value={editQty} onChange={e => setEditQty(e.target.value)} /></div></div>
-            <div className="field2"><div className="lbl">{t('sellPriceQar')}</div><div className="inputBox"><input inputMode="decimal" value={editSell} onChange={e => setEditSell(e.target.value)} /></div></div>
-          </div>
-          <div className="field2" style={{ marginTop: 8 }}><div className="lbl">{t('buyerLabel')}</div><div className="inputBox"><input value={editBuyer} onChange={e => setEditBuyer(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>
-            <input type="checkbox" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
-          </label>
-          <DialogFooter>
-            <button className="btn secondary" onClick={deleteTrade}>{t('delete')}</button>
-            <button className="btn" onClick={saveTradeEdit}>{t('saveChanges')}</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ─── EDIT TRADE DIALOG ─── */}
+      {(() => {
+        const editingTrade = editingTradeId ? state.trades.find(x => x.id === editingTradeId) : null;
+        const editCalc = editingTradeId ? derived.tradeCalc.get(editingTradeId) : null;
+        const currentVolume = editingTrade ? editingTrade.amountUSDT * editingTrade.sellPriceQAR : 0;
+        const currentNet = editCalc?.ok ? editCalc.netQAR : null;
+        return (
+          <Dialog open={!!editingTradeId} onOpenChange={open => !open && setEditingTradeId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 14 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
+              </DialogHeader>
+
+              {/* Warning banner */}
+              <div style={{ background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--warn)', marginBottom: 14, lineHeight: 1.5 }}>
+                {t('editInPlaceWarning')}
+              </div>
+
+              {/* CURRENT stats box */}
+              {editingTrade && (
+                <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Date & time */}
+              <div className="field2" style={{ marginBottom: 10 }}>
+                <div className="lbl">{t('dateTime')}</div>
+                <div className="inputBox" style={{ display: 'flex', alignItems: 'center' }}>
+                  <input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ flex: 1 }} />
+                </div>
+              </div>
+
+              {/* Customer dropdown — populated from CRM */}
+              <div className="field2" style={{ marginBottom: 10 }}>
+                <div className="lbl">{t('buyerLabel')}</div>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={editCustomerId}
+                    onChange={e => setEditCustomerId(e.target.value)}
+                    style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                  >
+                    <option value="">{t('noCustomerSelected')}</option>
+                    {state.customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                    ))}
+                  </select>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--muted)' }}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+
+              {/* Qty USDT | Sell price QAR */}
+              <div className="g2tight" style={{ marginBottom: 10 }}>
+                <div className="field2">
+                  <div className="lbl">{t('qtyUsdt')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={e => setEditQty(e.target.value)} /></div>
+                </div>
+                <div className="field2">
+                  <div className="lbl">{t('sellPriceQar')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={e => setEditSell(e.target.value)} /></div>
+                </div>
+              </div>
+
+              {/* Fee QAR | Use FIFO stock */}
+              <div className="g2tight" style={{ marginBottom: 10 }}>
+                <div className="field2">
+                  <div className="lbl">{t('feeQarLabel')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={e => setEditFee(e.target.value)} /></div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6, gap: 10 }}>
+                  <input type="checkbox" id="editUsesStockChk" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0, marginBottom: 2 }} />
+                  <label htmlFor="editUsesStockChk" style={{ cursor: 'pointer', lineHeight: 1.3 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{t('useFifoStock')}</div>
+                    <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>{t('deductFromInventory')}</div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div className="field2" style={{ marginBottom: 16 }}>
+                <div className="lbl">{t('note')}</div>
+                <div className="inputBox" style={{ padding: 0 }}>
+                  <textarea
+                    value={editNote}
+                    onChange={e => setEditNote(e.target.value)}
+                    rows={2}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  onClick={deleteTrade}
+                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                >
+                  {t('delete')}
+                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingTradeId(null)}>{t('cancel')}</button>
+                  <button
+                    onClick={saveTradeEdit}
+                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                  >
+                    {t('saveCorrection')}
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {linkedRelId && (
         <CreateDealDialog
