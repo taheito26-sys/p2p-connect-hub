@@ -276,7 +276,8 @@ export default function StockPage() {
                     const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
 
                     return (
-                      <tr key={b.id}>
+                      <React.Fragment key={b.id}>
+                      <tr>
                         <td className="mono">{fmtDate(b.ts)}</td>
                         <td>{b.source || '—'}</td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
@@ -299,7 +300,7 @@ export default function StockPage() {
                         </td>
                       </tr>
                       {detailsOpen[b.id] && (
-                        <tr key={`${b.id}-detail`}>
+                        <tr>
                           <td colSpan={8} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11 }}>
                               <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
@@ -315,7 +316,7 @@ export default function StockPage() {
                           </td>
                         </tr>
                       )}
-                    );
+                      </React.Fragment>
                   })}
                 </tbody>
               </table>
