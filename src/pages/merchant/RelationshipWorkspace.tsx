@@ -130,9 +130,38 @@ export default function RelationshipWorkspace() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleActivateDeal = async (dealId: string) => {
-    try { await api.deals.update(dealId, { status: 'active' }); toast.success(t('dealActivated')); await reload(); }
+  const handleAcceptDeal = async (dealId: string) => {
+    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal accepted and activated'); await reload(); }
     catch (err: any) { toast.error(err.message); }
+  };
+
+  const openRejectDeal = (deal: MerchantDeal) => {
+    setRejectDealId(deal.id);
+    setRejectDealData(deal);
+    setRejectForm({
+      suggested_share_pct: deal.metadata?.counterparty_share_pct ? String(deal.metadata.counterparty_share_pct) : '',
+      suggested_amount: String(deal.amount || ''),
+      note: '',
+    });
+    setRejectDealOpen(true);
+  };
+
+  const handleRejectDeal = async () => {
+    try {
+      const note = [
+        rejectForm.note,
+        rejectForm.suggested_amount ? `Suggested amount: $${rejectForm.suggested_amount}` : '',
+        rejectForm.suggested_share_pct ? `Suggested profit share: ${rejectForm.suggested_share_pct}%` : '',
+      ].filter(Boolean).join(' | ');
+      await api.deals.update(rejectDealId, { status: 'cancelled' });
+      // Send counter-proposal as a message so counterparty sees suggested changes
+      if (id && note) {
+        await api.messages.send(id, `⚠️ Deal rejected with counter-proposal:\n${note}`, 'system');
+      }
+      toast.success('Deal rejected — counter-proposal sent to counterparty');
+      setRejectDealOpen(false);
+      await reload();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const openSettlement = (dealId: string) => {
