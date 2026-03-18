@@ -340,41 +340,48 @@ export function CreateDealDialog({
               <Badge variant="outline" className="text-xs">{t('with')} {counterpartyName}</Badge>
             </div>
 
-            {/* ─── CUSTOMER SELECTOR (MANDATORY) ─── */}
+            {/* ─── CUSTOMER SELECTOR ─── */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
                 👤 {t('dealCustomer')} <span className="text-xs text-destructive font-bold">*</span>
               </Label>
-              <div className="relative">
-                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealCustomerRequired')) ? 'border-destructive' : 'border-input'}`}>
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchCustomerPlaceholder')}
-                    value={customerSearch}
-                    onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
-                    onFocus={() => setCustomerDropOpen(true)}
-                  />
-                  {selectedCustomer && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+              {hasPrefillCustomer ? (
+                <div className="flex items-center border rounded-md bg-muted/30 border-input px-3 h-9">
+                  <span className="text-sm text-foreground font-medium">{selectedCustomer?.name || prefillCustomerName}</span>
+                  <Badge variant="secondary" className="ml-auto text-xs">{t('fromOrder')}</Badge>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealCustomerRequired')) ? 'border-destructive' : 'border-input'}`}>
+                    <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
+                    <input
+                      className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                      placeholder={t('searchCustomerPlaceholder')}
+                      value={customerSearch}
+                      onChange={e => { setCustomerSearch(e.target.value); setCustomerDropOpen(true); }}
+                      onFocus={() => setCustomerDropOpen(true)}
+                    />
+                    {selectedCustomer && (
+                      <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedCustomer.name}</Badge>
+                    )}
+                  </div>
+                  {customerDropOpen && filteredCustomers.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
+                      {filteredCustomers.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
+                          onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealCustomerRequired'))); }}
+                        >
+                          <span className="font-medium">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {customerDropOpen && filteredCustomers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredCustomers.map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between ${selectedCustomerId === c.id ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(''); setCustomerDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealCustomerRequired'))); }}
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-xs text-muted-foreground">{c.phone || c.tier}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
               {validationErrors.includes(t('dealCustomerRequired')) && (
                 <p className="text-xs text-destructive">{t('dealCustomerRequired')}</p>
               )}
@@ -382,8 +389,8 @@ export function CreateDealDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('amount')} <span className="text-xs text-destructive font-bold">*</span></Label>
-                <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+                <Label className="flex items-center gap-1">{t('amount')} <span className="text-xs text-destructive font-bold">*</span>{hasPrefillAmount && <Badge variant="secondary" className="ml-1 text-[9px]">{t('fromOrder')}</Badge>}</Label>
+                <Input type="number" placeholder="10000" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} disabled={hasPrefillAmount} className={hasPrefillAmount ? 'opacity-70' : ''} />
               </div>
               <div className="space-y-2">
                 <Label>{t('currency')}</Label>
