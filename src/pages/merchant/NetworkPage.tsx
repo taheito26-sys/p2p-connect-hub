@@ -357,7 +357,7 @@ export default function NetworkPage() {
         </div>
 
         {/* Activity: Invitations + Approvals + Deals */}
-        <Tabs defaultValue="invitations">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="invitations" className="gap-1">
               {t('invitations')} {pendingInvites > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
