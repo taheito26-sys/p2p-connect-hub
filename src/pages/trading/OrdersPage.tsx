@@ -426,23 +426,39 @@ export default function OrdersPage() {
                           const roi = deal.realized_pnl != null && deal.amount > 0 ? (deal.realized_pnl / deal.amount) * 100 : null;
                           const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
                           const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
+                          const meta = deal.metadata || {};
+                          const cpSharePct = (meta.counterparty_share_pct ?? meta.pool_owner_share_pct ?? meta.partner_ratio ?? 0) as number;
+                          const merchantSharePct = cpSharePct > 0 ? 100 - cpSharePct : 0;
+                          const cpName = rel?.counterparty?.display_name || '—';
+                          const isDealCreator = deal.created_by === userId;
                           return (
                             <tr key={deal.id} style={{ borderTop: '1px solid color-mix(in srgb, var(--line) 85%, transparent)' }}>
                               <td style={{ padding: '10px', fontSize: 11, fontWeight: 700 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span>{cfg?.icon}</span>
-                                  <span>{rel?.counterparty?.display_name || '—'}</span>
+                                  <span>{cpName}</span>
                                 </div>
                               </td>
                               <td style={{ padding: '10px', fontSize: 11 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                   <span>{cfg?.label || deal.deal_type}</span>
-                                  {cfg?.hasCounterpartyShare && (
-                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                                      {t('capitalShared')}
-                                    </span>
-                                  )}
                                 </div>
+                              </td>
+                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'center' }}>
+                                {cpSharePct > 0 ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 600 }}>
+                                      {isDealCreator ? `${merchantSharePct}%` : `${cpSharePct}%`}
+                                      <span style={{ color: 'var(--muted)', fontWeight: 400 }}> / </span>
+                                      {isDealCreator ? `${cpSharePct}%` : `${merchantSharePct}%`}
+                                    </span>
+                                    <span style={{ fontSize: 8, color: 'var(--muted)' }}>
+                                      {isDealCreator ? `you / ${cpName}` : `you / merchant`}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>—</span>
+                                )}
                               </td>
                               <td style={{ padding: '10px', fontSize: 11 }}><span className="pill" style={{ fontSize: 8 }}>{deal.status}</span></td>
                               <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', fontWeight: 700 }}>${deal.amount.toLocaleString()} {deal.currency}</td>
