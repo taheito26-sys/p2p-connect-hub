@@ -376,6 +376,13 @@ export default function OrdersPage() {
                           </div>
                         </td>
                       </tr>
+                      {detailsOpen[tr.id] && (
+                        <tr key={`${tr.id}-detail`}>
+                          <td colSpan={9} style={{ padding: 0 }}>
+                            {renderDetail(tr, c)}
+                          </td>
+                        </tr>
+                      )}
                     );
                   })}
                 </tbody>
