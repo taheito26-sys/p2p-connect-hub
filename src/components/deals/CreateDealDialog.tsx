@@ -394,7 +394,7 @@ export function CreateDealDialog({
               </div>
               <div className="space-y-2">
                 <Label>{t('currency')}</Label>
-                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))} disabled={hasPrefillAmount}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USDT">USDT</SelectItem>
