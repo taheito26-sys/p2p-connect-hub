@@ -74,6 +74,13 @@ export default function OrdersPage() {
   const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
   const [adjustShareValue, setAdjustShareValue] = useState('');
   const [adjustSaving, setAdjustSaving] = useState(false);
+  // Borrower can expose their buyer name to the lender per deal
+  const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
+  const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
+    const next = new Set(prev);
+    if (next.has(dealId)) next.delete(dealId); else next.add(dealId);
+    return next;
+  });
 
   const reloadMerchantData = useCallback(async () => {
     try {
@@ -548,8 +555,7 @@ export default function OrdersPage() {
                         <thead>
                           <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                             <th style={thStyle()}>{t('date')}</th>
-                            <th style={thStyle()}>{t('buyer')}</th>
-                            <th style={thStyle()}>{t('type')}</th>
+                            <th style={thStyle()}>{t('merchantDealType')}</th>
                             <th style={thStyle(true)}>{t('qty')}</th>
                             <th style={thStyle(true)}>{t('sell')}</th>
                             <th style={thStyle(true)}>{t('volume')}</th>
@@ -567,14 +573,18 @@ export default function OrdersPage() {
                             const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
                             const counterpartyName = rel?.counterparty?.display_name || '—';
                             const rowBg = 'color-mix(in srgb, var(--brand) 3%, transparent)';
+                            // Lender sees buyer name only if borrower exposed it
+                            const buyerExposed = exposedBuyerDealIds.has(deal.id);
 
                             // No linked trades → show deal-level summary row
                             if (dealTrades.length === 0) {
                               const margin = deal.realized_pnl != null && deal.amount > 0 ? deal.realized_pnl / deal.amount : NaN;
                               return (
                                 <tr key={deal.id} style={{ background: rowBg }}>
-                                  <td style={tdStyle()}><span className="mono">{deal.issue_date}</span></td>
-                                  <td style={tdStyle()}><span className="tradeBuyerChip" style={{ maxWidth: 120 }}>{counterpartyName}</span></td>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{deal.issue_date}</span>
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                  </td>
                                   <td style={tdStyle()}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                                       <span>{cfg?.icon}</span>
@@ -599,22 +609,28 @@ export default function OrdersPage() {
                               );
                             }
 
-                            // Trade-level rows
+                            // Trade-level rows (lender view — buyer shown only if borrower exposed it)
                             return dealTrades.map((tr, idx) => {
                               const c = derived.tradeCalc.get(tr.id);
                               const ok = !!c?.ok;
                               const rev = tr.amountUSDT * tr.sellPriceQAR;
                               const net = ok ? c!.netQAR : NaN;
                               const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
-                              const cn = state.customers.find(x => x.id === tr.customerId)?.name || counterpartyName;
+                              const buyerName = state.customers.find(x => x.id === tr.customerId)?.name;
                               const firstRowBorder = idx === 0 ? '2px solid color-mix(in srgb, var(--brand) 22%, transparent)' : undefined;
                               return (
                                 <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
                                   <td style={tdStyle()}>
                                     <span className="mono">{fmtDate(tr.ts)}</span>
-                                    {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                                    {idx === 0 && (
+                                      <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                                        {counterpartyName} · {deal.title}
+                                        {buyerExposed && buyerName && (
+                                          <span style={{ marginLeft: 4, color: 'var(--brand)' }}>· {buyerName}</span>
+                                        )}
+                                      </div>
+                                    )}
                                   </td>
-                                  <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                                   <td style={tdStyle()}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                                       <span>{cfg?.icon}</span>
@@ -645,11 +661,11 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                {/* ── YOUR DEALS: you created → you are the borrower / trade executor ── */}
+                {/* ── OUTCOME DEALS: you created → you are the borrower / trade executor ── */}
                 {creatorMerchantDeals.length > 0 && (
                   <div style={{ borderTop: partnerMerchantDeals.length > 0 ? '2px solid color-mix(in srgb, var(--line) 60%, transparent)' : undefined }}>
                     <div style={{ padding: '7px 14px', fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--good)', background: 'color-mix(in srgb, var(--good) 6%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--good) 12%, transparent)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>📤</span> {t('yourDealsSection')}
+                      <span>📤</span> {t('outcomeDeals')}
                       <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{creatorMerchantDeals.length}</span>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
@@ -657,11 +673,9 @@ export default function OrdersPage() {
                         <thead>
                           <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                             <th style={thStyle()}>{t('date')}</th>
-                            <th style={thStyle()}>{t('buyer')}</th>
-                            <th style={thStyle()}>{t('type')}</th>
+                            <th style={thStyle()}>{t('merchantDealType')}</th>
                             <th style={thStyle(true)}>{t('qty')}</th>
-                            <th style={thStyle(true)}>{t('avgBuy')}</th>
-                            <th style={thStyle(true)}>{t('sell')}</th>
+                            <th style={thStyle(true)}>{t('avgBuySellPrice')}</th>
                             <th style={thStyle(true)}>{t('volume')}</th>
                             <th style={thStyle(true)}>{t('net')}</th>
                             <th style={thStyle()}>{t('margin')}</th>
@@ -677,13 +691,16 @@ export default function OrdersPage() {
                             const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
                             const counterpartyName = rel?.counterparty?.display_name || '—';
                             const rowBg = 'color-mix(in srgb, var(--good) 3%, transparent)';
+                            const buyerExposed = exposedBuyerDealIds.has(deal.id);
 
                             // No linked trades → deal summary row
                             if (dealTrades.length === 0) {
                               return (
                                 <tr key={deal.id} style={{ background: rowBg }}>
-                                  <td style={tdStyle()}><span className="mono">{deal.issue_date}</span></td>
-                                  <td style={tdStyle()}><span className="tradeBuyerChip" style={{ maxWidth: 120 }}>{counterpartyName}</span></td>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{deal.issue_date}</span>
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                  </td>
                                   <td style={tdStyle()}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                                       <span>{cfg?.icon}</span>
@@ -691,12 +708,13 @@ export default function OrdersPage() {
                                       {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{sharePct}%</span>}
                                     </span>
                                   </td>
-                                  <td colSpan={5} style={{ ...tdStyle(), color: 'var(--muted)', fontStyle: 'italic', fontSize: 10 }}>
+                                  <td colSpan={3} style={{ ...tdStyle(), color: 'var(--muted)', fontStyle: 'italic', fontSize: 10 }}>
                                     {t('noLinkedOrders')} · {deal.amount.toLocaleString()} {deal.currency}
                                   </td>
                                   <td style={{ ...tdStyle(), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
                                     {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
                                   </td>
+                                  <td style={tdStyle()} />
                                   <td style={tdStyle()}>
                                     <div className="actionsRow">
                                       {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
@@ -707,7 +725,7 @@ export default function OrdersPage() {
                               );
                             }
 
-                            // Trade-level rows (with Avg Buy from FIFO)
+                            // Trade-level rows (borrower view — Avg Buy / Sell Price merged, expose-buyer toggle)
                             return dealTrades.map((tr, idx) => {
                               const c = derived.tradeCalc.get(tr.id);
                               const ok = !!c?.ok;
@@ -722,7 +740,6 @@ export default function OrdersPage() {
                                     <span className="mono">{fmtDate(tr.ts)}</span>
                                     {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
                                   </td>
-                                  <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                                   <td style={tdStyle()}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                                       <span>{cfg?.icon}</span>
@@ -731,8 +748,18 @@ export default function OrdersPage() {
                                     </span>
                                   </td>
                                   <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
-                                  <td className="mono" style={tdStyle(true)}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
-                                  <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                  {/* Avg Buy / Sell Price — merged column */}
+                                  <td className="mono" style={tdStyle(true)}>
+                                    {ok && c!.avgBuyQAR > 0 ? (
+                                      <span>
+                                        <span style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtP(c!.avgBuyQAR)}</span>
+                                        <span style={{ color: 'var(--muted)', margin: '0 2px' }}>/</span>
+                                        <span style={{ color: 'var(--good)', fontSize: 10 }}>{fmtP(tr.sellPriceQAR)}</span>
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: 'var(--good)', fontSize: 10 }}>{fmtP(tr.sellPriceQAR)}</span>
+                                    )}
+                                  </td>
                                   <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
                                   <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
                                     {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
@@ -740,6 +767,17 @@ export default function OrdersPage() {
                                   {renderMargin(margin)}
                                   <td style={tdStyle()}>
                                     <div className="actionsRow">
+                                      {/* Borrower can expose their buyer name to the lender */}
+                                      {cn && idx === 0 && (
+                                        <button
+                                          className="rowBtn"
+                                          title={buyerExposed ? t('buyerExposed') : t('exposeBuyerToLender')}
+                                          onClick={() => toggleExposeBuyer(deal.id)}
+                                          style={{ color: buyerExposed ? 'var(--good)' : 'var(--muted)', borderColor: buyerExposed ? 'color-mix(in srgb, var(--good) 35%, transparent)' : undefined }}
+                                        >
+                                          {buyerExposed ? '👁 ' + t('buyerExposed') : t('exposeBuyerToLender')}
+                                        </button>
+                                      )}
                                       {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
                                       <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                     </div>

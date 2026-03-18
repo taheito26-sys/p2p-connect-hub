@@ -148,8 +148,10 @@ export default function NetworkPage() {
   const summary = useMemo(() => {
     const vol = allDeals.reduce((s, d) => s + d.amount, 0);
     const pnl = allDeals.reduce((s, d) => s + (d.realized_pnl ?? 0), 0);
-    return { vol, pnl, active: activeDeals.length, overdue: overdueDeals.length };
-  }, [allDeals, activeDeals, overdueDeals]);
+    const incoming = allDeals.filter(d => d.created_by !== userId).length;
+    const outcome = allDeals.filter(d => d.created_by === userId).length;
+    return { vol, pnl, active: activeDeals.length, overdue: overdueDeals.length, incoming, outcome };
+  }, [allDeals, activeDeals, overdueDeals, userId]);
 
   // Lookup: deal → relationship → counterparty name
   const relMap = useMemo(() => {
@@ -359,7 +361,15 @@ export default function NetworkPage() {
       )}
 
       {/* ─── KPI STRIP ─── */}
-      <div className="shrink-0 grid grid-cols-4 gap-2 px-4 py-2.5 border-b border-border">
+      <div className="shrink-0 grid grid-cols-6 gap-2 px-4 py-2.5 border-b border-border">
+        <div className="px-3 py-2 rounded-lg bg-blue-500/10">
+          <p className="text-[11px] text-blue-600 flex items-center gap-1"><TrendingDown className="w-3 h-3" /> Incoming</p>
+          <p className="text-xl font-medium leading-tight mt-0.5 text-blue-600">{summary.incoming}</p>
+        </div>
+        <div className="px-3 py-2 rounded-lg bg-emerald-500/10">
+          <p className="text-[11px] text-emerald-600 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Outcome</p>
+          <p className="text-xl font-medium leading-tight mt-0.5 text-emerald-600">{summary.outcome}</p>
+        </div>
         <div className="px-3 py-2 rounded-lg bg-secondary">
           <p className="text-[11px] text-muted-foreground">{t('activeDeals')}</p>
           <p className="text-xl font-medium leading-tight mt-0.5">{summary.active}</p>
@@ -417,6 +427,7 @@ export default function NetworkPage() {
             <thead>
               <tr className="border-b border-border bg-secondary sticky top-0 z-[1]">
                 <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Deal</th>
+                <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Direction</th>
                 <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Merchant</th>
                 <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
@@ -430,7 +441,7 @@ export default function NetworkPage() {
                 const rel = relMap[deal.relationship_id];
                 const cpName = rel?.counterparty?.display_name || '—';
                 const net = deal.realized_pnl ?? 0;
-                const isUrgent = deal.status === 'overdue' || deal.status === 'due';
+                const isIncoming = deal.created_by !== userId;
                 return (
                   <tr
                     key={deal.id}
@@ -454,6 +465,17 @@ export default function NetworkPage() {
                           <p className="text-[11px] text-muted-foreground">{deal.title || deal.id.slice(0, 12)}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {isIncoming ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                          <TrendingDown className="w-3 h-3" /> Incoming
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          <TrendingUp className="w-3 h-3" /> Outcome
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
