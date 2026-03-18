@@ -577,6 +577,34 @@ const translations = {
   stockReservation: { en: 'Stock Reservation', ar: 'حجز المخزون' },
   dealWillReserveStock: { en: 'This deal will reserve {amount} USDT from available stock', ar: 'هذه الصفقة ستحجز {amount} USDT من المخزون المتاح' },
   insufficientStock: { en: 'Insufficient stock for this deal amount', ar: 'المخزون غير كافٍ لمبلغ هذه الصفقة' },
+
+  // ── Dashboard Merchant KPIs ──
+  p2pAvgSell: { en: 'P2P AVG SELL', ar: 'متوسط البيع P2P' },
+  p2pAvgBuy: { en: 'P2P AVG BUY', ar: 'متوسط الشراء P2P' },
+  avgFromTrades: { en: 'Average from sell trades', ar: 'المتوسط من صفقات البيع' },
+  avgFromBatches: { en: 'Average from batch purchases', ar: 'المتوسط من مشتريات الدفعات' },
+  activeMerchantDeals: { en: 'ACTIVE MERCHANT DEALS', ar: 'الصفقات التجارية النشطة' },
+  totalDealsLabel: { en: 'total deals', ar: 'إجمالي الصفقات' },
+  pendingMerchantApprovals: { en: 'PENDING APPROVALS', ar: 'الموافقات المعلقة' },
+  allClear: { en: 'All clear', ar: 'كل شيء مُنجز' },
+  merchantExposure: { en: 'MERCHANT EXPOSURE', ar: 'التعرض التجاري' },
+  merchantRealizedPnl: { en: 'MERCHANT P&L', ar: 'أرباح/خسائر تجارية' },
+
+  // ── Network Inbox ──
+  globalInbox: { en: 'Merchant Inbox', ar: 'صندوق الوارد التجاري' },
+  selectConversation: { en: 'Select a conversation to start messaging', ar: 'اختر محادثة لبدء المراسلة' },
+
+  // ── Stock Details ──
+  batchDetails: { en: 'Batch Details', ar: 'تفاصيل الدفعة' },
+  batchDate: { en: 'Date', ar: 'التاريخ' },
+  batchSource: { en: 'Source / Supplier', ar: 'المصدر / المورد' },
+  batchQty: { en: 'Quantity', ar: 'الكمية' },
+  batchBuyPrice: { en: 'Buy Price', ar: 'سعر الشراء' },
+  batchRemaining: { en: 'Remaining', ar: 'المتبقي' },
+  batchUtilization: { en: 'Utilization', ar: 'الاستخدام' },
+  batchNotes: { en: 'Notes', ar: 'ملاحظات' },
+  batchLinkedDeals: { en: 'Linked Merchant Deals', ar: 'الصفقات التجارية المرتبطة' },
+  noLinkedDeals: { en: 'No linked merchant deals', ar: 'لا توجد صفقات تجارية مرتبطة' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
