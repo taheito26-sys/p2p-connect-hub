@@ -76,6 +76,11 @@ export default function RelationshipWorkspace() {
   const [settleDealId, setSettleDealId] = useState('');
   const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
 
+  const [rejectDealOpen, setRejectDealOpen] = useState(false);
+  const [rejectDealId, setRejectDealId] = useState('');
+  const [rejectDealData, setRejectDealData] = useState<MerchantDeal | null>(null);
+  const [rejectForm, setRejectForm] = useState({ suggested_share_pct: '', suggested_amount: '', note: '' });
+
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
@@ -125,9 +130,38 @@ export default function RelationshipWorkspace() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleActivateDeal = async (dealId: string) => {
-    try { await api.deals.update(dealId, { status: 'active' }); toast.success(t('dealActivated')); await reload(); }
+  const handleAcceptDeal = async (dealId: string) => {
+    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal accepted and activated'); await reload(); }
     catch (err: any) { toast.error(err.message); }
+  };
+
+  const openRejectDeal = (deal: MerchantDeal) => {
+    setRejectDealId(deal.id);
+    setRejectDealData(deal);
+    setRejectForm({
+      suggested_share_pct: deal.metadata?.counterparty_share_pct ? String(deal.metadata.counterparty_share_pct) : '',
+      suggested_amount: String(deal.amount || ''),
+      note: '',
+    });
+    setRejectDealOpen(true);
+  };
+
+  const handleRejectDeal = async () => {
+    try {
+      const note = [
+        rejectForm.note,
+        rejectForm.suggested_amount ? `Suggested amount: $${rejectForm.suggested_amount}` : '',
+        rejectForm.suggested_share_pct ? `Suggested profit share: ${rejectForm.suggested_share_pct}%` : '',
+      ].filter(Boolean).join(' | ');
+      await api.deals.update(rejectDealId, { status: 'cancelled' });
+      // Send counter-proposal as a message so counterparty sees suggested changes
+      if (id && note) {
+        await api.messages.send(id, `⚠️ Deal rejected with counter-proposal:\n${note}`, 'system');
+      }
+      toast.success('Deal rejected — counter-proposal sent to counterparty');
+      setRejectDealOpen(false);
+      await reload();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const openSettlement = (dealId: string) => {
@@ -382,9 +416,14 @@ export default function RelationshipWorkspace() {
                         <p className="text-xs text-muted-foreground">{deal.currency}</p>
                         <div className="flex gap-1 justify-end flex-wrap">
                           {deal.status === 'draft' && (
-                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleActivateDeal(deal.id)}>
-                              <ArrowRight className="w-3 h-3 mr-1" /> {t('activate')}
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" className="text-xs h-7 border-success/50 text-success hover:bg-success/10" onClick={() => handleAcceptDeal(deal.id)}>
+                                <Check className="w-3 h-3 mr-1" /> Accept
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-xs h-7 border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => openRejectDeal(deal)}>
+                                <X className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
                           )}
                           {['active', 'due', 'overdue'].includes(deal.status) && (
                             <TooltipProvider delayDuration={200}>
@@ -605,6 +644,56 @@ export default function RelationshipWorkspace() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettlementOpen(false)}>{t('cancel')}</Button>
             <Button onClick={handleSubmitSettlement}>{t('submitForApproval')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Deal Dialog with Counter-Proposal */}
+      <Dialog open={rejectDealOpen} onOpenChange={setRejectDealOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="w-4 h-4 text-destructive" /> Reject Deal
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Reject this deal and suggest changes. Your counter-proposal will be sent to the counterparty.
+            </p>
+          </DialogHeader>
+          {rejectDealData && (
+            <div className="space-y-4 py-2">
+              {/* Current deal summary */}
+              <div className="rounded-md bg-muted/50 border border-border p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Deal Terms</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Type:</span> <span className="capitalize">{rejectDealData.deal_type?.replace(/_/g, ' ')}</span></div>
+                  <div><span className="text-muted-foreground">Amount:</span> <span className="font-mono">${rejectDealData.amount?.toLocaleString()}</span></div>
+                  {rejectDealData.metadata?.counterparty_share_pct && (
+                    <div><span className="text-muted-foreground">Profit Share:</span> <span>{String(rejectDealData.metadata.counterparty_share_pct)}%</span></div>
+                  )}
+                  {rejectDealData.metadata?.partner_ratio && (
+                    <div><span className="text-muted-foreground">Partner Ratio:</span> <span>{String(rejectDealData.metadata.partner_ratio)}%</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Counter-proposal fields */}
+              <div className="space-y-2">
+                <Label>Suggested Amount ($)</Label>
+                <Input type="number" placeholder={String(rejectDealData.amount || '')} value={rejectForm.suggested_amount} onChange={e => setRejectForm(f => ({ ...f, suggested_amount: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Suggested Profit Share (%)</Label>
+                <Input type="number" min="0" max="100" placeholder={rejectDealData.metadata?.counterparty_share_pct ? String(rejectDealData.metadata.counterparty_share_pct) : '50'} value={rejectForm.suggested_share_pct} onChange={e => setRejectForm(f => ({ ...f, suggested_share_pct: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason / Note</Label>
+                <Textarea placeholder="Explain why you're rejecting and what terms you'd prefer..." value={rejectForm.note} onChange={e => setRejectForm(f => ({ ...f, note: e.target.value }))} rows={3} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDealOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRejectDeal}>Reject & Send Proposal</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
