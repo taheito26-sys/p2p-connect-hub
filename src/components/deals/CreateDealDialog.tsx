@@ -180,7 +180,6 @@ export function CreateDealDialog({
     const errs: string[] = [];
     if (!form.amount || !(Number(form.amount) > 0)) errs.push(t('amount'));
     if (!selectedCustomerId) errs.push(t('dealCustomerRequired'));
-    if (!selectedSupplierName) errs.push(t('dealSupplierRequired'));
     setValidationErrors(errs);
     return errs.length === 0;
   };
