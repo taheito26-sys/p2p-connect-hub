@@ -564,6 +564,7 @@ const translations = {
   noMerchantDeals: { en: 'No merchant deals linked', ar: 'لا توجد صفقات تجارية مرتبطة' },
   viewInWorkspace: { en: 'View in Workspace', ar: 'عرض في مساحة العمل' },
   counterpartyLabel: { en: 'Counterparty', ar: 'الطرف المقابل' },
+  merchantLabel: { en: 'Merchant', ar: 'التاجر' },
   shareLabel: { en: 'Share', ar: 'الحصة' },
 
   // ── Deal creation enhancements ──
