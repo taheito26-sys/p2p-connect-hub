@@ -472,7 +472,7 @@ export default function NetworkPage() {
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('buyer')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('supplier')}</th>
                       <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('amount')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('status')}</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('statusEdit')}</th>
                       <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">P&L</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('actions')}</th>
                     </tr>
