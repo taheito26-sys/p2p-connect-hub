@@ -132,32 +132,30 @@ export default function RelationshipWorkspace() {
 
   const openSettlement = (dealId: string) => {
     setSettleDealId(dealId);
-    setSettlementForm({ amount: '', note: '' });
+    setSettlementForm({ amount: '', profit: '', period_key: new Date().toISOString().substring(0, 7), note: '' });
     setSettlementOpen(true);
   };
 
   const handleSubmitSettlement = async () => {
     if (!settlementForm.amount) return;
     try {
+      // 1. Submit settlement (capital return)
       await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
-      toast.success(t('settlementSubmitted'));
+
+      // 2. Record profit if provided
+      if (settlementForm.profit && parseFloat(settlementForm.profit) > 0) {
+        await api.deals.recordProfit(settleDealId, {
+          amount: parseFloat(settlementForm.profit),
+          period_key: settlementForm.period_key,
+          note: settlementForm.note,
+        });
+      }
+
+      // 3. Auto-close the deal
+      await api.deals.close(settleDealId, { note: 'Auto-closed on settlement submission' });
+
+      toast.success('Settlement submitted — deal will close once counterparty approves');
       setSettlementOpen(false);
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const openProfit = (dealId: string) => {
-    setProfitDealId(dealId);
-    setProfitForm({ amount: '', period_key: new Date().toISOString().substring(0, 7), note: '' });
-    setProfitOpen(true);
-  };
-
-  const handleRecordProfit = async () => {
-    if (!profitForm.amount) return;
-    try {
-      await api.deals.recordProfit(profitDealId, { amount: parseFloat(profitForm.amount), period_key: profitForm.period_key, note: profitForm.note });
-      toast.success(t('profitRecorded'));
-      setProfitOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
   };
