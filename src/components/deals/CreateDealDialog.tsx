@@ -281,15 +281,14 @@ export function CreateDealDialog({
     }
   };
 
-  // Build deal summary note with customer/supplier context
+  // Build deal summary note with customer context
   const dealContextSummary = useMemo(() => {
-    if (!selectedCustomer && !selectedSupplierName) return '';
+    if (!selectedCustomer) return '';
     const custName = selectedCustomer?.name || t('noCustomerSelected');
-    const suppName = selectedSupplierName || t('noSupplierSelected');
     return t('dealSummaryNote')
       .replace('{customer}', custName)
-      .replace('{supplier}', suppName);
-  }, [selectedCustomer, selectedSupplierName, t]);
+      .replace('{supplier}', autoSupplierName);
+  }, [selectedCustomer, autoSupplierName, t]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
