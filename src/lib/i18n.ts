@@ -565,8 +565,6 @@ const translations = {
   viewInWorkspace: { en: 'View in Workspace', ar: 'عرض في مساحة العمل' },
   addSaleAsMerchantOrder: { en: 'Add this sale as a merchant order', ar: 'إضافة هذه العملية كطلب تجاري' },
   createMerchantDealFromOrder: { en: 'Create merchant deal', ar: 'إنشاء صفقة تجارية' },
-  selfOrderType: { en: 'Self', ar: 'ذاتي' },
-  merchantOrderType: { en: 'Merchant', ar: 'تجاري' },
   counterpartyLabel: { en: 'Counterparty', ar: 'الطرف المقابل' },
   merchantLabel: { en: 'Merchant', ar: 'التاجر' },
   shareLabel: { en: 'Share', ar: 'الحصة' },

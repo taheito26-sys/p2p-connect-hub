@@ -32,13 +32,13 @@ interface Props {
   onStateChange?: (next: TrackerState) => void;
   /** Whether creating a deal should also reserve/add a tracker trade */
   reserveTrackerTradeOnCreate?: boolean;
-  /** Pre-fill amount from order flow */
+  /** Pre-filled amount from new sale flow (locks the field) */
   prefillAmount?: string;
-  /** Pre-fill currency from order flow */
+  /** Pre-filled currency from new sale flow */
   prefillCurrency?: string;
-  /** Pre-fill customer ID from order flow */
+  /** Pre-filled customer ID from new sale flow (locks the field) */
   prefillCustomerId?: string;
-  /** Pre-fill customer name from order flow */
+  /** Pre-filled customer name from new sale flow */
   prefillCustomerName?: string;
 }
 

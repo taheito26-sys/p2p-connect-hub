@@ -55,7 +55,6 @@ export default function NetworkPage() {
   const [aprInbox, setAprInbox] = useState<MerchantApproval[]>([]);
   const [allDeals, setAllDeals] = useState<MerchantDeal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [dealFilter, setDealFilter] = useState<DealFilter>('all');
   const [bellOpen, setBellOpen] = useState(false);
 
@@ -74,42 +73,27 @@ export default function NetworkPage() {
       ] = await Promise.all([
         api.invites.inbox(), api.invites.sent(), api.relationships.list(), api.approvals.inbox(), api.deals.list()
       ]);
-      const safeInbox = Array.isArray(inInbox) ? inInbox : [];
-      const safeSent = Array.isArray(outSent) ? outSent : [];
-      const safeRelationships = Array.isArray(relationships) ? relationships : [];
-      const safeApprovals = Array.isArray(aprIn) ? aprIn : [];
-      const safeDeals = Array.isArray(deals) ? deals : [];
-
-      setLoadError(false);
-      setInbox(safeInbox);
-      setSent(safeSent);
-      setRels(safeRelationships);
-      setAprInbox(safeApprovals);
-      setAllDeals(safeDeals);
-      setLoading(false);
+      setInbox(inInbox);
+      setSent(outSent);
+      setRels(relationships);
+      setAprInbox(aprIn);
+      setAllDeals(deals);
 
       // Lightweight unread check per relationship
       const uMap: Record<string, number> = {};
-      Promise.all(safeRelationships.map(async (rel) => {
+      await Promise.all(relationships.map(async (rel) => {
         try {
           const { messages } = await api.messages.list(rel.id);
-          const safeMessages = Array.isArray(messages) ? messages : [];
-          uMap[rel.id] = safeMessages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
+          uMap[rel.id] = messages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
         } catch { uMap[rel.id] = 0; }
-      })).then(() => setUnreadMap(uMap)).catch(() => setUnreadMap({}));
+      }));
+      setUnreadMap(uMap);
     } catch {
-      setInbox([]);
-      setSent([]);
-      setRels([]);
-      setAprInbox([]);
-      setAllDeals([]);
-      setUnreadMap({});
-      setLoadError(true);
       toast.error(t('failedLoadNetwork'));
     } finally {
       setLoading(false);
     }
-  }, [t, userId]);
+  }, [userId]);
 
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update', 'deal_update']);
@@ -402,12 +386,6 @@ export default function NetworkPage() {
           </p>
         </div>
       </div>
-
-      {loadError && (
-        <div className="shrink-0 mx-4 mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
-          {t('failedLoadNetwork')}
-        </div>
-      )}
 
       {/* ─── FILTER BAR ─── */}
       <div className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border">
