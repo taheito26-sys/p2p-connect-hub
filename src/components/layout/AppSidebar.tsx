@@ -14,12 +14,15 @@ import {
   Calendar,
   UserCircle,
   CloudUpload,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { useT, type TranslationKey } from '@/lib/i18n';
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
+import * as api from '@/lib/api';
+import { useRealtime } from '@/hooks/use-realtime';
 
 const tradingNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
   { labelKey: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -40,9 +43,34 @@ const networkNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { profile, logout } = useAuth();
+  const { profile, userId, isAuthenticated } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const t = useT();
+
+  // Track unread messages
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const { relationships } = await api.relationships.list();
+      let total = 0;
+      for (const rel of relationships) {
+        const { messages } = await api.messages.list(rel.id);
+        total += messages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
+      }
+      setUnreadMsgCount(total);
+    } catch {}
+  }, [isAuthenticated, userId]);
+
+  useEffect(() => { fetchUnread(); }, [fetchUnread]);
+
+  // Refresh on new messages
+  useRealtime((event) => {
+    if (event.type === 'new_message') {
+      fetchUnread();
+    }
+  });
 
   return (
     <aside
@@ -101,12 +129,13 @@ export function AppSidebar() {
         {!collapsed && <p className="px-4 pt-5 pb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t('network')}</p>}
         {networkNav.map(item => {
           const active = location.pathname === item.path || (item.path === '/network' && location.pathname.startsWith('/network'));
+          const isNetworkItem = item.path === '/network';
           return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
-                'flex items-center gap-3 mx-2 px-3 py-2 rounded-md text-sm transition-colors',
+                'flex items-center gap-3 mx-2 px-3 py-2 rounded-md text-sm transition-colors relative',
                 active
                   ? 'bg-sidebar-accent text-sidebar-primary font-medium'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -114,6 +143,14 @@ export function AppSidebar() {
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span>{t(item.labelKey)}</span>}
+              {isNetworkItem && unreadMsgCount > 0 && (
+                <span className={cn(
+                  'rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center',
+                  collapsed ? 'absolute -top-0.5 -right-0.5 w-4 h-4' : 'ml-auto w-5 h-5'
+                )}>
+                  {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+                </span>
+              )}
             </Link>
           );
         })}
