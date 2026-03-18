@@ -508,7 +508,7 @@ export default function RelationshipWorkspace() {
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div>
-                            <span className="text-muted-foreground">{t('dealAmount')}:</span>{' '}
+                            <span className="text-muted-foreground">Amount:</span>{' '}
                             <span className="font-mono font-semibold">${linkedDeal.amount.toLocaleString()} {linkedDeal.currency}</span>
                           </div>
                           {linkedDeal.issue_date && (
