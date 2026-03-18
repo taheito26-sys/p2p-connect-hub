@@ -73,22 +73,35 @@ export default function NetworkPage() {
       ] = await Promise.all([
         api.invites.inbox(), api.invites.sent(), api.relationships.list(), api.approvals.inbox(), api.deals.list()
       ]);
-      setInbox(inInbox);
-      setSent(outSent);
-      setRels(relationships);
-      setAprInbox(aprIn);
-      setAllDeals(deals);
+      const safeInbox = Array.isArray(inInbox) ? inInbox : [];
+      const safeSent = Array.isArray(outSent) ? outSent : [];
+      const safeRelationships = Array.isArray(relationships) ? relationships : [];
+      const safeApprovals = Array.isArray(aprIn) ? aprIn : [];
+      const safeDeals = Array.isArray(deals) ? deals : [];
+
+      setInbox(safeInbox);
+      setSent(safeSent);
+      setRels(safeRelationships);
+      setAprInbox(safeApprovals);
+      setAllDeals(safeDeals);
 
       // Lightweight unread check per relationship
       const uMap: Record<string, number> = {};
-      await Promise.all(relationships.map(async (rel) => {
+      await Promise.all(safeRelationships.map(async (rel) => {
         try {
           const { messages } = await api.messages.list(rel.id);
-          uMap[rel.id] = messages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
+          const safeMessages = Array.isArray(messages) ? messages : [];
+          uMap[rel.id] = safeMessages.filter(m => !m.is_read && m.sender_user_id !== userId).length;
         } catch { uMap[rel.id] = 0; }
       }));
       setUnreadMap(uMap);
     } catch {
+      setInbox([]);
+      setSent([]);
+      setRels([]);
+      setAprInbox([]);
+      setAllDeals([]);
+      setUnreadMap({});
       toast.error(t('failedLoadNetwork'));
     } finally {
       setLoading(false);
