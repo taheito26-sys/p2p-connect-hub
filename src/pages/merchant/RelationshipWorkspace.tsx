@@ -160,9 +160,6 @@ export default function RelationshipWorkspace() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleCloseDeal = async (dealId: string) => {
-    try { await api.deals.close(dealId); toast.success(t('closeRequest')); await reload(); }
-    catch (err: any) { toast.error(err.message); }
   };
 
   const handleApprove = async (approvalId: string) => {
