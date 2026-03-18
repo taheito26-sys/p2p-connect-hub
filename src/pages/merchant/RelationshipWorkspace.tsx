@@ -399,31 +399,9 @@ export default function RelationshipWorkspace() {
                                     <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Return Capital</p>
-                                  <p className="text-muted-foreground">Submit a partial or full capital return to the counterparty. Requires their approval.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
-                                    <Plus className="w-3 h-3 mr-1" /> {t('profit')}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Record Profit</p>
-                                  <p className="text-muted-foreground">Log earned profit for a period. The counterparty must approve the recorded amount.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
-                                    <Lock className="w-3 h-3 mr-1" /> {t('close')}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Close Deal</p>
-                                  <p className="text-muted-foreground">Finalize and close this deal. No further settlements or profits can be recorded after closure.</p>
+                                <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                                  <p className="font-semibold mb-0.5">Settle & Close</p>
+                                  <p className="text-muted-foreground">Return capital, record profit, and submit for counterparty approval. Deal closes automatically once approved.</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
