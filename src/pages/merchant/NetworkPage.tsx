@@ -267,140 +267,136 @@ export default function NetworkPage() {
      RENDER
      ═══════════════════════════════════════════════════════ */
   return (
-    <div dir={t.isRTL ? 'rtl' : 'ltr'} className="flex flex-col h-[calc(100vh-3.5rem)]">
-      {/* ─── Top bar: Search + Stats + Quick actions ─── */}
-      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-20">
-        <div className="flex items-center gap-3 px-4 h-14">
-          {/* Title */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-sm font-semibold leading-tight">{t('networkTitle')}</h1>
-              <p className="text-[10px] text-muted-foreground leading-tight">{rels.length} {t('relationships')}</p>
-            </div>
-          </div>
+    <div dir={t.isRTL ? 'rtl' : 'ltr'} className="flex flex-col h-[calc(100vh-3.5rem)] border border-border/50 rounded-xl overflow-hidden bg-card mx-1 my-1">
 
-          {/* Spacer */}
-          <div className="flex-1" />
+      {/* ─── Top bar ─── */}
+      <div className="shrink-0 flex items-center gap-2.5 px-3.5 h-12 border-b border-border bg-card">
+        {/* Logo */}
+        <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+          <Users className="w-3.5 h-3.5 text-blue-600" />
+        </div>
+        <div className="shrink-0">
+          <h1 className="text-[13px] font-medium leading-tight">{t('networkTitle')}</h1>
+          <p className="text-[11px] text-muted-foreground leading-tight">{rels.length} {t('relationships')}</p>
+        </div>
 
-          {/* Inline stat pills */}
-          <div className="hidden md:flex items-center gap-1.5">
-            {totalAlerts > 0 && (
-              <button
-                onClick={() => setMainView('activity')}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 text-red-500 text-[11px] font-medium hover:bg-red-500/20 transition-colors"
-              >
-                <Bell className="w-3 h-3" />
-                {totalAlerts} {t('actionNeeded')}
-              </button>
-            )}
-            {totalUnread > 0 && (
-              <button
-                onClick={() => {
-                  setMainView('chat');
-                  const firstUnread = conversations.find(c => c.unreadCount > 0);
-                  if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-500 text-[11px] font-medium hover:bg-blue-500/20 transition-colors"
-              >
-                <MessageCircle className="w-3 h-3" />
-                {totalUnread} {t('unread')}
-              </button>
-            )}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-[11px]">
-              <Briefcase className="w-3 h-3" />
-              {activeDeals.length} {t('activeDeals')}
-            </div>
-          </div>
+        <div className="flex-1" />
 
-          {/* Search trigger */}
-          <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <Input
+        {/* Stat pills */}
+        {totalAlerts > 0 && (
+          <button
+            onClick={() => setMainView('activity')}
+            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+          >
+            <Bell className="w-3 h-3" />
+            {totalAlerts} {t('actionNeeded')}
+          </button>
+        )}
+        {totalUnread > 0 && (
+          <button
+            onClick={() => {
+              setMainView('chat');
+              const firstUnread = conversations.find(c => c.unreadCount > 0);
+              if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+          >
+            <MessageCircle className="w-3 h-3" />
+            {totalUnread} {t('unread')}
+          </button>
+        )}
+        <span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
+          <Briefcase className="w-3 h-3" />
+          {activeDeals.length} {t('activeDeals')}
+        </span>
+
+        {/* Search */}
+        <form onSubmit={handleSearch} className="relative">
+          <div className="flex items-center gap-1.5 px-2.5 h-[30px] rounded-lg border border-border bg-secondary text-[12px] text-muted-foreground min-w-[160px]">
+            <Search className="w-[13px] h-[13px] opacity-50 shrink-0" />
+            <input
               placeholder={t('findMerchant')}
               value={query}
               onChange={e => { setQuery(e.target.value); if (!e.target.value) { setSearched(false); setSearchOpen(false); } }}
-              className="pl-8 h-8 text-xs w-44 md:w-56 rounded-lg"
+              className="bg-transparent border-0 outline-none w-full text-foreground placeholder:text-muted-foreground text-[12px]"
             />
-          </form>
-        </div>
-
-        {/* Search results dropdown */}
-        {searched && searchOpen && results.length > 0 && (
-          <div className="absolute right-4 top-14 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-            <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">{results.length} {t('searchResults')}</p>
-              <button onClick={() => { setSearchOpen(false); setSearched(false); setQuery(''); }} className="text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {results.map(r => (
-                <div key={r.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{r.display_name}</p>
-                    <p className="text-[10px] text-muted-foreground">@{r.nickname} · {r.region} · <span className="font-mono">{r.merchant_id}</span></p>
-                  </div>
-                  <Button size="sm" variant="outline" className="shrink-0 gap-1 h-7 text-xs rounded-lg ml-2" onClick={() => { openInviteDialog(r); setSearchOpen(false); }}>
-                    <UserPlus className="w-3 h-3" /> {t('invite')}
-                  </Button>
-                </div>
-              ))}
-            </div>
           </div>
-        )}
+        </form>
       </div>
 
-      {/* ─── Main workspace: Sidebar + Content ─── */}
+      {/* Search results dropdown */}
+      {searched && searchOpen && results.length > 0 && (
+        <div className="absolute right-4 top-14 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">{results.length} {t('searchResults')}</p>
+            <button onClick={() => { setSearchOpen(false); setSearched(false); setQuery(''); }} className="text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {results.map(r => (
+              <div key={r.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{r.display_name}</p>
+                  <p className="text-[10px] text-muted-foreground">@{r.nickname} · {r.region} · <span className="font-mono">{r.merchant_id}</span></p>
+                </div>
+                <Button size="sm" variant="outline" className="shrink-0 gap-1 h-7 text-xs rounded-lg ml-2" onClick={() => { openInviteDialog(r); setSearchOpen(false); }}>
+                  <UserPlus className="w-3 h-3" /> {t('invite')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Workspace ─── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ═══ LEFT SIDEBAR: Relationships + Conversations ═══ */}
-        <aside className={`shrink-0 border-r border-border bg-muted/20 flex flex-col overflow-hidden transition-all duration-200 ${
-          sidebarCollapsed ? 'w-0 md:w-14' : 'w-full md:w-72 lg:w-80'
+        {/* ═══ LEFT SIDEBAR ═══ */}
+        <aside className={`shrink-0 border-r border-border bg-secondary flex flex-col overflow-hidden transition-all duration-200 ${
+          sidebarCollapsed ? 'w-0 md:w-14' : 'w-full md:w-[260px]'
         } ${mainView === 'chat' && activeConvoId ? 'hidden md:flex' : 'flex'}`}>
 
-          {/* Sidebar header with view switcher */}
-          <div className="shrink-0 px-3 py-2.5 border-b border-border/60 flex items-center gap-1.5">
+          {/* View switcher nav */}
+          <div className="shrink-0 flex items-center gap-1 px-2.5 py-2 border-b border-border">
             <button
               onClick={() => setMainView('activity')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                mainView === 'activity' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
+                mainView === 'activity' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Zap className="w-3 h-3" />
-              <span className="hidden md:inline">{t('invitations')}</span>
-              {totalAlerts > 0 && <span className="ml-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{totalAlerts}</span>}
+              {t('invitations')}
+              {totalAlerts > 0 && <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalAlerts}</span>}
             </button>
             <button
               onClick={() => setMainView('chat')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                mainView === 'chat' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
+                mainView === 'chat' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <MessageCircle className="w-3 h-3" />
-              <span className="hidden md:inline">{t('inbox')}</span>
-              {totalUnread > 0 && <span className="ml-0.5 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">{totalUnread}</span>}
+              {t('inbox')}
+              {totalUnread > 0 && <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalUnread}</span>}
             </button>
             <button
               onClick={() => setMainView('deals')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                mainView === 'deals' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
+                mainView === 'deals' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Briefcase className="w-3 h-3" />
-              <span className="hidden md:inline">{t('dealsLabel')}</span>
+              {t('dealsLabel')}
             </button>
           </div>
 
-          {/* Sidebar content — always shows relationships + conversations */}
-          <div className="flex-1 overflow-y-auto">
-            {/* Relationships list */}
-            <div className="px-2 pt-2 pb-1">
-              <p className="px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">{t('relationships')}</p>
-            </div>
+          {/* Relationships label */}
+          <div className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium px-3.5 pt-2.5 pb-1.5">
+            {t('relationships')}
+          </div>
 
+          {/* Relationships list */}
+          <div className="flex-1 overflow-y-auto">
             {rels.length === 0 ? (
               <div className="text-center py-6 px-4">
                 <Users className="w-6 h-6 mx-auto mb-2 opacity-30 text-muted-foreground" />
@@ -408,62 +404,58 @@ export default function NetworkPage() {
                 <p className="text-[10px] text-muted-foreground mt-0.5">{t('searchToCollaborate')}</p>
               </div>
             ) : (
-              <div className="px-2 space-y-0.5">
+              <div>
                 {rels.map(rel => {
                   const convo = conversations.find(c => c.relationshipId === rel.id);
                   const isActive = activeConvoId === rel.id;
                   return (
                     <button
                       key={rel.id}
-                      className={`w-full text-left rounded-lg px-2.5 py-2.5 transition-all group ${
-                        isActive
-                          ? 'bg-accent ring-1 ring-primary/20'
-                          : 'hover:bg-accent/50'
+                      className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 border-b border-border transition-colors ${
+                        isActive ? 'bg-card' : 'hover:bg-card'
                       }`}
                       onClick={() => handleSelectConvo(rel.id)}
                     >
-                      <div className="flex items-center gap-2.5">
-                        {/* Avatar */}
-                        <div className="relative shrink-0">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${
-                            isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
-                          }`}>
-                            {(rel.counterparty?.display_name || '?').charAt(0).toUpperCase()}
-                          </div>
-                          {/* Online/status dot */}
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${
-                            rel.status === 'active' ? 'bg-emerald-500' : rel.status === 'restricted' ? 'bg-amber-500' : 'bg-muted-foreground'
-                          }`} />
-                          {/* Unread badge */}
-                          {convo && convo.unreadCount > 0 && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[8px] font-bold flex items-center justify-center">
-                              {convo.unreadCount}
-                            </div>
-                          )}
+                      {/* Avatar */}
+                      <div className="relative shrink-0">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[13px] font-medium ${
+                          isActive ? 'bg-foreground text-background' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                        }`}>
+                          {(rel.counterparty?.display_name || '?').charAt(0).toUpperCase()}
                         </div>
+                        {/* Status dot */}
+                        <div className={`absolute -bottom-[1px] -right-[1px] w-2.5 h-2.5 rounded-full border-2 border-secondary ${
+                          rel.status === 'active' ? 'bg-emerald-500' : rel.status === 'restricted' ? 'bg-amber-500' : 'bg-muted-foreground'
+                        }`} />
+                        {/* Unread badge */}
+                        {convo && convo.unreadCount > 0 && (
+                          <div className="absolute -top-[3px] -right-[3px] min-w-[15px] h-[15px] rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center px-0.5">
+                            {convo.unreadCount}
+                          </div>
+                        )}
+                      </div>
 
-                        {/* Name + details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <p className={`text-sm truncate ${convo?.unreadCount ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
-                              {rel.counterparty?.display_name || 'Unknown'}
-                            </p>
-                            {convo?.lastMessage && (
-                              <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(convo.lastMessage.created_at)}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 rounded">{rel.my_role}</Badge>
-                            {rel.summary && rel.summary.totalDeals > 0 && (
-                              <span className="text-[10px] text-muted-foreground">{rel.summary.totalDeals} deals</span>
-                            )}
-                          </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between text-[13px] font-medium">
+                          <span className="truncate">{rel.counterparty?.display_name || 'Unknown'}</span>
                           {convo?.lastMessage && (
-                            <p className={`text-[11px] truncate mt-0.5 ${convo.unreadCount ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                              {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
-                            </p>
+                            <span className="text-[11px] text-muted-foreground font-normal shrink-0">{timeAgo(convo.lastMessage.created_at)}</span>
                           )}
                         </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] px-1.5 py-px rounded border border-border bg-card text-muted-foreground">{rel.my_role}</span>
+                          {rel.summary && rel.summary.totalDeals > 0 && (
+                            <span className="text-[11px] text-muted-foreground">{rel.summary.totalDeals} deals</span>
+                          )}
+                        </div>
+                        {convo?.lastMessage ? (
+                          <p className={`text-[12px] truncate mt-0.5 ${convo.unreadCount ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                            {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
+                          </p>
+                        ) : (
+                          <p className="text-[12px] text-muted-foreground italic truncate mt-0.5">{t('noMessagesYet')}</p>
+                        )}
                       </div>
                     </button>
                   );
@@ -473,165 +465,171 @@ export default function NetworkPage() {
           </div>
         </aside>
 
-        {/* ═══ MAIN CONTENT AREA ═══ */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-background">
+        {/* ═══ MAIN CONTENT ═══ */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-card">
 
           {/* ════════ ACTIVITY VIEW ════════ */}
           {mainView === 'activity' && (
-            <div className="flex-1 overflow-y-auto">
-              {/* Activity filter bar */}
-              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b border-border/50 px-4 py-2 flex items-center gap-2">
-                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Filter bar */}
+              <div className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 border-b border-border sticky top-0 z-10 bg-card">
+                <Filter className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
                 {(['all', 'invites', 'approvals'] as ActivityFilter[]).map(f => (
                   <button
                     key={f}
                     onClick={() => setActivityFilter(f)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-full text-[12px] font-medium transition-colors ${
                       activityFilter === f
                         ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {f === 'all' ? t('invitations') + ' & ' + t('approvals') : f === 'invites' ? t('invitations') : t('approvals')}
-                    {f === 'invites' && pendingInvites.length > 0 && (
-                      <span className="ml-1 text-[9px] text-red-500">({pendingInvites.length})</span>
-                    )}
-                    {f === 'approvals' && pendingApprovals.length > 0 && (
-                      <span className="ml-1 text-[9px] text-red-500">({pendingApprovals.length})</span>
-                    )}
+                    {f === 'invites' && pendingInvites.length > 0 && ` (${pendingInvites.length})`}
+                    {f === 'approvals' && pendingApprovals.length > 0 && ` (${pendingApprovals.length})`}
                   </button>
                 ))}
               </div>
 
-              <div className="p-4 space-y-3">
-                {/* ── Pending Invites ── */}
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
+                {/* Pending Invites */}
                 {(activityFilter === 'all' || activityFilter === 'invites') && pendingInvites.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2">
                       <Mail className="w-3 h-3" /> {t('invitations')} — {t('actionNeeded')}
                     </p>
-                    {pendingInvites.map(inv => (
-                      <Card key={inv.id} className="border-amber-500/20 bg-amber-500/5 overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="flex items-stretch">
-                            <div className="w-1 bg-amber-500 shrink-0" />
-                            <div className="flex-1 flex items-center justify-between p-3 gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                                    <Mail className="w-3.5 h-3.5 text-amber-600" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate">{inv.from_display_name}</p>
-                                    <p className="text-[10px] text-muted-foreground">{inv.purpose} · {t('role')}: {inv.requested_role} · @{inv.from_nickname}</p>
-                                  </div>
+                    <div className="space-y-2">
+                      {pendingInvites.map(inv => (
+                        <div key={inv.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
+                          <div className="w-[3px] bg-amber-600 shrink-0" />
+                          <div className="flex-1 bg-amber-500/10 p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0">
+                                  <Mail className="w-3.5 h-3.5 text-amber-600" />
                                 </div>
-                                {inv.message && <p className="text-xs text-muted-foreground italic mt-1.5 ml-9">"{inv.message}"</p>}
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-medium truncate">{inv.from_display_name}</p>
+                                  <p className="text-[11px] text-muted-foreground">{inv.purpose} · {t('role')}: {inv.requested_role} · @{inv.from_nickname}</p>
+                                </div>
                               </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+                              <div className="flex gap-[5px] shrink-0">
+                                <button onClick={() => handleAccept(inv.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
                                   <Check className="w-3 h-3" /> {t('accept')}
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                                </button>
+                                <button onClick={() => handleReject(inv.id)} className="flex items-center px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
                                   <X className="w-3 h-3" />
-                                </Button>
+                                </button>
                               </div>
                             </div>
+                            {inv.message && (
+                              <p className="text-[12px] text-muted-foreground italic mt-1 ml-[38px]">"{inv.message}"</p>
+                            )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* ── Pending Approvals ── */}
+                {/* Pending Approvals */}
                 {(activityFilter === 'all' || activityFilter === 'approvals') && pendingApprovals.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2">
                       <CheckSquare className="w-3 h-3" /> {t('approvals')} — {t('actionNeeded')}
                     </p>
-                    {pendingApprovals.map(a => (
-                      <Card key={a.id} className="border-amber-500/20 bg-amber-500/5 overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="flex items-stretch">
-                            <div className="w-1 bg-amber-500 shrink-0" />
-                            <div className="flex-1 flex items-center justify-between p-3 gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                                    <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
-                                    <p className="text-[10px] text-muted-foreground">{t('target')}: {a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
-                                  </div>
+                    <div className="space-y-2">
+                      {pendingApprovals.map(a => (
+                        <div key={a.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
+                          <div className="w-[3px] bg-amber-600 shrink-0" />
+                          <div className="flex-1 bg-amber-500/10 p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0">
+                                  <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
                                 </div>
-                                {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
-                                  <div className="mt-1.5 ml-9 flex flex-wrap gap-1.5">
-                                    {Object.entries(a.proposed_payload).map(([k, v]) => (
-                                      <span key={k} className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{k}: <span className="font-medium text-foreground">{String(v)}</span></span>
-                                    ))}
-                                  </div>
-                                )}
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
+                                  <p className="text-[11px] text-muted-foreground">{t('target')}: {a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
+                                </div>
                               </div>
-                              <div className="flex gap-1.5 shrink-0">
-                                <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+                              <div className="flex gap-[5px] shrink-0">
+                                <button onClick={() => handleApprove(a.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
                                   <Check className="w-3 h-3" /> {t('approve')}
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                                </button>
+                                <button onClick={() => handleRejectApproval(a.id)} className="flex items-center px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
                                   <X className="w-3 h-3" />
-                                </Button>
+                                </button>
                               </div>
                             </div>
+                            {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
+                              <div className="mt-2 ml-[38px] flex flex-wrap gap-2">
+                                {Object.entries(a.proposed_payload).map(([k, v]) => (
+                                  <span key={k} className="text-[11px] px-2 py-0.5 rounded bg-secondary">{k}: <span className="font-medium text-foreground">{String(v)}</span></span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* ── History (non-pending invites + sent + resolved approvals) ── */}
+                {/* History — invites */}
                 {(activityFilter === 'all' || activityFilter === 'invites') && (
                   <>
                     {[...inbox.filter(i => i.status !== 'pending'), ...sent].length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-2">{t('invitations')} — History</p>
-                        {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
-                          <div key={inv.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                              <p className="text-xs truncate">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</p>
-                              <Badge variant="outline" className={`text-[9px] shrink-0 ${inviteStatusColors[inv.status]}`}>{inv.status}</Badge>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('invitations')} — History</p>
+                        <div className="space-y-1">
+                          {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
+                            <div key={inv.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Mail className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
+                                <span className="truncate">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</span>
+                                <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
+                                  inv.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
+                                  inv.status === 'withdrawn' ? 'bg-secondary text-muted-foreground border border-border' :
+                                  inviteStatusColors[inv.status]
+                                }`}>{inv.status}</span>
+                              </div>
+                              {inv.status === 'pending' && (inv as any).to_merchant_id && (
+                                <button onClick={() => handleWithdraw(inv.id)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+                                  <RotateCcw className="w-3 h-3" /> {t('withdraw')}
+                                </button>
+                              )}
                             </div>
-                            {inv.status === 'pending' && (inv as any).to_merchant_id && (
-                              <Button size="sm" variant="ghost" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-6 text-[10px] text-muted-foreground">
-                                <RotateCcw className="w-3 h-3" /> {t('withdraw')}
-                              </Button>
-                            )}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>
                 )}
 
+                {/* History — approvals */}
                 {(activityFilter === 'all' || activityFilter === 'approvals') && (
                   <>
                     {aprInbox.filter(a => a.status !== 'pending').length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-2">{t('approvals')} — History</p>
-                        {aprInbox.filter(a => a.status !== 'pending').map(a => (
-                          <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <CheckSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                              <p className="text-xs capitalize truncate">{a.type.replace(/_/g, ' ')}</p>
-                              <Badge variant="outline" className={`text-[9px] shrink-0 ${approvalStatusColors[a.status]}`}>{a.status}</Badge>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('approvals')} — History</p>
+                        <div className="space-y-1">
+                          {aprInbox.filter(a => a.status !== 'pending').map(a => (
+                            <div key={a.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <CheckSquare className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
+                                <span className="capitalize truncate">{a.type.replace(/_/g, ' ')}</span>
+                                <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
+                                  a.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
+                                  approvalStatusColors[a.status]
+                                }`}>{a.status}</span>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground shrink-0">
+                                {new Date(a.submitted_at).toLocaleDateString()}
+                              </span>
                             </div>
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {new Date(a.submitted_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>
@@ -641,7 +639,7 @@ export default function NetworkPage() {
                 {pendingInvites.length === 0 && pendingApprovals.length === 0 &&
                   inbox.length + sent.length === 0 && aprInbox.length === 0 && (
                   <div className="text-center py-16">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
                       <Zap className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">{t('noInvitations')}</p>
@@ -658,7 +656,7 @@ export default function NetworkPage() {
               {!activeConvoId || !activeConvo ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
                       <MessageCircle className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">{t('selectConversation')}</p>
@@ -667,24 +665,28 @@ export default function NetworkPage() {
               ) : (
                 <>
                   {/* Chat header */}
-                  <div className="shrink-0 flex items-center gap-3 px-4 h-12 border-b border-border bg-muted/20">
+                  <div className="shrink-0 flex items-center gap-2.5 px-3.5 h-11 border-b border-border">
                     <Button variant="ghost" size="icon" className="md:hidden shrink-0 h-7 w-7" onClick={() => setActiveConvoId(null)}>
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{activeConvo.counterpartyName.charAt(0).toUpperCase()}</span>
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <span className="text-[12px] font-medium text-blue-600 dark:text-blue-400">{activeConvo.counterpartyName.charAt(0).toUpperCase()}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{activeConvo.counterpartyName}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{activeConvo.counterpartyMerchantId}</p>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium truncate">{activeConvo.counterpartyName}</p>
+                      <p className="text-[11px] text-muted-foreground font-mono">{activeConvo.counterpartyMerchantId}</p>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-xs h-7 rounded-lg gap-1" onClick={() => navigate(`/network/relationships/${activeConvoId}`)}>
+                    <div className="flex-1" />
+                    <button
+                      onClick={() => navigate(`/network/relationships/${activeConvoId}`)}
+                      className="flex items-center gap-1 text-[12px] text-muted-foreground hover:bg-secondary px-2 py-1 rounded-md transition-colors"
+                    >
                       {t('viewInWorkspace')} <ArrowUpRight className="w-3 h-3" />
-                    </Button>
+                    </button>
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5">
+                  <div className="flex-1 overflow-y-auto px-3.5 py-3.5 flex flex-col gap-2">
                     {activeConvo.messages.length === 0 && (
                       <p className="text-center text-muted-foreground text-xs py-8">{t('noMessagesYet')}</p>
                     )}
@@ -693,18 +695,18 @@ export default function NetworkPage() {
                       const isSystem = msg.message_type === 'system';
                       return (
                         <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] px-3.5 py-2 text-sm ${
+                          <div className={`max-w-[72%] px-3.5 py-2 text-[13px] leading-[1.5] ${
                             isSystem
-                              ? 'bg-muted text-muted-foreground text-center w-full text-[11px] italic rounded-lg'
+                              ? 'bg-secondary text-muted-foreground text-center text-[11px] italic rounded-lg px-3.5 py-1 max-w-full'
                               : isOwn
-                                ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md'
-                                : 'bg-muted rounded-2xl rounded-bl-md'
+                                ? 'bg-foreground text-background rounded-[14px_14px_4px_14px]'
+                                : 'bg-secondary rounded-[14px_14px_14px_4px]'
                           }`}>
                             {!isSystem && !isOwn && (
-                              <p className="text-[10px] font-medium opacity-60 mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>
+                              <p className="text-[11px] text-muted-foreground mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>
                             )}
-                            <p className="leading-relaxed">{msg.body}</p>
-                            <p className={`text-[9px] mt-1 ${isOwn ? 'text-primary-foreground/40' : 'text-muted-foreground/60'}`}>
+                            <p>{msg.body}</p>
+                            <p className={`text-[10px] mt-[3px] ${isOwn ? 'opacity-[0.45]' : 'text-muted-foreground'}`}>
                               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
@@ -714,20 +716,23 @@ export default function NetworkPage() {
                     <div ref={messagesEndRef} />
                   </div>
 
-                  {/* Message input */}
-                  <div className="shrink-0 border-t border-border p-3">
-                    <div className="flex gap-2 items-center bg-muted/40 rounded-xl px-3 py-1">
-                      <Input
+                  {/* Chat input */}
+                  <div className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 border-t border-border">
+                    <div className="flex-1 flex items-center gap-2 px-3 h-9 rounded-full bg-secondary text-[13px] text-muted-foreground">
+                      <input
                         placeholder={t('typeMessage')}
                         value={msgInput}
                         onChange={e => setMsgInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && sendMsg()}
-                        className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 h-9 text-sm"
+                        className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[13px]"
                       />
-                      <Button onClick={sendMsg} size="icon" className="shrink-0 rounded-full h-8 w-8">
-                        <Send className="w-3.5 h-3.5" />
-                      </Button>
                     </div>
+                    <button
+                      onClick={sendMsg}
+                      className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </>
               )}
@@ -736,103 +741,108 @@ export default function NetworkPage() {
 
           {/* ════════ DEALS VIEW ════════ */}
           {mainView === 'deals' && (
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                {/* Deals summary strip */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
-                    <Briefcase className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-lg font-bold leading-tight">{activeDeals.length}</p>
-                      <p className="text-[10px] text-muted-foreground">{t('activeDeals')}</p>
-                    </div>
-                  </div>
-                  {overdueDeals.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10">
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                      <div>
-                        <p className="text-lg font-bold leading-tight text-red-500">{overdueDeals.length}</p>
-                        <p className="text-[10px] text-red-500">{t('overdue')}</p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
-                    <DollarSign className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-lg font-bold leading-tight">
-                        ${allDeals.reduce((s, d) => s + d.amount, 0).toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">Total Volume</p>
-                    </div>
+            <div className="flex-1 overflow-y-auto p-3.5">
+              {/* Summary strip */}
+              <div className="flex gap-2.5 mb-4">
+                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary">
+                  <Briefcase className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-lg font-medium leading-none">{activeDeals.length}</p>
+                    <p className="text-[11px] text-muted-foreground">{t('activeDeals')}</p>
                   </div>
                 </div>
-
-                {allDeals.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
-                      <Briefcase className="w-5 h-5 text-muted-foreground" />
+                {overdueDeals.length > 0 && (
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-destructive/10">
+                    <AlertCircle className="w-4 h-4 text-destructive" />
+                    <div>
+                      <p className="text-lg font-medium leading-none text-destructive">{overdueDeals.length}</p>
+                      <p className="text-[11px] text-destructive">{t('overdue')}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">{t('noDeals')}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {allDeals.map(deal => {
-                      const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                      const custName = deal.metadata?.customer_name as string | undefined;
-                      const suppName = deal.metadata?.supplier_name as string | undefined;
-                      const volume = deal.amount * (deal.expected_return || 1);
-                      const net = deal.realized_pnl ?? 0;
-                      const margin = volume > 0 ? (net / volume) * 100 : 0;
-                      return (
-                        <div
-                          key={deal.id}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer group"
-                          onClick={() => {
-                            const rel = rels.find(r => r.id === deal.relationship_id);
-                            if (rel) navigate(`/network/relationships/${rel.id}`);
-                          }}
-                        >
-                          {/* Deal type icon */}
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${
-                            deal.status === 'overdue' ? 'bg-red-500/15' : deal.status === 'active' ? 'bg-emerald-500/10' : 'bg-muted'
-                          }`}>
-                            {cfg?.icon || '📋'}
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate">{cfg?.label || deal.deal_type}</p>
-                              <Badge variant="outline" className={`text-[9px] shrink-0 ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {custName && <span>👤 {custName}</span>}
-                              {custName && suppName && <span> → </span>}
-                              {suppName && <span>📦 {suppName}</span>}
-                              {!custName && !suppName && <span>{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</span>}
-                            </p>
-                          </div>
-
-                          {/* Amount + P&L */}
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-bold font-mono">${deal.amount.toLocaleString()}</p>
-                            {net !== 0 ? (
-                              <p className={`text-[11px] font-mono font-semibold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {net >= 0 ? '+' : ''}${net.toLocaleString()} ({margin.toFixed(1)}%)
-                              </p>
-                            ) : (
-                              <p className="text-[10px] text-muted-foreground">Vol: ${volume.toLocaleString()}</p>
-                            )}
-                          </div>
-
-                          {/* Arrow */}
-                          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                        </div>
-                      );
-                    })}
                   </div>
                 )}
+                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-lg font-medium leading-none">
+                      ${allDeals.reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">Total Volume</p>
+                  </div>
+                </div>
               </div>
+
+              {allDeals.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
+                    <Briefcase className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t('noDeals')}</p>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {allDeals.map(deal => {
+                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                    const custName = deal.metadata?.customer_name as string | undefined;
+                    const suppName = deal.metadata?.supplier_name as string | undefined;
+                    const volume = deal.amount * (deal.expected_return || 1);
+                    const net = deal.realized_pnl ?? 0;
+                    const margin = volume > 0 ? (net / volume) * 100 : 0;
+                    return (
+                      <div
+                        key={deal.id}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-secondary transition-colors cursor-pointer group"
+                        onClick={() => {
+                          const rel = rels.find(r => r.id === deal.relationship_id);
+                          if (rel) navigate(`/network/relationships/${rel.id}`);
+                        }}
+                      >
+                        {/* Deal icon */}
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${
+                          deal.status === 'overdue' ? 'bg-destructive/10' :
+                          ['active', 'due'].includes(deal.status) ? 'bg-emerald-500/10' : 'bg-secondary'
+                        }`}>
+                          {cfg?.icon || '📋'}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 text-[13px] font-medium">
+                            <span className="truncate">{cfg?.label || deal.deal_type}</span>
+                            <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
+                              deal.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
+                              deal.status === 'due' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30' :
+                              deal.status === 'overdue' ? 'bg-destructive/10 text-destructive border border-destructive/30' :
+                              deal.status === 'settled' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/30' :
+                              'bg-secondary text-muted-foreground border border-border'
+                            }`}>{deal.status}</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate mt-px">
+                            {custName && <span>👤 {custName}</span>}
+                            {custName && suppName && <span> → </span>}
+                            {suppName && <span>📦 {suppName}</span>}
+                            {!custName && !suppName && <span>{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</span>}
+                          </p>
+                        </div>
+
+                        {/* Amount + P&L */}
+                        <div className="text-right shrink-0">
+                          <p className="text-[13px] font-medium font-mono">${deal.amount.toLocaleString()}</p>
+                          {net !== 0 ? (
+                            <p className={`text-[11px] font-mono font-medium ${net >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                              {net >= 0 ? '+' : ''}${net.toLocaleString()} ({margin.toFixed(1)}%)
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground font-mono">Vol: ${volume.toLocaleString()}</p>
+                          )}
+                        </div>
+
+                        {/* Arrow (visible on hover) */}
+                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -840,11 +850,11 @@ export default function NetworkPage() {
 
       {/* ─── Invite Dialog ─── */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <UserPlus className="w-4 h-4 text-primary" />
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <UserPlus className="w-4 h-4 text-blue-600" />
               </div>
               {t('sendInviteTo')} {inviteTarget?.display_name}
             </DialogTitle>
