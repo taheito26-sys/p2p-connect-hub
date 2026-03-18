@@ -76,6 +76,11 @@ export default function RelationshipWorkspace() {
   const [settleDealId, setSettleDealId] = useState('');
   const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
 
+  const [rejectDealOpen, setRejectDealOpen] = useState(false);
+  const [rejectDealId, setRejectDealId] = useState('');
+  const [rejectDealData, setRejectDealData] = useState<MerchantDeal | null>(null);
+  const [rejectForm, setRejectForm] = useState({ suggested_share_pct: '', suggested_amount: '', note: '' });
+
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
