@@ -469,9 +469,12 @@ export default function NetworkPage() {
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('type')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('buyer')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('supplier')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('qty')}</th>
                       <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('amount')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('volume')}</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('net')}</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('margin')}</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('statusEdit')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">P&L</th>
                       <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('actions')}</th>
                     </tr>
                   </thead>
@@ -480,9 +483,12 @@ export default function NetworkPage() {
                       const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                       const custName = deal.metadata?.customer_name as string | undefined;
                       const suppName = deal.metadata?.supplier_name as string | undefined;
+                      const volume = deal.amount * (deal.expected_return || 1);
+                      const net = deal.realized_pnl ?? 0;
+                      const margin = volume > 0 ? (net / volume) * 100 : 0;
                       return (
                         <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{deal.issue_date}</td>
+                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</td>
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm">{cfg?.icon || '📋'}</span>
@@ -491,16 +497,25 @@ export default function NetworkPage() {
                           </td>
                           <td className="px-3 py-2.5 text-xs">{custName ? <span className="font-medium">👤 {custName}</span> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-3 py-2.5 text-xs">{suppName ? <span className="font-medium">📦 {suppName}</span> : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-3 py-2.5 text-xs text-right font-mono">{deal.amount.toLocaleString()}</td>
                           <td className="px-3 py-2.5 text-xs text-right font-mono font-bold">${deal.amount.toLocaleString()}</td>
-                          <td className="px-3 py-2.5">
-                            <Badge className={`text-[10px] ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
-                          </td>
+                          <td className="px-3 py-2.5 text-xs text-right font-mono">${volume.toLocaleString()}</td>
                           <td className="px-3 py-2.5 text-xs text-right font-mono">
-                            {deal.realized_pnl != null && deal.realized_pnl !== 0 ? (
-                              <span className={deal.realized_pnl >= 0 ? 'text-success font-bold' : 'text-destructive font-bold'}>
-                                {deal.realized_pnl >= 0 ? '+' : ''}${deal.realized_pnl.toLocaleString()}
+                            {net !== 0 ? (
+                              <span className={net >= 0 ? 'text-success font-bold' : 'text-destructive font-bold'}>
+                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
                               </span>
                             ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            {net !== 0 ? (
+                              <span className={`font-mono ${margin >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {margin.toFixed(2)}%
+                              </span>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Badge className={`text-[10px] ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
                           </td>
                           <td className="px-3 py-2.5">
                             <Button
@@ -512,7 +527,7 @@ export default function NetworkPage() {
                                 if (rel) navigate(`/network/relationships/${rel.id}`);
                               }}
                             >
-                              {t('viewInWorkspace')} →
+                              {t('details')} →
                             </Button>
                           </td>
                         </tr>
