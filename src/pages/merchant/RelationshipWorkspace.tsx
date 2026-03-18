@@ -139,16 +139,22 @@ export default function RelationshipWorkspace() {
     setSettlementOpen(true);
   };
 
+  const settlingDeal = relDeals.find(d => d.id === settleDealId);
+  const isPartnershipSettle = settlingDeal?.deal_type === 'partnership';
+
   const handleSubmitSettlement = async () => {
-    if (!settlementForm.amount || submittingSettlement || settlementSubmitLock.current) return;
+    // For partnership deals, amount is not required (capital stays with borrower)
+    if (!isPartnershipSettle && !settlementForm.amount) return;
+    if (submittingSettlement || settlementSubmitLock.current) return;
     settlementSubmitLock.current = true;
     setSubmittingSettlement(true);
     try {
-      await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
+      const settleAmount = isPartnershipSettle ? 0 : parseFloat(settlementForm.amount);
+      await api.deals.submitSettlement(settleDealId, { amount: settleAmount, note: settlementForm.note });
       if (settlementForm.profit && parseFloat(settlementForm.profit) > 0) {
         await api.deals.recordProfit(settleDealId, { amount: parseFloat(settlementForm.profit), period_key: settlementForm.period_key, note: settlementForm.note });
       }
-      await api.deals.close(settleDealId, { note: 'Auto-closed on settlement submission' });
+      await api.deals.close(settleDealId, { note: isPartnershipSettle ? 'Profit-share deal closed — capital retained by merchant' : 'Auto-closed on settlement submission' });
       toast.success('Settlement submitted — deal will close once approved');
       setSettlementOpen(false);
       await reload();
