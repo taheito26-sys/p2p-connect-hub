@@ -61,6 +61,10 @@ export function CreateDealDialog({
   trackerState,
   onStateChange,
   reserveTrackerTradeOnCreate = true,
+  prefillAmount,
+  prefillCurrency,
+  prefillCustomerId,
+  prefillCustomerName,
 }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);

@@ -24,6 +24,7 @@ export default function OrdersPage() {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const { userId } = useAuth();
 
   const initial = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
