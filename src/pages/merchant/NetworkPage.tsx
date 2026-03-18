@@ -78,6 +78,7 @@ export default function NetworkPage() {
   const [inviteTarget, setInviteTarget] = useState<MerchantSearchResult | null>(null);
   const [inviteForm, setInviteForm] = useState({ purpose: '', role: 'partner', message: '' });
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('invitations');
 
   // Inbox state
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
