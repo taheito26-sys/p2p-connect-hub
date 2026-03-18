@@ -642,6 +642,25 @@ const translations = {
   batchNotes: { en: 'Notes', ar: 'ملاحظات' },
   batchLinkedDeals: { en: 'Linked Merchant Deals', ar: 'الصفقات التجارية المرتبطة' },
   noLinkedDeals: { en: 'No linked merchant deals', ar: 'لا توجد صفقات تجارية مرتبطة' },
+  // ── Orders Sub-tabs ──
+  myOrders: { en: 'My Orders', ar: 'طلباتي' },
+  incomingOrders: { en: 'Incoming Orders', ar: 'الطلبات الواردة' },
+  outgoingOrders: { en: 'Outgoing Orders', ar: 'الطلبات الصادرة' },
+  logIncomingOrder: { en: 'Log Incoming Order', ar: 'تسجيل طلب وارد' },
+  logOutgoingOrder: { en: 'Log Outgoing Order', ar: 'تسجيل طلب صادر' },
+  noIncomingDealsYet: { en: 'No incoming deals yet', ar: 'لا توجد صفقات واردة بعد' },
+  noOutgoingDealsYet: { en: 'No outgoing deals yet', ar: 'لا توجد صفقات صادرة بعد' },
+  noIncomingDealsHint: { en: 'Your partners need to create deals that include you as a capital owner or partner.', ar: 'يحتاج شركاؤك إلى إنشاء صفقات تشملك.' },
+  noOutgoingDealsHint: { en: 'Create a deal with one of your network relationships to start logging outgoing orders.', ar: 'أنشئ صفقة مع أحد علاقات شبكتك لبدء تسجيل الطلبات الصادرة.' },
+  backToDeals: { en: '← Back to deals', ar: '← العودة إلى الصفقات' },
+  orderDetails: { en: 'Order Details', ar: 'تفاصيل الطلب' },
+  goToNetwork: { en: 'Go to Network →', ar: 'اذهب إلى الشبكة →' },
+  createNewDeal: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
+  totalVolQar: { en: 'Total Volume', ar: 'إجمالي الحجم' },
+  netPnl: { en: 'Net P&L', ar: 'صافي الأرباح' },
+  dealPartner: { en: 'Partner', ar: 'الشريك' },
+  ordersLinked: { en: 'orders linked', ar: 'طلبات مرتبطة' },
+  orSelectRelForDeal: { en: 'Or select a relationship to create a new deal:', ar: 'أو اختر علاقة لإنشاء صفقة جديدة:' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
