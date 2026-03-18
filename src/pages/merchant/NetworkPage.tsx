@@ -186,6 +186,27 @@ export default function NetworkPage() {
     catch (err: any) { toast.error(err.message); }
   };
 
+  // Mark messages as read when opening a conversation
+  const markConvoRead = useCallback(async (relId: string) => {
+    const convo = conversations.find(c => c.relationshipId === relId);
+    if (!convo || convo.unreadCount === 0) return;
+    try {
+      const unreadMsgs = convo.messages.filter(m => !m.is_read && m.sender_user_id !== userId);
+      await Promise.all(unreadMsgs.map(m => api.messages.markRead(m.id)));
+      // Update local state immediately
+      setConversations(prev => prev.map(c =>
+        c.relationshipId === relId
+          ? { ...c, unreadCount: 0, messages: c.messages.map(m => ({ ...m, is_read: true })) }
+          : c
+      ));
+    } catch {}
+  }, [conversations, userId]);
+
+  const handleSelectConvo = useCallback((relId: string) => {
+    setActiveConvoId(relId);
+    markConvoRead(relId);
+  }, [markConvoRead]);
+
   const sendMsg = async () => {
     if (!msgInput.trim() || !activeConvoId) return;
     try {
