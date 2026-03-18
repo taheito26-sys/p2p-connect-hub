@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import { useTheme } from '@/lib/theme-context';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { StatCard } from '@/components/layout/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
