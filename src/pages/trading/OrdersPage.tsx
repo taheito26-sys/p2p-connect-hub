@@ -8,6 +8,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

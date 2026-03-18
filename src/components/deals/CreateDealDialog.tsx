@@ -32,6 +32,14 @@ interface Props {
   onStateChange?: (next: TrackerState) => void;
   /** Whether creating a deal should also reserve/add a tracker trade */
   reserveTrackerTradeOnCreate?: boolean;
+  /** Pre-fill amount from order flow */
+  prefillAmount?: string;
+  /** Pre-fill currency from order flow */
+  prefillCurrency?: string;
+  /** Pre-fill customer ID from order flow */
+  prefillCustomerId?: string;
+  /** Pre-fill customer name from order flow */
+  prefillCustomerName?: string;
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
