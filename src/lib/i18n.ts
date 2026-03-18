@@ -589,7 +589,13 @@ const translations = {
   // ── Unified Merchant Order Space ──
   merchantOrderSpace: { en: 'Merchant Order Space', ar: 'مساحة الطلبات التجارية' },
   incomingDeals: { en: 'Incoming Deals', ar: 'الصفقات الواردة' },
+  outcomeDeals: { en: 'Outcome Deals', ar: 'صفقاتك الصادرة' },
   yourDealsSection: { en: 'Your Deals', ar: 'صفقاتك' },
+  merchantDealType: { en: 'Merchant Deal Type', ar: 'نوع الصفقة التجارية' },
+  avgBuySellPrice: { en: 'Avg Buy / Sell Price', ar: 'متوسط سعر الشراء / البيع' },
+  exposeBuyerToLender: { en: 'Share buyer with lender', ar: 'مشاركة المشتري مع المُقرض' },
+  buyerExposed: { en: 'Buyer visible to lender', ar: 'المشتري مرئي للمُقرض' },
+  buyerHidden: { en: 'Buyer hidden', ar: 'المشتري مخفي' },
   adjustShare: { en: 'Adjust Share', ar: 'تعديل الحصة' },
   adjustShareTitle: { en: 'Adjust Profit Share', ar: 'تعديل نسبة تقاسم الأرباح' },
   sharePctLabel: { en: 'Counterparty Share %', ar: 'نسبة حصة الطرف الآخر %' },

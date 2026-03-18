@@ -76,6 +76,13 @@ export default function OrdersPage() {
   const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
   const [adjustShareValue, setAdjustShareValue] = useState('');
   const [adjustSaving, setAdjustSaving] = useState(false);
+  // Borrower can expose their buyer name to the lender per deal
+  const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
+  const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
+    const next = new Set(prev);
+    if (next.has(dealId)) next.delete(dealId); else next.add(dealId);
+    return next;
+  });
 
   // ─── Sub-tab state ────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabKey>('myOrders');
@@ -513,135 +520,251 @@ export default function OrdersPage() {
               </div>
             )}
 
-            {selfTrades.length === 0 ? (
-              <div className="empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
-                <div className="empty-t">{t('noTradesYet')}</div>
-                <div className="empty-s">{t('addBatchThenSale')}</div>
-              </div>
-            ) : (
-              <div className="tableWrap ledgerWrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('date')}</th><th>{t('buyer')}</th><th>{t('type')}</th>
-                      <th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th>
-                      <th className="r">{t('sell')}</th><th className="r">{t('volume')}</th>
-                      <th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selfTrades.map(tr => {
-                      const c = derived.tradeCalc.get(tr.id);
-                      const ok = !!c?.ok;
-                      const rev = tr.amountUSDT * tr.sellPriceQAR;
-                      const net = ok ? c!.netQAR : NaN;
-                      const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
-                      const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                      const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
-                      return (
-                        <React.Fragment key={tr.id}>
-                          <tr>
-                            <td>
-                              <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                                <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
-                                {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
-                              </div>
-                            </td>
-                            <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                                {t('orderTypeSelf')}
-                              </span>
-                            </td>
-                            <td className="mono r">{fmtU(tr.amountUSDT)}</td>
-                            <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
-                            <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono r">{fmtQ(rev)}</td>
-                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
-                              {Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}
-                            </td>
-                            <td>
-                              <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
-                            </td>
-                            <td>
-                              <div className="actionsRow">
-                                <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>{detailsOpen[tr.id] ? t('hideDetails') : t('details')}</button>
-                                <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
-                              </div>
-                            </td>
+                {/* ── INCOMING DEALS: counterparty created → you are capital owner / partner ── */}
+                {partnerMerchantDeals.length > 0 && (
+                  <div>
+                    <div style={{ padding: '7px 14px', fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 6%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--brand) 12%, transparent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📥</span> {t('incomingDeals')}
+                      <span className="pill" style={{ fontSize: 8 }}>{partnerMerchantDeals.length}</span>
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                            <th style={thStyle()}>{t('date')}</th>
+                            <th style={thStyle()}>{t('merchantDealType')}</th>
+                            <th style={thStyle(true)}>{t('qty')}</th>
+                            <th style={thStyle(true)}>{t('sell')}</th>
+                            <th style={thStyle(true)}>{t('volume')}</th>
+                            <th style={thStyle(true)}>{t('net')}</th>
+                            <th style={thStyle()}>{t('margin')}</th>
+                            <th style={thStyle()}>{t('actions')}</th>
                           </tr>
-                          {detailsOpen[tr.id] && <tr><td colSpan={10} style={{ padding: 0 }}>{renderDetail(tr, c)}</td></tr>}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                        </thead>
+                        <tbody>
+                          {partnerMerchantDeals.map(deal => {
+                            const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                            const rel = relationships.find(r => r.id === deal.relationship_id);
+                            const dealTrades = merchantLinkedTrades.filter(tr => tr.linkedDealId === deal.id);
+                            const sharePct = getDealSharePct(deal);
+                            const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                            const counterpartyName = rel?.counterparty?.display_name || '—';
+                            const rowBg = 'color-mix(in srgb, var(--brand) 3%, transparent)';
+                            // Lender sees buyer name only if borrower exposed it
+                            const buyerExposed = exposedBuyerDealIds.has(deal.id);
 
-          {/* RIGHT: Standard New Sale Form */}
-          <div>
-            <div className="formPanel salePanel">
-              <div className="hdr">{t('newSale')}</div>
-              <div className="inner">
-                {wacop && (
-                  <div className="bannerRow">
-                    <span className="bLbl">{t('avPrice')}</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
+                            // No linked trades → show deal-level summary row
+                            if (dealTrades.length === 0) {
+                              const margin = deal.realized_pnl != null && deal.amount > 0 ? deal.realized_pnl / deal.amount : NaN;
+                              return (
+                                <tr key={deal.id} style={{ background: rowBg }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{deal.issue_date}</span>
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                  </td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td style={tdStyle(true)}><span style={{ color: 'var(--muted)' }}>—</span></td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            // Trade-level rows (lender view — buyer shown only if borrower exposed it)
+                            return dealTrades.map((tr, idx) => {
+                              const c = derived.tradeCalc.get(tr.id);
+                              const ok = !!c?.ok;
+                              const rev = tr.amountUSDT * tr.sellPriceQAR;
+                              const net = ok ? c!.netQAR : NaN;
+                              const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                              const buyerName = state.customers.find(x => x.id === tr.customerId)?.name;
+                              const firstRowBorder = idx === 0 ? '2px solid color-mix(in srgb, var(--brand) 22%, transparent)' : undefined;
+                              return (
+                                <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{fmtDate(tr.ts)}</span>
+                                    {idx === 0 && (
+                                      <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                                        {counterpartyName} · {deal.title}
+                                        {buyerExposed && buyerName && (
+                                          <span style={{ marginLeft: 4, color: 'var(--brand)' }}>· {buyerName}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
-                <div className="field2">
-                  <div className="lbl">{t('dateTime')}</div>
-                  <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
-                </div>
-                <div className="field2">
-                  <div className="lbl">{t('inputMode')}</div>
-                  <div className="modeToggle">
-                    <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
-                    <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
-                  </div>
-                </div>
-                <div className="g2tight">
-                  <div className="field2">
-                    <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
-                  </div>
-                  <div className="field2">
-                    <div className="lbl">{t('sellPriceLabel')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
-                  </div>
-                </div>
-                <div className="field2">
-                  <div className="lbl">{t('buyerName')}</div>
-                  <div className="lookupShell">
-                    <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
-                        onFocus={() => setBuyerMenuOpen(true)}
-                        onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
-                      />
-                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
-                      <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+
+                {/* ── OUTCOME DEALS: you created → you are the borrower / trade executor ── */}
+                {creatorMerchantDeals.length > 0 && (
+                  <div style={{ borderTop: partnerMerchantDeals.length > 0 ? '2px solid color-mix(in srgb, var(--line) 60%, transparent)' : undefined }}>
+                    <div style={{ padding: '7px 14px', fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--good)', background: 'color-mix(in srgb, var(--good) 6%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--good) 12%, transparent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📤</span> {t('outcomeDeals')}
+                      <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{creatorMerchantDeals.length}</span>
                     </div>
-                    {buyerMenuOpen && (
-                      <div className="lookupMenu">
-                        {filteredCustomers.length ? filteredCustomers.map(c => (
-                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
-                            <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
-                          </button>
-                        )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {addBuyerOpen && (
-                  <div className="previewBox" style={{ marginTop: 2 }}>
-                    <div className="pt">{t('addBuyerTitle')}</div>
-                    <div className="g2tight" style={{ marginBottom: 6 }}>
-                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
-                      <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                            <th style={thStyle()}>{t('date')}</th>
+                            <th style={thStyle()}>{t('merchantDealType')}</th>
+                            <th style={thStyle(true)}>{t('qty')}</th>
+                            <th style={thStyle(true)}>{t('avgBuySellPrice')}</th>
+                            <th style={thStyle(true)}>{t('volume')}</th>
+                            <th style={thStyle(true)}>{t('net')}</th>
+                            <th style={thStyle()}>{t('margin')}</th>
+                            <th style={thStyle()}>{t('actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {creatorMerchantDeals.map(deal => {
+                            const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                            const rel = relationships.find(r => r.id === deal.relationship_id);
+                            const dealTrades = merchantLinkedTrades.filter(tr => tr.linkedDealId === deal.id);
+                            const sharePct = getDealSharePct(deal);
+                            const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                            const counterpartyName = rel?.counterparty?.display_name || '—';
+                            const rowBg = 'color-mix(in srgb, var(--good) 3%, transparent)';
+                            const buyerExposed = exposedBuyerDealIds.has(deal.id);
+
+                            // No linked trades → deal summary row
+                            if (dealTrades.length === 0) {
+                              return (
+                                <tr key={deal.id} style={{ background: rowBg }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{deal.issue_date}</span>
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                  </td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--good)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td colSpan={3} style={{ ...tdStyle(), color: 'var(--muted)', fontStyle: 'italic', fontSize: 10 }}>
+                                    {t('noLinkedOrders')} · {deal.amount.toLocaleString()} {deal.currency}
+                                  </td>
+                                  <td style={{ ...tdStyle(), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
+                                  </td>
+                                  <td style={tdStyle()} />
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            // Trade-level rows (borrower view — Avg Buy / Sell Price merged, expose-buyer toggle)
+                            return dealTrades.map((tr, idx) => {
+                              const c = derived.tradeCalc.get(tr.id);
+                              const ok = !!c?.ok;
+                              const rev = tr.amountUSDT * tr.sellPriceQAR;
+                              const net = ok ? c!.netQAR : NaN;
+                              const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                              const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                              const firstRowBorder = idx === 0 ? '2px solid color-mix(in srgb, var(--good) 22%, transparent)' : undefined;
+                              return (
+                                <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{fmtDate(tr.ts)}</span>
+                                    {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                                  </td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--good)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                  {/* Avg Buy / Sell Price — merged column */}
+                                  <td className="mono" style={tdStyle(true)}>
+                                    {ok && c!.avgBuyQAR > 0 ? (
+                                      <span>
+                                        <span style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtP(c!.avgBuyQAR)}</span>
+                                        <span style={{ color: 'var(--muted)', margin: '0 2px' }}>/</span>
+                                        <span style={{ color: 'var(--good)', fontSize: 10 }}>{fmtP(tr.sellPriceQAR)}</span>
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: 'var(--good)', fontSize: 10 }}>{fmtP(tr.sellPriceQAR)}</span>
+                                    )}
+                                  </td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {/* Borrower can expose their buyer name to the lender */}
+                                      {cn && idx === 0 && (
+                                        <button
+                                          className="rowBtn"
+                                          title={buyerExposed ? t('buyerExposed') : t('exposeBuyerToLender')}
+                                          onClick={() => toggleExposeBuyer(deal.id)}
+                                          style={{ color: buyerExposed ? 'var(--good)' : 'var(--muted)', borderColor: buyerExposed ? 'color-mix(in srgb, var(--good) 35%, transparent)' : undefined }}
+                                        >
+                                          {buyerExposed ? '👁 ' + t('buyerExposed') : t('exposeBuyerToLender')}
+                                        </button>
+                                      )}
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('tier')}</div>
