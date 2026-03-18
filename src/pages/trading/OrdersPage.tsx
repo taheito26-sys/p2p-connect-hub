@@ -71,6 +71,9 @@ export default function OrdersPage() {
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [createDealOpen, setCreateDealOpen] = useState(false);
+  const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
+  const [adjustShareValue, setAdjustShareValue] = useState('');
+  const [adjustSaving, setAdjustSaving] = useState(false);
 
   const reloadMerchantData = useCallback(async () => {
     try {
@@ -144,6 +147,11 @@ export default function OrdersPage() {
   const partnerMerchantDeals = useMemo(
     () => merchantDealsForPanel.filter(d => d.created_by !== userId),
     [merchantDealsForPanel, userId],
+  );
+
+  const merchantLinkedTrades = useMemo(
+    () => allTrades.filter(tr => !!(tr.linkedDealId || tr.linkedRelId)),
+    [allTrades],
   );
 
   const filteredCustomers = useMemo(() => {
@@ -297,6 +305,50 @@ export default function OrdersPage() {
     setEditingTradeId(null);
   };
 
+  const getDealSharePct = (deal: MerchantDeal): number | null => {
+    if (deal.deal_type === 'arbitrage') return (deal.metadata?.counterparty_share_pct as number) ?? null;
+    if (deal.deal_type === 'partnership') return (deal.metadata?.partner_ratio as number) ?? null;
+    if (deal.deal_type === 'capital_placement') return (deal.metadata?.pool_owner_share_pct as number) ?? null;
+    return null;
+  };
+
+  const openAdjustDeal = (dealId: string) => {
+    const deal = allMerchantDeals.find(d => d.id === dealId);
+    if (!deal) return;
+    const sharePct = getDealSharePct(deal);
+    setAdjustShareValue(sharePct != null ? String(sharePct) : '');
+    setAdjustingDealId(dealId);
+  };
+
+  const saveAdjustDeal = async () => {
+    if (!adjustingDealId) return;
+    const deal = allMerchantDeals.find(d => d.id === adjustingDealId);
+    if (!deal) return;
+    const newPct = Number(adjustShareValue);
+    if (!(newPct >= 0) || !(newPct <= 100)) return;
+    setAdjustSaving(true);
+    try {
+      const updatedMetadata = { ...deal.metadata };
+      if (deal.deal_type === 'arbitrage') {
+        updatedMetadata.counterparty_share_pct = newPct;
+        updatedMetadata.merchant_share_pct = 100 - newPct;
+      } else if (deal.deal_type === 'partnership') {
+        updatedMetadata.partner_ratio = newPct;
+        updatedMetadata.merchant_ratio = 100 - newPct;
+      } else if (deal.deal_type === 'capital_placement') {
+        updatedMetadata.pool_owner_share_pct = newPct;
+      }
+      await api.deals.update(adjustingDealId, { metadata: updatedMetadata });
+      await reloadMerchantData();
+      toast.success(t('saveChanges'));
+      setAdjustingDealId(null);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAdjustSaving(false);
+    }
+  };
+
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
@@ -448,96 +500,262 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {/* ─── MERCHANT DEALS CONTEXT PANEL ─── */}
-          {allMerchantDeals.length > 0 && (
-            <div className="panel" style={{ marginTop: 12 }}>
-              <div className="panel-head">
-                <h2>🤝 {t('merchantDealsInOrders')}</h2>
-                <span className="pill">{merchantDealsForPanel.length} {t('dealsLabel')}</span>
-              </div>
-              <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* ─── UNIFIED MERCHANT ORDER SPACE ─── */}
+          {allMerchantDeals.length > 0 && (() => {
+            const thStyle = (right?: boolean): React.CSSProperties => ({
+              padding: '7px 10px', fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase',
+              fontWeight: 800, letterSpacing: '.3px', whiteSpace: 'nowrap',
+              textAlign: right ? 'right' : 'left',
+            });
+            const tdStyle = (right?: boolean): React.CSSProperties => ({
+              padding: '9px 10px', fontSize: 11,
+              textAlign: right ? 'right' : 'left',
+              borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
+            });
+
+            const renderMargin = (margin: number) => {
+              const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
+              return Number.isFinite(margin) ? (
+                <td style={tdStyle()}>
+                  <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
+                </td>
+              ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
+            };
+
+            return (
+              <div className="panel" style={{ marginTop: 12, overflow: 'hidden' }}>
+                <div className="panel-head">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 15 }}>🤝</span>
+                    <h2 style={{ margin: 0 }}>{t('merchantOrderSpace')}</h2>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span className="pill">{allMerchantDeals.length} {t('dealsLabel')}</span>
+                    <span className="pill">{merchantLinkedTrades.length} {t('orders')}</span>
+                  </div>
+                </div>
+
+                {/* ── INCOMING DEALS: counterparty created → you are capital owner / partner ── */}
                 {partnerMerchantDeals.length > 0 && (
-                  <div style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: 'color-mix(in srgb, var(--bg) 85%, black 15%)' }}>
-                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('date')}</th>
-                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('merchantLabel')}</th>
-                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('type')}</th>
-                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('amount')}</th>
-                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>P&amp;L</th>
-                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>ROI</th>
-                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('actions')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {partnerMerchantDeals.map(deal => {
-                          const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                          const rel = relationships.find(r => r.id === deal.relationship_id);
-                          const roi = deal.realized_pnl != null && deal.amount > 0 ? (deal.realized_pnl / deal.amount) * 100 : null;
-                          const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
-                          return (
-                            <tr key={deal.id} style={{ borderTop: '1px solid color-mix(in srgb, var(--line) 85%, transparent)' }}>
-                              <td style={{ padding: '10px', fontSize: 11 }}>{deal.issue_date}</td>
-                              <td style={{ padding: '10px', fontSize: 11, fontWeight: 700 }}>{rel?.counterparty?.display_name || '—'}</td>
-                              <td style={{ padding: '10px', fontSize: 11 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span>{cfg?.icon}</span>
-                                  <span>{cfg?.label || deal.deal_type}</span>
-                                </div>
-                              </td>
-                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', fontWeight: 700 }}>${deal.amount.toLocaleString()} {deal.currency}</td>
-                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                                {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
-                              </td>
-                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', color: roi != null ? (roi >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                                {roi != null ? `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%` : '—'}
-                              </td>
-                              <td style={{ padding: '10px', textAlign: 'right' }}>
-                                <button className="rowBtn" type="button" onClick={() => navigate(workspacePath)}>
-                                  {t('viewInWorkspace')}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div>
+                    <div style={{ padding: '7px 14px', fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 6%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--brand) 12%, transparent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📥</span> {t('incomingDeals')}
+                      <span className="pill" style={{ fontSize: 8 }}>{partnerMerchantDeals.length}</span>
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                            <th style={thStyle()}>{t('date')}</th>
+                            <th style={thStyle()}>{t('buyer')}</th>
+                            <th style={thStyle()}>{t('type')}</th>
+                            <th style={thStyle(true)}>{t('qty')}</th>
+                            <th style={thStyle(true)}>{t('sell')}</th>
+                            <th style={thStyle(true)}>{t('volume')}</th>
+                            <th style={thStyle(true)}>{t('net')}</th>
+                            <th style={thStyle()}>{t('margin')}</th>
+                            <th style={thStyle()}>{t('actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {partnerMerchantDeals.map(deal => {
+                            const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                            const rel = relationships.find(r => r.id === deal.relationship_id);
+                            const dealTrades = merchantLinkedTrades.filter(tr => tr.linkedDealId === deal.id);
+                            const sharePct = getDealSharePct(deal);
+                            const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                            const counterpartyName = rel?.counterparty?.display_name || '—';
+                            const rowBg = 'color-mix(in srgb, var(--brand) 3%, transparent)';
+
+                            // No linked trades → show deal-level summary row
+                            if (dealTrades.length === 0) {
+                              const margin = deal.realized_pnl != null && deal.amount > 0 ? deal.realized_pnl / deal.amount : NaN;
+                              return (
+                                <tr key={deal.id} style={{ background: rowBg }}>
+                                  <td style={tdStyle()}><span className="mono">{deal.issue_date}</span></td>
+                                  <td style={tdStyle()}><span className="tradeBuyerChip" style={{ maxWidth: 120 }}>{counterpartyName}</span></td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td style={tdStyle(true)}><span style={{ color: 'var(--muted)' }}>—</span></td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            // Trade-level rows
+                            return dealTrades.map((tr, idx) => {
+                              const c = derived.tradeCalc.get(tr.id);
+                              const ok = !!c?.ok;
+                              const rev = tr.amountUSDT * tr.sellPriceQAR;
+                              const net = ok ? c!.netQAR : NaN;
+                              const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                              const cn = state.customers.find(x => x.id === tr.customerId)?.name || counterpartyName;
+                              const firstRowBorder = idx === 0 ? '2px solid color-mix(in srgb, var(--brand) 22%, transparent)' : undefined;
+                              return (
+                                <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{fmtDate(tr.ts)}</span>
+                                    {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                                  </td>
+                                  <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
-                {creatorMerchantDeals.map(deal => {
-                  const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                  const rel = relationships.find(r => r.id === deal.relationship_id);
-                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
-                  const custName = deal.metadata?.customer_name as string | undefined;
-                  const suppName = deal.metadata?.supplier_name as string | undefined;
-                  return (
-                    <div key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span>{cfg?.icon}</span>
-                        <span style={{ fontWeight: 700, fontSize: 11 }}>{deal.title}</span>
-                        {cfg?.hasCounterpartyShare && (
-                          <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                            {t('capitalShared')}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 9, color: 'var(--muted)' }}>
-                        <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>${deal.amount.toLocaleString()} {deal.currency}</strong></span>
-                        {rel?.counterparty?.display_name && <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--t1)' }}>{rel.counterparty.display_name}</strong></span>}
-                        {custName && <span>👤 {custName}</span>}
-                        {suppName && <span>📦 {suppName}</span>}
-                        <span>{t('orders')}: <strong style={{ color: 'var(--t1)' }}>{linkedOrderCount}</strong></span>
-                      </div>
+
+                {/* ── YOUR DEALS: you created → you are the borrower / trade executor ── */}
+                {creatorMerchantDeals.length > 0 && (
+                  <div style={{ borderTop: partnerMerchantDeals.length > 0 ? '2px solid color-mix(in srgb, var(--line) 60%, transparent)' : undefined }}>
+                    <div style={{ padding: '7px 14px', fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--good)', background: 'color-mix(in srgb, var(--good) 6%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--good) 12%, transparent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📤</span> {t('yourDealsSection')}
+                      <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{creatorMerchantDeals.length}</span>
                     </div>
-                  );
-                })}
-                {merchantDealsForPanel.length === 0 && (
-                  <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                            <th style={thStyle()}>{t('date')}</th>
+                            <th style={thStyle()}>{t('buyer')}</th>
+                            <th style={thStyle()}>{t('type')}</th>
+                            <th style={thStyle(true)}>{t('qty')}</th>
+                            <th style={thStyle(true)}>{t('avgBuy')}</th>
+                            <th style={thStyle(true)}>{t('sell')}</th>
+                            <th style={thStyle(true)}>{t('volume')}</th>
+                            <th style={thStyle(true)}>{t('net')}</th>
+                            <th style={thStyle()}>{t('margin')}</th>
+                            <th style={thStyle()}>{t('actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {creatorMerchantDeals.map(deal => {
+                            const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                            const rel = relationships.find(r => r.id === deal.relationship_id);
+                            const dealTrades = merchantLinkedTrades.filter(tr => tr.linkedDealId === deal.id);
+                            const sharePct = getDealSharePct(deal);
+                            const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                            const counterpartyName = rel?.counterparty?.display_name || '—';
+                            const rowBg = 'color-mix(in srgb, var(--good) 3%, transparent)';
+
+                            // No linked trades → deal summary row
+                            if (dealTrades.length === 0) {
+                              return (
+                                <tr key={deal.id} style={{ background: rowBg }}>
+                                  <td style={tdStyle()}><span className="mono">{deal.issue_date}</span></td>
+                                  <td style={tdStyle()}><span className="tradeBuyerChip" style={{ maxWidth: 120 }}>{counterpartyName}</span></td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--good)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td colSpan={5} style={{ ...tdStyle(), color: 'var(--muted)', fontStyle: 'italic', fontSize: 10 }}>
+                                    {t('noLinkedOrders')} · {deal.amount.toLocaleString()} {deal.currency}
+                                  </td>
+                                  <td style={{ ...tdStyle(), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
+                                  </td>
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            // Trade-level rows (with Avg Buy from FIFO)
+                            return dealTrades.map((tr, idx) => {
+                              const c = derived.tradeCalc.get(tr.id);
+                              const ok = !!c?.ok;
+                              const rev = tr.amountUSDT * tr.sellPriceQAR;
+                              const net = ok ? c!.netQAR : NaN;
+                              const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                              const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
+                              const firstRowBorder = idx === 0 ? '2px solid color-mix(in srgb, var(--good) 22%, transparent)' : undefined;
+                              return (
+                                <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
+                                  <td style={tdStyle()}>
+                                    <span className="mono">{fmtDate(tr.ts)}</span>
+                                    {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                                  </td>
+                                  <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                  <td style={tdStyle()}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                      <span>{cfg?.icon}</span>
+                                      <span style={{ color: 'var(--good)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                      {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 30%, transparent)' }}>{sharePct}%</span>}
+                                    </span>
+                                  </td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                  <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                  <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                    {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                  </td>
+                                  {renderMargin(margin)}
+                                  <td style={tdStyle()}>
+                                    <div className="actionsRow">
+                                      {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                      <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <div>
@@ -834,6 +1052,80 @@ export default function OrdersPage() {
                   </button>
                 </div>
               </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* ─── ADJUST SHARE DIALOG ─── */}
+      {(() => {
+        const adjustDeal = adjustingDealId ? allMerchantDeals.find(d => d.id === adjustingDealId) : null;
+        const adjustCfg = adjustDeal ? DEAL_TYPE_CONFIGS[adjustDeal.deal_type] : null;
+        const adjustRel = adjustDeal ? relationships.find(r => r.id === adjustDeal.relationship_id) : null;
+        const newPct = Number(adjustShareValue);
+        const yourPct = 100 - newPct;
+        const valid = adjustShareValue !== '' && newPct >= 0 && newPct <= 100;
+        return (
+          <Dialog open={!!adjustingDealId} onOpenChange={open => !open && setAdjustingDealId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--brand) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 16 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('adjustShareTitle')}</DialogTitle>
+              </DialogHeader>
+
+              {adjustDeal && (
+                <>
+                  {/* Deal context */}
+                  <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                      <span>{adjustCfg?.icon}</span>
+                      <span style={{ fontWeight: 700, fontSize: 12 }}>{adjustDeal.title}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 10, color: 'var(--muted)' }}>
+                      <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--text)' }}>{adjustRel?.counterparty?.display_name || '—'}</strong></span>
+                      <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>{adjustDeal.amount.toLocaleString()} {adjustDeal.currency}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Share % input */}
+                  <div className="field2" style={{ marginBottom: 12 }}>
+                    <div className="lbl">{t('sharePctLabel')} — {adjustRel?.counterparty?.display_name || t('counterpartyLabel')}</div>
+                    <div className="inputBox">
+                      <input
+                        type="number" min="0" max="100" step="0.1" inputMode="decimal"
+                        value={adjustShareValue}
+                        onChange={e => setAdjustShareValue(e.target.value)}
+                        style={{ width: '100%' }}
+                        placeholder="e.g. 30"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Split preview */}
+                  {adjustShareValue !== '' && Number.isFinite(newPct) && (
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                      <div style={{ flex: 1, padding: '10px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 22%, transparent)' }}>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 3 }}>{adjustRel?.counterparty?.display_name || t('counterpartyLabel')}</div>
+                        <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--bad)', fontFamily: 'var(--lt-font-mono)' }}>{newPct.toFixed(1)}%</div>
+                      </div>
+                      <div style={{ flex: 1, padding: '10px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 22%, transparent)' }}>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 3 }}>{t('yourShare')}</div>
+                        <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--good)', fontFamily: 'var(--lt-font-mono)' }}>{Number.isFinite(yourPct) ? yourPct.toFixed(1) : '—'}%</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                    <button className="btn secondary" onClick={() => setAdjustingDealId(null)}>{t('cancel')}</button>
+                    <button
+                      disabled={!valid || adjustSaving}
+                      onClick={saveAdjustDeal}
+                      style={{ padding: '9px 18px', borderRadius: 6, background: valid ? 'var(--brand)' : 'var(--muted2)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: valid ? 'pointer' : 'not-allowed', opacity: adjustSaving ? 0.7 : 1 }}
+                    >
+                      {adjustSaving ? '…' : t('saveAdjustment')}
+                    </button>
+                  </DialogFooter>
+                </>
+              )}
             </DialogContent>
           </Dialog>
         );

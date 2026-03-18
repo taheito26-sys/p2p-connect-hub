@@ -586,6 +586,16 @@ const translations = {
   investedLabel: { en: 'Invested', ar: 'المستثمر' },
   usedLabel: { en: 'Used', ar: 'مستخدم' },
 
+  // ── Unified Merchant Order Space ──
+  merchantOrderSpace: { en: 'Merchant Order Space', ar: 'مساحة الطلبات التجارية' },
+  incomingDeals: { en: 'Incoming Deals', ar: 'الصفقات الواردة' },
+  yourDealsSection: { en: 'Your Deals', ar: 'صفقاتك' },
+  adjustShare: { en: 'Adjust Share', ar: 'تعديل الحصة' },
+  adjustShareTitle: { en: 'Adjust Profit Share', ar: 'تعديل نسبة تقاسم الأرباح' },
+  sharePctLabel: { en: 'Counterparty Share %', ar: 'نسبة حصة الطرف الآخر %' },
+  saveAdjustment: { en: 'Save Adjustment', ar: 'حفظ التعديل' },
+  noLinkedOrders: { en: 'No linked orders yet', ar: 'لا توجد طلبات مرتبطة بعد' },
+
   // ── Deal creation enhancements ──
   fromOrder: { en: 'From order', ar: 'من الطلب' },
   dealCustomerRequired: { en: 'Customer is required', ar: 'العميل مطلوب' },
