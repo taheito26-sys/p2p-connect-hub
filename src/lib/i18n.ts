@@ -571,6 +571,21 @@ const translations = {
   orderTypeSelf: { en: 'Self', ar: 'شخصي' },
   orderTypeMerchant: { en: 'Merchant', ar: 'تجاري' },
 
+  // ── Edit dialogs redesign ──
+  correctTradeTitle: { en: 'Correct Trade — Edit in Place', ar: 'تصحيح الصفقة — تحرير في المكان' },
+  editInPlaceWarning: { en: 'Editing the original record in place. FIFO and profit will be recomputed after save.', ar: 'تحرير السجل الأصلي في مكانه. سيتم إعادة حساب FIFO والأرباح بعد الحفظ.' },
+  saveCorrection: { en: 'Save Correction', ar: 'حفظ التصحيح' },
+  currentStatsLabel: { en: 'CURRENT', ar: 'الحالي' },
+  feeQarLabel: { en: 'Fee QAR', ar: 'الرسوم ر.ق' },
+  deductFromInventory: { en: 'Deduct from inventory', ar: 'خصم من المخزون' },
+  editBatchInPlace: { en: 'Edit Batch — in Place', ar: 'تعديل الدفعة — في المكان' },
+  batchFullyDepletedWarn: { en: 'Fully depleted — all USDT consumed by FIFO trades. Editing qty/price will trigger full FIFO recompute.', ar: 'مستنفدة بالكامل — تم استهلاك كل USDT بواسطة صفقات FIFO. تعديل الكمية/السعر سيعيد حساب FIFO بالكامل.' },
+  batchPartialWarn: { en: 'Partially used — editing qty/price will trigger full FIFO recompute.', ar: 'مستخدمة جزئياً — تعديل الكمية/السعر سيعيد حساب FIFO بالكامل.' },
+  customSupplierPlaceholder: { en: 'Or type custom supplier name...', ar: 'أو اكتب اسم مورد مخصص...' },
+  deleteBatch: { en: 'Delete Batch', ar: 'حذف الدفعة' },
+  investedLabel: { en: 'Invested', ar: 'المستثمر' },
+  usedLabel: { en: 'Used', ar: 'مستخدم' },
+
   // ── Deal creation enhancements ──
   fromOrder: { en: 'From order', ar: 'من الطلب' },
   dealCustomerRequired: { en: 'Customer is required', ar: 'العميل مطلوب' },
