@@ -125,9 +125,9 @@ export function CreateDealDialog({
 
   // Auto-generated title
   const autoTitle = useMemo(() => {
-    if (!selectedType || !selectedCustomer || !selectedSupplierName) return '';
-    return generateDealLabel(selectedType, selectedCustomer.name, selectedSupplierName);
-  }, [selectedType, selectedCustomer, selectedSupplierName]);
+    if (!selectedType || !selectedCustomer) return '';
+    return generateDealLabel(selectedType, selectedCustomer.name);
+  }, [selectedType, selectedCustomer]);
 
   const effectiveTitle = form.customTitle.trim() || autoTitle;
 
