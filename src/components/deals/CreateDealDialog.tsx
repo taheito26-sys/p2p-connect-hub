@@ -32,14 +32,6 @@ interface Props {
   onStateChange?: (next: TrackerState) => void;
   /** Whether creating a deal should also reserve/add a tracker trade */
   reserveTrackerTradeOnCreate?: boolean;
-  /** Pre-filled amount from new sale flow (locks the field) */
-  prefillAmount?: string;
-  /** Pre-filled currency from new sale flow */
-  prefillCurrency?: string;
-  /** Pre-filled customer ID from new sale flow (locks the field) */
-  prefillCustomerId?: string;
-  /** Pre-filled customer name from new sale flow */
-  prefillCustomerName?: string;
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
@@ -61,10 +53,6 @@ export function CreateDealDialog({
   trackerState,
   onStateChange,
   reserveTrackerTradeOnCreate = true,
-  prefillAmount,
-  prefillCurrency,
-  prefillCustomerId,
-  prefillCustomerName,
 }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
