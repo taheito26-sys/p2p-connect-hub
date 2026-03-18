@@ -568,6 +568,8 @@ const translations = {
   counterpartyLabel: { en: 'Counterparty', ar: 'الطرف المقابل' },
   merchantLabel: { en: 'Merchant', ar: 'التاجر' },
   shareLabel: { en: 'Share', ar: 'الحصة' },
+  orderTypeSelf: { en: 'Self', ar: 'شخصي' },
+  orderTypeMerchant: { en: 'Merchant', ar: 'تجاري' },
 
   // ── Deal creation enhancements ──
   fromOrder: { en: 'From order', ar: 'من الطلب' },
