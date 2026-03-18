@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
@@ -21,6 +22,7 @@ function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 
 export default function OrdersPage() {
   const { settings } = useTheme();
   const t = useT();
+  const navigate = useNavigate();
 
   const initial = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -129,6 +131,16 @@ export default function OrdersPage() {
       return [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase().includes(query);
     });
   }, [list, query, state.customers]);
+
+  const merchantDealsForPanel = useMemo(() => allMerchantDeals, [allMerchantDeals]);
+  const creatorMerchantDeals = useMemo(
+    () => merchantDealsForPanel.filter(d => d.created_by === userId),
+    [merchantDealsForPanel, userId],
+  );
+  const partnerMerchantDeals = useMemo(
+    () => merchantDealsForPanel.filter(d => d.created_by !== userId),
+    [merchantDealsForPanel, userId],
+  );
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
