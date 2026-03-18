@@ -74,9 +74,18 @@ export default function DealsPage() {
                     {!isDealCreator && relationship?.counterparty?.display_name && (
                       <span>{t('merchantLabel')}: <strong className="text-foreground">{relationship.counterparty.display_name}</strong></span>
                     )}
-                    {deal.realized_pnl != null && <span>P&L: ${deal.realized_pnl.toLocaleString()}</span>}
-                    {roi != null && <span>ROI: {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%</span>}
+                    {deal.realized_pnl != null && (
+                      <span className={deal.realized_pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+                        P&L: {deal.realized_pnl >= 0 ? '+' : ''}${deal.realized_pnl.toLocaleString()}
+                      </span>
+                    )}
+                    {roi != null && (
+                      <span className={roi >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+                        ROI: {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
+                      </span>
+                    )}
                   </div>
+                  {/* Creator sees customer/supplier details */}
                   {isDealCreator && (deal.metadata?.customer_name || deal.metadata?.supplier_name) && (
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                       {deal.metadata?.customer_name && (
