@@ -840,8 +840,6 @@ export default function OrdersPage() {
                 </div>
                 <div className="formActions"><button className="btn" onClick={addTrade}>{t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
-              </div>
-            </div>
           </div>
         </div>
       )}

@@ -655,7 +655,7 @@ const translations = {
   backToDeals: { en: '← Back to deals', ar: '← العودة إلى الصفقات' },
   orderDetails: { en: 'Order Details', ar: 'تفاصيل الطلب' },
   goToNetwork: { en: 'Go to Network →', ar: 'اذهب إلى الشبكة →' },
-  createNewDeal: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
+  createNewDealBtn: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
   totalVolQar: { en: 'Total Volume', ar: 'إجمالي الحجم' },
   netPnl: { en: 'Net P&L', ar: 'صافي الأرباح' },
   dealPartner: { en: 'Partner', ar: 'الشريك' },
