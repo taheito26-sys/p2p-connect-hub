@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
-import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +17,7 @@ import {
   Loader2, Search, UserPlus, Check, X, RotateCcw, Mail, Users,
   ExternalLink, CheckSquare, MessageCircle, AlertCircle, Briefcase,
   DollarSign, ArrowRight, Clock, Send, ChevronLeft, Filter,
-  ArrowUpRight, Circle, Zap, Bell, Hash, LayoutGrid, List,
+  ArrowUpRight, Zap, Bell, TrendingUp, TrendingDown, Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerchantSearchResult, MerchantInvite, MerchantRelationship, MerchantApproval, MerchantMessage, MerchantDeal } from '@/types/domain';
@@ -30,21 +29,6 @@ const inviteStatusColors: Record<string, string> = {
   rejected: 'bg-red-500/15 text-red-500 border-red-500/30',
   withdrawn: 'bg-muted text-muted-foreground',
   expired: 'bg-muted text-muted-foreground',
-};
-const relStatusColors: Record<string, string> = {
-  active: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
-  restricted: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
-  suspended: 'bg-red-500/15 text-red-500 border-red-500/30',
-  terminated: 'bg-muted text-muted-foreground',
-};
-const dealStatusColors: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  active: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
-  due: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
-  settled: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
-  closed: 'bg-muted text-muted-foreground',
-  overdue: 'bg-red-500/15 text-red-500 border-red-500/30',
-  cancelled: 'bg-muted text-muted-foreground',
 };
 const approvalStatusColors: Record<string, string> = {
   pending: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
@@ -63,8 +47,8 @@ interface ConversationSummary {
   messages: MerchantMessage[];
 }
 
-type MainView = 'activity' | 'chat' | 'deals';
-type ActivityFilter = 'all' | 'invites' | 'approvals';
+type MainView = 'deals' | 'activity' | 'chat';
+type DealFilter = 'all' | 'active' | 'due' | 'overdue' | 'settled';
 
 /* ─── Helpers ─── */
 function timeAgo(dateStr: string) {
@@ -78,8 +62,18 @@ function timeAgo(dateStr: string) {
   return d.toLocaleDateString();
 }
 
+function dealStatusStyle(status: string) {
+  switch (status) {
+    case 'active': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30';
+    case 'due': return 'bg-amber-500/10 text-amber-600 border-amber-500/30';
+    case 'overdue': return 'bg-red-500/10 text-red-500 border-red-500/30';
+    case 'settled': return 'bg-blue-500/10 text-blue-600 border-blue-500/30';
+    default: return 'bg-muted text-muted-foreground border-border';
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════
-   NETWORK PAGE — Unified Command Center
+   NETWORK PAGE — Deals-Centric Command Center
    ═══════════════════════════════════════════════════════════ */
 export default function NetworkPage() {
   const { userId } = useAuth();
@@ -101,14 +95,17 @@ export default function NetworkPage() {
   const [inviteForm, setInviteForm] = useState({ purpose: '', role: 'partner', message: '' });
   const [loading, setLoading] = useState(true);
 
-  // View state
-  const [mainView, setMainView] = useState<MainView>('activity');
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
+  // View state — default to DEALS (deals-centric)
+  const [mainView, setMainView] = useState<MainView>('deals');
+  const [dealFilter, setDealFilter] = useState<DealFilter>('all');
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [msgInput, setMsgInput] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // FIX: Ref-based conversations for markConvoRead to avoid stale closure
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
 
   /* ─── Data loading ─── */
   const reload = useCallback(async () => {
@@ -152,7 +149,7 @@ export default function NetworkPage() {
   }, [userId]);
 
   useEffect(() => { reload(); }, [reload]);
-  useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update']);
+  useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update', 'deal_update']);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeConvoId, conversations]);
 
   /* ─── Handlers ─── */
@@ -209,8 +206,10 @@ export default function NetworkPage() {
     catch (err: any) { toast.error(err.message); }
   };
 
+  // FIX: Use conversationsRef to avoid stale closure bug where
+  // markConvoRead captured old conversations array from render-time
   const markConvoRead = useCallback(async (relId: string) => {
-    const convo = conversations.find(c => c.relationshipId === relId);
+    const convo = conversationsRef.current.find(c => c.relationshipId === relId);
     if (!convo || convo.unreadCount === 0) return;
     try {
       const unreadMsgs = convo.messages.filter(m => !m.is_read && m.sender_user_id !== userId);
@@ -221,7 +220,7 @@ export default function NetworkPage() {
           : c
       ));
     } catch {}
-  }, [conversations, userId]);
+  }, [userId]);
 
   const handleSelectConvo = useCallback((relId: string) => {
     setActiveConvoId(relId);
@@ -245,8 +244,18 @@ export default function NetworkPage() {
   const overdueDeals = allDeals.filter(d => d.status === 'overdue');
   const activeDeals = allDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
   const activeConvo = conversations.find(c => c.relationshipId === activeConvoId);
+  const totalAlerts = pendingInvites.length + pendingApprovals.length;
 
-  const totalAlerts = pendingInvites.length + pendingApprovals.length + overdueDeals.length;
+  const filteredDeals = useMemo(() => {
+    if (dealFilter === 'all') return allDeals;
+    return allDeals.filter(d => d.status === dealFilter);
+  }, [allDeals, dealFilter]);
+
+  const dealsSummary = useMemo(() => {
+    const totalVolume = allDeals.reduce((s, d) => s + d.amount, 0);
+    const totalPnl = allDeals.reduce((s, d) => s + (d.realized_pnl ?? 0), 0);
+    return { totalVolume, totalPnl, activeCount: activeDeals.length, overdueCount: overdueDeals.length };
+  }, [allDeals, activeDeals, overdueDeals]);
 
   /* ─── Loading ─── */
   if (loading) return (
@@ -254,7 +263,7 @@ export default function NetworkPage() {
       <div className="flex flex-col items-center gap-3">
         <div className="relative">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Users className="w-5 h-5 text-primary" />
+            <Briefcase className="w-5 h-5 text-primary" />
           </div>
           <Loader2 className="absolute -top-1 -right-1 w-4 h-4 animate-spin text-primary" />
         </div>
@@ -263,75 +272,55 @@ export default function NetworkPage() {
     </div>
   );
 
-  /* ═══════════════════════════════════════════════════════
-     RENDER
-     ═══════════════════════════════════════════════════════ */
   return (
     <div dir={t.isRTL ? 'rtl' : 'ltr'} className="flex flex-col h-[calc(100vh-3.5rem)] border border-border/50 rounded-xl overflow-hidden bg-card mx-1 my-1">
 
       {/* ─── Top bar ─── */}
       <div className="shrink-0 flex items-center gap-2.5 px-3.5 h-12 border-b border-border bg-card">
-        {/* Logo */}
         <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-          <Users className="w-3.5 h-3.5 text-blue-600" />
+          <Briefcase className="w-3.5 h-3.5 text-blue-600" />
         </div>
         <div className="shrink-0">
           <h1 className="text-[13px] font-medium leading-tight">{t('networkTitle')}</h1>
-          <p className="text-[11px] text-muted-foreground leading-tight">{rels.length} {t('relationships')}</p>
+          <p className="text-[11px] text-muted-foreground leading-tight">{rels.length} partners · {allDeals.length} deals</p>
         </div>
-
         <div className="flex-1" />
 
-        {/* Stat pills */}
+        {overdueDeals.length > 0 && (
+          <button onClick={() => { setMainView('deals'); setDealFilter('overdue'); }}
+            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors">
+            <AlertCircle className="w-3 h-3" />{overdueDeals.length} {t('overdue')}
+          </button>
+        )}
         {totalAlerts > 0 && (
-          <button
-            onClick={() => setMainView('activity')}
-            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-          >
-            <Bell className="w-3 h-3" />
-            {totalAlerts} {t('actionNeeded')}
+          <button onClick={() => setMainView('activity')}
+            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors">
+            <Bell className="w-3 h-3" />{totalAlerts} pending
           </button>
         )}
         {totalUnread > 0 && (
-          <button
-            onClick={() => {
-              setMainView('chat');
-              const firstUnread = conversations.find(c => c.unreadCount > 0);
-              if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
-          >
-            <MessageCircle className="w-3 h-3" />
-            {totalUnread} {t('unread')}
+          <button onClick={() => { setMainView('chat'); const f = conversations.find(c => c.unreadCount > 0); if (f) handleSelectConvo(f.relationshipId); }}
+            className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors">
+            <MessageCircle className="w-3 h-3" />{totalUnread} {t('unread')}
           </button>
         )}
-        <span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
-          <Briefcase className="w-3 h-3" />
-          {activeDeals.length} {t('activeDeals')}
-        </span>
 
-        {/* Search */}
         <form onSubmit={handleSearch} className="relative">
           <div className="flex items-center gap-1.5 px-2.5 h-[30px] rounded-lg border border-border bg-secondary text-[12px] text-muted-foreground min-w-[160px]">
             <Search className="w-[13px] h-[13px] opacity-50 shrink-0" />
-            <input
-              placeholder={t('findMerchant')}
-              value={query}
+            <input placeholder={t('findMerchant')} value={query}
               onChange={e => { setQuery(e.target.value); if (!e.target.value) { setSearched(false); setSearchOpen(false); } }}
-              className="bg-transparent border-0 outline-none w-full text-foreground placeholder:text-muted-foreground text-[12px]"
-            />
+              className="bg-transparent border-0 outline-none w-full text-foreground placeholder:text-muted-foreground text-[12px]" />
           </div>
         </form>
       </div>
 
-      {/* Search results dropdown */}
+      {/* Search dropdown */}
       {searched && searchOpen && results.length > 0 && (
         <div className="absolute right-4 top-14 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
           <div className="px-3 py-2 border-b border-border flex items-center justify-between">
             <p className="text-xs text-muted-foreground">{results.length} {t('searchResults')}</p>
-            <button onClick={() => { setSearchOpen(false); setSearched(false); setQuery(''); }} className="text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <button onClick={() => { setSearchOpen(false); setSearched(false); setQuery(''); }} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
           </div>
           <div className="max-h-64 overflow-y-auto">
             {results.map(r => (
@@ -351,51 +340,23 @@ export default function NetworkPage() {
 
       {/* ─── Workspace ─── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* ═══ LEFT SIDEBAR ═══ */}
-        <aside className={`shrink-0 border-r border-border bg-secondary flex flex-col overflow-hidden transition-all duration-200 ${
-          sidebarCollapsed ? 'w-0 md:w-14' : 'w-full md:w-[260px]'
-        } ${mainView === 'chat' && activeConvoId ? 'hidden md:flex' : 'flex'}`}>
-
-          {/* View switcher nav */}
+        {/* ═══ SIDEBAR ═══ */}
+        <aside className={`shrink-0 border-r border-border bg-secondary flex flex-col overflow-hidden transition-all duration-200 w-full md:w-[260px] ${mainView === 'chat' && activeConvoId ? 'hidden md:flex' : 'flex'}`}>
           <div className="shrink-0 flex items-center gap-1 px-2.5 py-2 border-b border-border">
-            <button
-              onClick={() => setMainView('activity')}
-              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
-                mainView === 'activity' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Zap className="w-3 h-3" />
-              {t('invitations')}
-              {totalAlerts > 0 && <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalAlerts}</span>}
+            <button onClick={() => setMainView('deals')}
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${mainView === 'deals' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}>
+              <Briefcase className="w-3 h-3" />{t('dealsLabel')}{activeDeals.length > 0 && <span className="ml-0.5 text-[9px] opacity-70">{activeDeals.length}</span>}
             </button>
-            <button
-              onClick={() => setMainView('chat')}
-              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
-                mainView === 'chat' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <MessageCircle className="w-3 h-3" />
-              {t('inbox')}
-              {totalUnread > 0 && <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalUnread}</span>}
+            <button onClick={() => setMainView('chat')}
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${mainView === 'chat' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}>
+              <MessageCircle className="w-3 h-3" />{t('inbox')}{totalUnread > 0 && <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalUnread}</span>}
             </button>
-            <button
-              onClick={() => setMainView('deals')}
-              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${
-                mainView === 'deals' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Briefcase className="w-3 h-3" />
-              {t('dealsLabel')}
+            <button onClick={() => setMainView('activity')}
+              className={`flex items-center gap-[5px] px-2.5 py-[5px] rounded-lg text-[11px] font-medium transition-colors ${mainView === 'activity' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}>
+              <Activity className="w-3 h-3" />{t('invitations')}{totalAlerts > 0 && <span className="w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-medium flex items-center justify-center ml-0.5">{totalAlerts}</span>}
             </button>
           </div>
-
-          {/* Relationships label */}
-          <div className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium px-3.5 pt-2.5 pb-1.5">
-            {t('relationships')}
-          </div>
-
-          {/* Relationships list */}
+          <div className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium px-3.5 pt-2.5 pb-1.5">{t('relationships')}</div>
           <div className="flex-1 overflow-y-auto">
             {rels.length === 0 ? (
               <div className="text-center py-6 px-4">
@@ -407,55 +368,37 @@ export default function NetworkPage() {
               <div>
                 {rels.map(rel => {
                   const convo = conversations.find(c => c.relationshipId === rel.id);
-                  const isActive = activeConvoId === rel.id;
+                  const isActive = activeConvoId === rel.id && mainView === 'chat';
+                  const hasUnread = (convo?.unreadCount ?? 0) > 0;
                   return (
-                    <button
-                      key={rel.id}
-                      className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 border-b border-border transition-colors ${
-                        isActive ? 'bg-card' : 'hover:bg-card'
+                    <button key={rel.id}
+                      className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 border-b border-border transition-all relative ${
+                        isActive ? 'bg-card' : hasUnread ? 'bg-blue-500/[0.06] dark:bg-blue-500/[0.08] hover:bg-blue-500/[0.10]' : 'hover:bg-card'
                       }`}
-                      onClick={() => handleSelectConvo(rel.id)}
-                    >
-                      {/* Avatar */}
+                      onClick={() => handleSelectConvo(rel.id)}>
+                      {/* UNREAD LEFT ACCENT */}
+                      {hasUnread && <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-blue-500" />}
                       <div className="relative shrink-0">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[13px] font-medium ${
-                          isActive ? 'bg-foreground text-background' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                        }`}>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[13px] font-medium ${isActive ? 'bg-foreground text-background' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
                           {(rel.counterparty?.display_name || '?').charAt(0).toUpperCase()}
                         </div>
-                        {/* Status dot */}
-                        <div className={`absolute -bottom-[1px] -right-[1px] w-2.5 h-2.5 rounded-full border-2 border-secondary ${
-                          rel.status === 'active' ? 'bg-emerald-500' : rel.status === 'restricted' ? 'bg-amber-500' : 'bg-muted-foreground'
-                        }`} />
-                        {/* Unread badge */}
-                        {convo && convo.unreadCount > 0 && (
-                          <div className="absolute -top-[3px] -right-[3px] min-w-[15px] h-[15px] rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center px-0.5">
-                            {convo.unreadCount}
-                          </div>
-                        )}
+                        <div className={`absolute -bottom-[1px] -right-[1px] w-2.5 h-2.5 rounded-full border-2 border-secondary ${rel.status === 'active' ? 'bg-emerald-500' : rel.status === 'restricted' ? 'bg-amber-500' : 'bg-muted-foreground'}`} />
+                        {hasUnread && <div className="absolute -top-[3px] -right-[3px] min-w-[15px] h-[15px] rounded-full bg-blue-600 text-white text-[9px] font-medium flex items-center justify-center px-0.5">{convo!.unreadCount}</div>}
                       </div>
-
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between text-[13px] font-medium">
-                          <span className="truncate">{rel.counterparty?.display_name || 'Unknown'}</span>
-                          {convo?.lastMessage && (
-                            <span className="text-[11px] text-muted-foreground font-normal shrink-0">{timeAgo(convo.lastMessage.created_at)}</span>
-                          )}
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[13px] truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium'}`}>{rel.counterparty?.display_name || 'Unknown'}</span>
+                          {convo?.lastMessage && <span className={`text-[11px] shrink-0 ${hasUnread ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-muted-foreground'}`}>{timeAgo(convo.lastMessage.created_at)}</span>}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="text-[10px] px-1.5 py-px rounded border border-border bg-card text-muted-foreground">{rel.my_role}</span>
-                          {rel.summary && rel.summary.totalDeals > 0 && (
-                            <span className="text-[11px] text-muted-foreground">{rel.summary.totalDeals} deals</span>
-                          )}
+                          {rel.summary && rel.summary.totalDeals > 0 && <span className="text-[11px] text-muted-foreground">{rel.summary.totalDeals} deals</span>}
                         </div>
                         {convo?.lastMessage ? (
-                          <p className={`text-[12px] truncate mt-0.5 ${convo.unreadCount ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                          <p className={`text-[12px] truncate mt-0.5 ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                             {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
                           </p>
-                        ) : (
-                          <p className="text-[12px] text-muted-foreground italic truncate mt-0.5">{t('noMessagesYet')}</p>
-                        )}
+                        ) : <p className="text-[12px] text-muted-foreground italic truncate mt-0.5">{t('noMessagesYet')}</p>}
                       </div>
                     </button>
                   );
@@ -465,210 +408,107 @@ export default function NetworkPage() {
           </div>
         </aside>
 
-        {/* ═══ MAIN CONTENT ═══ */}
+        {/* ═══ MAIN ═══ */}
         <main className="flex-1 flex flex-col overflow-hidden bg-card">
 
-          {/* ════════ ACTIVITY VIEW ════════ */}
-          {mainView === 'activity' && (
+          {/* DEALS VIEW */}
+          {mainView === 'deals' && (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Filter bar */}
-              <div className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 border-b border-border sticky top-0 z-10 bg-card">
+              <div className="shrink-0 px-3.5 pt-3 pb-2 border-b border-border">
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary flex-1">
+                    <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div><p className="text-lg font-medium leading-none">{dealsSummary.activeCount}</p><p className="text-[10px] text-muted-foreground mt-0.5">{t('activeDeals')}</p></div>
+                  </div>
+                  {dealsSummary.overdueCount > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 flex-1 cursor-pointer hover:bg-red-500/15 transition-colors" onClick={() => setDealFilter('overdue')}>
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      <div><p className="text-lg font-medium leading-none text-red-500">{dealsSummary.overdueCount}</p><p className="text-[10px] text-red-500 mt-0.5">{t('overdue')}</p></div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary flex-1">
+                    <DollarSign className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div><p className="text-lg font-medium leading-none">${dealsSummary.totalVolume.toLocaleString()}</p><p className="text-[10px] text-muted-foreground mt-0.5">Volume</p></div>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary flex-1">
+                    {dealsSummary.totalPnl >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" /> : <TrendingDown className="w-4 h-4 text-red-500 shrink-0" />}
+                    <div>
+                      <p className={`text-lg font-medium leading-none font-mono ${dealsSummary.totalPnl >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{dealsSummary.totalPnl >= 0 ? '+' : ''}${dealsSummary.totalPnl.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Net P&L</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 border-b border-border">
                 <Filter className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
-                {(['all', 'invites', 'approvals'] as ActivityFilter[]).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setActivityFilter(f)}
-                    className={`px-3 py-1 rounded-full text-[12px] font-medium transition-colors ${
-                      activityFilter === f
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {f === 'all' ? t('invitations') + ' & ' + t('approvals') : f === 'invites' ? t('invitations') : t('approvals')}
-                    {f === 'invites' && pendingInvites.length > 0 && ` (${pendingInvites.length})`}
-                    {f === 'approvals' && pendingApprovals.length > 0 && ` (${pendingApprovals.length})`}
+                {(['all', 'active', 'due', 'overdue', 'settled'] as DealFilter[]).map(f => (
+                  <button key={f} onClick={() => setDealFilter(f)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors capitalize ${dealFilter === f ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}>
+                    {f === 'all' ? `All (${allDeals.length})` : `${f} (${allDeals.filter(d => d.status === f).length})`}
                   </button>
                 ))}
               </div>
-
-              <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
-                {/* Pending Invites */}
-                {(activityFilter === 'all' || activityFilter === 'invites') && pendingInvites.length > 0 && (
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2">
-                      <Mail className="w-3 h-3" /> {t('invitations')} — {t('actionNeeded')}
-                    </p>
-                    <div className="space-y-2">
-                      {pendingInvites.map(inv => (
-                        <div key={inv.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
-                          <div className="w-[3px] bg-amber-600 shrink-0" />
-                          <div className="flex-1 bg-amber-500/10 p-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0">
-                                  <Mail className="w-3.5 h-3.5 text-amber-600" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[13px] font-medium truncate">{inv.from_display_name}</p>
-                                  <p className="text-[11px] text-muted-foreground">{inv.purpose} · {t('role')}: {inv.requested_role} · @{inv.from_nickname}</p>
-                                </div>
-                              </div>
-                              <div className="flex gap-[5px] shrink-0">
-                                <button onClick={() => handleAccept(inv.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-                                  <Check className="w-3 h-3" /> {t('accept')}
-                                </button>
-                                <button onClick={() => handleReject(inv.id)} className="flex items-center px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                            {inv.message && (
-                              <p className="text-[12px] text-muted-foreground italic mt-1 ml-[38px]">"{inv.message}"</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pending Approvals */}
-                {(activityFilter === 'all' || activityFilter === 'approvals') && pendingApprovals.length > 0 && (
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2">
-                      <CheckSquare className="w-3 h-3" /> {t('approvals')} — {t('actionNeeded')}
-                    </p>
-                    <div className="space-y-2">
-                      {pendingApprovals.map(a => (
-                        <div key={a.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
-                          <div className="w-[3px] bg-amber-600 shrink-0" />
-                          <div className="flex-1 bg-amber-500/10 p-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0">
-                                  <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[13px] font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
-                                  <p className="text-[11px] text-muted-foreground">{t('target')}: {a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
-                                </div>
-                              </div>
-                              <div className="flex gap-[5px] shrink-0">
-                                <button onClick={() => handleApprove(a.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-                                  <Check className="w-3 h-3" /> {t('approve')}
-                                </button>
-                                <button onClick={() => handleRejectApproval(a.id)} className="flex items-center px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                            {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
-                              <div className="mt-2 ml-[38px] flex flex-wrap gap-2">
-                                {Object.entries(a.proposed_payload).map(([k, v]) => (
-                                  <span key={k} className="text-[11px] px-2 py-0.5 rounded bg-secondary">{k}: <span className="font-medium text-foreground">{String(v)}</span></span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* History — invites */}
-                {(activityFilter === 'all' || activityFilter === 'invites') && (
-                  <>
-                    {[...inbox.filter(i => i.status !== 'pending'), ...sent].length > 0 && (
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('invitations')} — History</p>
-                        <div className="space-y-1">
-                          {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
-                            <div key={inv.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Mail className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
-                                <span className="truncate">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</span>
-                                <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
-                                  inv.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
-                                  inv.status === 'withdrawn' ? 'bg-secondary text-muted-foreground border border-border' :
-                                  inviteStatusColors[inv.status]
-                                }`}>{inv.status}</span>
-                              </div>
-                              {inv.status === 'pending' && (inv as any).to_merchant_id && (
-                                <button onClick={() => handleWithdraw(inv.id)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
-                                  <RotateCcw className="w-3 h-3" /> {t('withdraw')}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* History — approvals */}
-                {(activityFilter === 'all' || activityFilter === 'approvals') && (
-                  <>
-                    {aprInbox.filter(a => a.status !== 'pending').length > 0 && (
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('approvals')} — History</p>
-                        <div className="space-y-1">
-                          {aprInbox.filter(a => a.status !== 'pending').map(a => (
-                            <div key={a.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <CheckSquare className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
-                                <span className="capitalize truncate">{a.type.replace(/_/g, ' ')}</span>
-                                <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
-                                  a.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
-                                  approvalStatusColors[a.status]
-                                }`}>{a.status}</span>
-                              </div>
-                              <span className="text-[11px] text-muted-foreground shrink-0">
-                                {new Date(a.submitted_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Empty state */}
-                {pendingInvites.length === 0 && pendingApprovals.length === 0 &&
-                  inbox.length + sent.length === 0 && aprInbox.length === 0 && (
+              <div className="flex-1 overflow-y-auto p-3.5">
+                {filteredDeals.length === 0 ? (
                   <div className="text-center py-16">
-                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
-                      <Zap className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{t('noInvitations')}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{t('searchToCollaborate')}</p>
+                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3"><Briefcase className="w-5 h-5 text-muted-foreground" /></div>
+                    <p className="text-sm text-muted-foreground">{t('noDeals')}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {filteredDeals.map(deal => {
+                      const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                      const custName = deal.metadata?.customer_name as string | undefined;
+                      const suppName = deal.metadata?.supplier_name as string | undefined;
+                      const volume = deal.amount * (deal.expected_return || 1);
+                      const net = deal.realized_pnl ?? 0;
+                      const margin = volume > 0 ? (net / volume) * 100 : 0;
+                      return (
+                        <div key={deal.id}
+                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] transition-colors cursor-pointer group relative ${deal.status === 'overdue' || deal.status === 'due' ? 'hover:bg-amber-500/5' : 'hover:bg-secondary'}`}
+                          onClick={() => { const rel = rels.find(r => r.id === deal.relationship_id); if (rel) navigate(`/network/relationships/${rel.id}`); }}>
+                          {deal.status === 'overdue' && <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-red-500" />}
+                          {deal.status === 'due' && <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-amber-500" />}
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${deal.status === 'overdue' ? 'bg-red-500/10' : ['active', 'due'].includes(deal.status) ? 'bg-emerald-500/10' : 'bg-secondary'}`}>{cfg?.icon || '📋'}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 text-[13px] font-medium">
+                              <span className="truncate">{cfg?.label || deal.deal_type}</span>
+                              <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 border ${dealStatusStyle(deal.status)}`}>{deal.status}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate mt-px">
+                              {custName && <span>👤 {custName}</span>}{custName && suppName && <span> → </span>}{suppName && <span>📦 {suppName}</span>}
+                              {!custName && !suppName && <span>{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</span>}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-[13px] font-medium font-mono">${deal.amount.toLocaleString()}</p>
+                            {net !== 0 ? <p className={`text-[11px] font-mono font-medium ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{net >= 0 ? '+' : ''}${net.toLocaleString()} ({margin.toFixed(1)}%)</p>
+                              : <p className="text-[11px] text-muted-foreground font-mono">Vol: ${volume.toLocaleString()}</p>}
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* ════════ CHAT VIEW ════════ */}
+          {/* CHAT VIEW */}
           {mainView === 'chat' && (
             <div className="flex-1 flex flex-col overflow-hidden">
               {!activeConvoId || !activeConvo ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
-                      <MessageCircle className="w-5 h-5 text-muted-foreground" />
-                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3"><MessageCircle className="w-5 h-5 text-muted-foreground" /></div>
                     <p className="text-sm text-muted-foreground">{t('selectConversation')}</p>
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* Chat header */}
                   <div className="shrink-0 flex items-center gap-2.5 px-3.5 h-11 border-b border-border">
-                    <Button variant="ghost" size="icon" className="md:hidden shrink-0 h-7 w-7" onClick={() => setActiveConvoId(null)}>
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="md:hidden shrink-0 h-7 w-7" onClick={() => setActiveConvoId(null)}><ChevronLeft className="w-4 h-4" /></Button>
                     <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                       <span className="text-[12px] font-medium text-blue-600 dark:text-blue-400">{activeConvo.counterpartyName.charAt(0).toUpperCase()}</span>
                     </div>
@@ -677,60 +517,36 @@ export default function NetworkPage() {
                       <p className="text-[11px] text-muted-foreground font-mono">{activeConvo.counterpartyMerchantId}</p>
                     </div>
                     <div className="flex-1" />
-                    <button
-                      onClick={() => navigate(`/network/relationships/${activeConvoId}`)}
-                      className="flex items-center gap-1 text-[12px] text-muted-foreground hover:bg-secondary px-2 py-1 rounded-md transition-colors"
-                    >
+                    <button onClick={() => navigate(`/network/relationships/${activeConvoId}`)} className="flex items-center gap-1 text-[12px] text-muted-foreground hover:bg-secondary px-2 py-1 rounded-md transition-colors">
                       {t('viewInWorkspace')} <ArrowUpRight className="w-3 h-3" />
                     </button>
                   </div>
-
-                  {/* Messages */}
                   <div className="flex-1 overflow-y-auto px-3.5 py-3.5 flex flex-col gap-2">
-                    {activeConvo.messages.length === 0 && (
-                      <p className="text-center text-muted-foreground text-xs py-8">{t('noMessagesYet')}</p>
-                    )}
+                    {activeConvo.messages.length === 0 && <p className="text-center text-muted-foreground text-xs py-8">{t('noMessagesYet')}</p>}
                     {activeConvo.messages.map(msg => {
                       const isOwn = msg.sender_user_id === userId;
                       const isSystem = msg.message_type === 'system';
                       return (
                         <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[72%] px-3.5 py-2 text-[13px] leading-[1.5] ${
-                            isSystem
-                              ? 'bg-secondary text-muted-foreground text-center text-[11px] italic rounded-lg px-3.5 py-1 max-w-full'
-                              : isOwn
-                                ? 'bg-foreground text-background rounded-[14px_14px_4px_14px]'
-                                : 'bg-secondary rounded-[14px_14px_14px_4px]'
-                          }`}>
-                            {!isSystem && !isOwn && (
-                              <p className="text-[11px] text-muted-foreground mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>
-                            )}
+                            isSystem ? 'bg-secondary text-muted-foreground text-center text-[11px] italic rounded-lg px-3.5 py-1 max-w-full'
+                            : isOwn ? 'bg-foreground text-background rounded-[14px_14px_4px_14px]'
+                            : 'bg-secondary rounded-[14px_14px_14px_4px]'}`}>
+                            {!isSystem && !isOwn && <p className="text-[11px] text-muted-foreground mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>}
                             <p>{msg.body}</p>
-                            <p className={`text-[10px] mt-[3px] ${isOwn ? 'opacity-[0.45]' : 'text-muted-foreground'}`}>
-                              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                            <p className={`text-[10px] mt-[3px] ${isOwn ? 'opacity-[0.45]' : 'text-muted-foreground'}`}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </div>
                       );
                     })}
                     <div ref={messagesEndRef} />
                   </div>
-
-                  {/* Chat input */}
                   <div className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 border-t border-border">
                     <div className="flex-1 flex items-center gap-2 px-3 h-9 rounded-full bg-secondary text-[13px] text-muted-foreground">
-                      <input
-                        placeholder={t('typeMessage')}
-                        value={msgInput}
-                        onChange={e => setMsgInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendMsg()}
-                        className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[13px]"
-                      />
+                      <input placeholder={t('typeMessage')} value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()}
+                        className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[13px]" />
                     </div>
-                    <button
-                      onClick={sendMsg}
-                      className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity"
-                    >
+                    <button onClick={sendMsg} className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity">
                       <Send className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -739,108 +555,112 @@ export default function NetworkPage() {
             </div>
           )}
 
-          {/* ════════ DEALS VIEW ════════ */}
-          {mainView === 'deals' && (
-            <div className="flex-1 overflow-y-auto p-3.5">
-              {/* Summary strip */}
-              <div className="flex gap-2.5 mb-4">
-                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary">
-                  <Briefcase className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-lg font-medium leading-none">{activeDeals.length}</p>
-                    <p className="text-[11px] text-muted-foreground">{t('activeDeals')}</p>
-                  </div>
-                </div>
-                {overdueDeals.length > 0 && (
-                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-destructive/10">
-                    <AlertCircle className="w-4 h-4 text-destructive" />
-                    <div>
-                      <p className="text-lg font-medium leading-none text-destructive">{overdueDeals.length}</p>
-                      <p className="text-[11px] text-destructive">{t('overdue')}</p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary">
-                  <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-lg font-medium leading-none">
-                      ${allDeals.reduce((s, d) => s + d.amount, 0).toLocaleString()}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Total Volume</p>
-                  </div>
-                </div>
-              </div>
-
-              {allDeals.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
-                    <Briefcase className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">{t('noDeals')}</p>
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {allDeals.map(deal => {
-                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                    const custName = deal.metadata?.customer_name as string | undefined;
-                    const suppName = deal.metadata?.supplier_name as string | undefined;
-                    const volume = deal.amount * (deal.expected_return || 1);
-                    const net = deal.realized_pnl ?? 0;
-                    const margin = volume > 0 ? (net / volume) * 100 : 0;
-                    return (
-                      <div
-                        key={deal.id}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-secondary transition-colors cursor-pointer group"
-                        onClick={() => {
-                          const rel = rels.find(r => r.id === deal.relationship_id);
-                          if (rel) navigate(`/network/relationships/${rel.id}`);
-                        }}
-                      >
-                        {/* Deal icon */}
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${
-                          deal.status === 'overdue' ? 'bg-destructive/10' :
-                          ['active', 'due'].includes(deal.status) ? 'bg-emerald-500/10' : 'bg-secondary'
-                        }`}>
-                          {cfg?.icon || '📋'}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 text-[13px] font-medium">
-                            <span className="truncate">{cfg?.label || deal.deal_type}</span>
-                            <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 ${
-                              deal.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
-                              deal.status === 'due' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30' :
-                              deal.status === 'overdue' ? 'bg-destructive/10 text-destructive border border-destructive/30' :
-                              deal.status === 'settled' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/30' :
-                              'bg-secondary text-muted-foreground border border-border'
-                            }`}>{deal.status}</span>
+          {/* ACTIVITY VIEW */}
+          {mainView === 'activity' && (
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
+              {pendingInvites.length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2"><Mail className="w-3 h-3" /> {t('invitations')} — {t('actionNeeded')}</p>
+                  <div className="space-y-2">
+                    {pendingInvites.map(inv => (
+                      <div key={inv.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
+                        <div className="w-[3px] bg-amber-600 shrink-0" />
+                        <div className="flex-1 bg-amber-500/10 p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0"><Mail className="w-3.5 h-3.5 text-amber-600" /></div>
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-medium truncate">{inv.from_display_name}</p>
+                                <p className="text-[11px] text-muted-foreground">{inv.purpose} · {t('role')}: {inv.requested_role} · @{inv.from_nickname}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-[5px] shrink-0">
+                              <button onClick={() => handleAccept(inv.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"><Check className="w-3 h-3" /> {t('accept')}</button>
+                              <button onClick={() => handleReject(inv.id)} className="flex items-center px-2 py-1 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-muted-foreground truncate mt-px">
-                            {custName && <span>👤 {custName}</span>}
-                            {custName && suppName && <span> → </span>}
-                            {suppName && <span>📦 {suppName}</span>}
-                            {!custName && !suppName && <span>{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</span>}
-                          </p>
+                          {inv.message && <p className="text-[12px] text-muted-foreground italic mt-1 ml-[38px]">"{inv.message}"</p>}
                         </div>
-
-                        {/* Amount + P&L */}
-                        <div className="text-right shrink-0">
-                          <p className="text-[13px] font-medium font-mono">${deal.amount.toLocaleString()}</p>
-                          {net !== 0 ? (
-                            <p className={`text-[11px] font-mono font-medium ${net >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
-                              {net >= 0 ? '+' : ''}${net.toLocaleString()} ({margin.toFixed(1)}%)
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-muted-foreground font-mono">Vol: ${volume.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {pendingApprovals.length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium flex items-center gap-1.5 mb-2"><CheckSquare className="w-3 h-3" /> {t('approvals')} — {t('actionNeeded')}</p>
+                  <div className="space-y-2">
+                    {pendingApprovals.map(a => (
+                      <div key={a.id} className="flex rounded-lg overflow-hidden border border-amber-500/30">
+                        <div className="w-[3px] bg-amber-600 shrink-0" />
+                        <div className="flex-1 bg-amber-500/10 p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-amber-600/15 flex items-center justify-center shrink-0"><CheckSquare className="w-3.5 h-3.5 text-amber-600" /></div>
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
+                                <p className="text-[11px] text-muted-foreground">{t('target')}: {a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-[5px] shrink-0">
+                              <button onClick={() => handleApprove(a.id)} className="flex items-center gap-1 px-3 py-1 rounded-lg text-[12px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"><Check className="w-3 h-3" /> {t('approve')}</button>
+                              <button onClick={() => handleRejectApproval(a.id)} className="flex items-center px-2 py-1 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                            </div>
+                          </div>
+                          {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
+                            <div className="mt-2 ml-[38px] flex flex-wrap gap-2">
+                              {Object.entries(a.proposed_payload).map(([k, v]) => (
+                                <span key={k} className="text-[11px] px-2 py-0.5 rounded bg-secondary">{k}: <span className="font-medium text-foreground">{String(v)}</span></span>
+                              ))}
+                            </div>
                           )}
                         </div>
-
-                        {/* Arrow (visible on hover) */}
-                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </div>
+              )}
+              {[...inbox.filter(i => i.status !== 'pending'), ...sent].length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('invitations')} — History</p>
+                  <div className="space-y-1">
+                    {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
+                      <div key={inv.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
+                          <span className="truncate">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</span>
+                          <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 border ${inviteStatusColors[inv.status]}`}>{inv.status}</span>
+                        </div>
+                        {inv.status === 'pending' && (inv as any).to_merchant_id && (
+                          <button onClick={() => handleWithdraw(inv.id)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><RotateCcw className="w-3 h-3" /> {t('withdraw')}</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {aprInbox.filter(a => a.status !== 'pending').length > 0 && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.8px] text-muted-foreground font-medium mb-2">{t('approvals')} — History</p>
+                  <div className="space-y-1">
+                    {aprInbox.filter(a => a.status !== 'pending').map(a => (
+                      <div key={a.id} className="flex items-center justify-between px-3 py-[7px] rounded-lg bg-secondary text-[12px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckSquare className="w-[13px] h-[13px] text-muted-foreground shrink-0" />
+                          <span className="capitalize truncate">{a.type.replace(/_/g, ' ')}</span>
+                          <span className={`text-[10px] px-2 py-px rounded font-medium shrink-0 border ${approvalStatusColors[a.status]}`}>{a.status}</span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{new Date(a.submitted_at).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {pendingInvites.length === 0 && pendingApprovals.length === 0 && inbox.length + sent.length === 0 && aprInbox.length === 0 && (
+                <div className="text-center py-16">
+                  <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3"><Zap className="w-5 h-5 text-muted-foreground" /></div>
+                  <p className="text-sm text-muted-foreground">{t('noInvitations')}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('searchToCollaborate')}</p>
                 </div>
               )}
             </div>
@@ -848,14 +668,12 @@ export default function NetworkPage() {
         </main>
       </div>
 
-      {/* ─── Invite Dialog ─── */}
+      {/* Invite Dialog */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <UserPlus className="w-4 h-4 text-blue-600" />
-              </div>
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center"><UserPlus className="w-4 h-4 text-blue-600" /></div>
               {t('sendInviteTo')} {inviteTarget?.display_name}
             </DialogTitle>
           </DialogHeader>
@@ -883,9 +701,7 @@ export default function NetworkPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="rounded-lg">{t('cancel')}</Button>
-            <Button onClick={handleSendInvite} className="rounded-lg gap-1.5">
-              <Send className="w-3.5 h-3.5" /> {t('sendInvite')}
-            </Button>
+            <Button onClick={handleSendInvite} className="rounded-lg gap-1.5"><Send className="w-3.5 h-3.5" /> {t('sendInvite')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { realtime, type RealtimeEvent } from '@/lib/realtime';
 import { useAuth } from '@/lib/auth-context';
 
@@ -31,11 +31,19 @@ export function useRealtimeRefresh(callback: () => void, eventTypes: RealtimeEve
   const { isAuthenticated } = useAuth();
   const stableCallback = useCallback(callback, [callback]);
 
+  // FIX: Stabilize eventTypes array — the caller passes a new array literal
+  // on every render (e.g. ['new_message', ...]) which would cause the effect
+  // to re-run, creating duplicate subscriptions. We use a ref + join comparison
+  // to keep a stable reference.
+  const eventTypesRef = useRef(eventTypes);
+  const eventTypesKey = eventTypes.join(',');
+  useEffect(() => { eventTypesRef.current = eventTypes; }, [eventTypesKey]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const unsub = realtime.subscribe((event) => {
-      if (eventTypes.includes(event.type)) {
+      if (eventTypesRef.current.includes(event.type)) {
         stableCallback();
       }
     });
@@ -46,5 +54,6 @@ export function useRealtimeRefresh(callback: () => void, eventTypes: RealtimeEve
       unsub();
       realtime.release();
     };
-  }, [isAuthenticated, stableCallback, eventTypes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, stableCallback, eventTypesKey]);
 }
