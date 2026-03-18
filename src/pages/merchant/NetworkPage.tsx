@@ -217,7 +217,7 @@ export default function NetworkPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingInvites > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => navigate('/invitations')}
+            onClick={() => setActiveTab('invitations')}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {t('invitations')}</p>
@@ -228,7 +228,7 @@ export default function NetworkPage() {
 
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingApprovals > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => navigate('/approvals')}
+            onClick={() => setActiveTab('approvals')}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> {t('approvals')}</p>
@@ -239,10 +239,7 @@ export default function NetworkPage() {
 
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 ${totalUnread > 0 ? 'border-primary/40 bg-primary/5' : ''}`}
-            onClick={() => {
-              const firstUnread = conversations.find(c => c.unreadCount > 0);
-              if (firstUnread) setActiveConvoId(firstUnread.relationshipId);
-            }}
+            onClick={() => setActiveTab('inbox')}
           >
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t('unread')}</p>
@@ -251,7 +248,7 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/deals')}>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => setActiveTab('deals')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> {t('activeDeals')}</p>
               <p className="text-xl font-bold mt-1">{activeDeals.length}</p>
@@ -259,7 +256,7 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/relationships')}>
+          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/network')}>
             <CardContent className="p-3">
               <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> {t('relationships')}</p>
               <p className="text-xl font-bold mt-1">{rels.length}</p>
