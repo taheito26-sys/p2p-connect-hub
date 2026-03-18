@@ -416,9 +416,14 @@ export default function RelationshipWorkspace() {
                         <p className="text-xs text-muted-foreground">{deal.currency}</p>
                         <div className="flex gap-1 justify-end flex-wrap">
                           {deal.status === 'draft' && (
-                            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleActivateDeal(deal.id)}>
-                              <ArrowRight className="w-3 h-3 mr-1" /> {t('activate')}
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" className="text-xs h-7 border-success/50 text-success hover:bg-success/10" onClick={() => handleAcceptDeal(deal.id)}>
+                                <Check className="w-3 h-3 mr-1" /> Accept
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-xs h-7 border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => openRejectDeal(deal)}>
+                                <X className="w-3 h-3 mr-1" /> Reject
+                              </Button>
+                            </div>
                           )}
                           {['active', 'due', 'overdue'].includes(deal.status) && (
                             <TooltipProvider delayDuration={200}>
