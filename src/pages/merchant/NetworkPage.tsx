@@ -577,7 +577,7 @@ export default function NetworkPage() {
                       <button
                         key={convo.relationshipId}
                         className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-accent/50 transition-colors flex items-center gap-3 ${activeConvoId === convo.relationshipId ? 'bg-accent' : ''}`}
-                        onClick={() => setActiveConvoId(convo.relationshipId)}
+                        onClick={() => handleSelectConvo(convo.relationshipId)}
                       >
                         <div className="relative shrink-0">
                           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
