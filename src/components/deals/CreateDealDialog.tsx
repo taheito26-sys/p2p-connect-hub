@@ -111,12 +111,6 @@ export function CreateDealDialog({
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(customerSearch));
   }, [customers, customerSearch]);
 
-  const filteredSuppliers = useMemo(() => {
-    const q = supplierSearch.trim().toLowerCase();
-    if (!q) return suppliers;
-    return suppliers.filter(s => s.toLowerCase().includes(q));
-  }, [suppliers, supplierSearch]);
-
   const config = selectedType ? DEAL_TYPE_CONFIGS[selectedType] : null;
 
   const merchantSharePct = useMemo(() => {
