@@ -178,11 +178,19 @@ export default function NetworkPage() {
     catch (err: any) { toast.error(err.message); }
   };
   const handleApprove = async (id: string) => {
-    try { await api.approvals.approve(id); toast.success(t('approved')); await reload(); }
+    try {
+      await api.approvals.approve(id);
+      toast.success(t('approved'));
+      await reload(); // Reload everything including deals to reflect status change
+    }
     catch (err: any) { toast.error(err.message); }
   };
   const handleRejectApproval = async (id: string) => {
-    try { await api.approvals.reject(id); toast.success(t('rejected')); await reload(); }
+    try {
+      await api.approvals.reject(id);
+      toast.success(t('rejected'));
+      await reload();
+    }
     catch (err: any) { toast.error(err.message); }
   };
 
