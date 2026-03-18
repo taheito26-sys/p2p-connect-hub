@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import { useTheme } from '@/lib/theme-context';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { StatCard } from '@/components/layout/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -396,17 +397,41 @@ export default function RelationshipWorkspace() {
                             </Button>
                           )}
                           {['active', 'due', 'overdue'].includes(deal.status) && (
-                            <>
-                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
-                                <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
-                              </Button>
-                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
-                                <Plus className="w-3 h-3 mr-1" /> {t('profit')}
-                              </Button>
-                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
-                                <Lock className="w-3 h-3 mr-1" /> {t('close')}
-                              </Button>
-                            </>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
+                                    <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                                  <p className="font-semibold mb-0.5">Return Capital</p>
+                                  <p className="text-muted-foreground">Submit a partial or full capital return to the counterparty. Requires their approval.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
+                                    <Plus className="w-3 h-3 mr-1" /> {t('profit')}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                                  <p className="font-semibold mb-0.5">Record Profit</p>
+                                  <p className="text-muted-foreground">Log earned profit for a period. The counterparty must approve the recorded amount.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
+                                    <Lock className="w-3 h-3 mr-1" /> {t('close')}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                                  <p className="font-semibold mb-0.5">Close Deal</p>
+                                  <p className="text-muted-foreground">Finalize and close this deal. No further settlements or profits can be recorded after closure.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                       </div>
@@ -448,35 +473,88 @@ export default function RelationshipWorkspace() {
           {/* APPROVALS */}
           <TabsContent value="approvals" className="mt-4 space-y-3">
             {relApprovals.length === 0 && <p className="text-center text-muted-foreground py-8">{t('noApprovals')}</p>}
-            {relApprovals.map(a => (
-              <Card key={a.id} className="glass">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
-                      <Badge className={approvalStatusColors[a.status] || 'bg-muted text-muted-foreground'}>{a.status}</Badge>
+            {relApprovals.map(a => {
+              // Find the linked deal for context
+              const linkedDeal = a.target_entity_type === 'deal' ? relDeals.find(d => d.id === a.target_entity_id) : null;
+              const dealCfg = linkedDeal ? DEAL_TYPE_CONFIGS[linkedDeal.deal_type] : null;
+              const payload = a.proposed_payload || {};
+
+              return (
+                <Card key={a.id} className={`glass ${a.status === 'pending' ? 'border-warning/40' : ''}`}>
+                  <CardContent className="p-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
+                        <Badge className={approvalStatusColors[a.status] || 'bg-muted text-muted-foreground'}>{a.status}</Badge>
+                        <span className="text-xs text-muted-foreground">{new Date(a.submitted_at).toLocaleDateString()}</span>
+                      </div>
+                      {a.status === 'pending' && a.reviewer_user_id === userId && (
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> {t('approve')}</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleReject(a.id)} className="gap-1"><X className="w-3.5 h-3.5" /> {t('reject')}</Button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(a.submitted_at).toLocaleDateString()}
-                      {a.resolution_note && ` • ${a.resolution_note}`}
-                    </p>
-                    {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
-                      <div className="mt-1.5 text-xs text-muted-foreground">
-                        {Object.entries(a.proposed_payload).map(([k, v]) => (
-                          <span key={k} className="mr-3">{k}: <span className="text-foreground">{String(v)}</span></span>
-                        ))}
+
+                    {/* Linked deal context */}
+                    {linkedDeal && (
+                      <div className="rounded-md bg-muted/40 border border-border/50 p-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>{dealCfg?.icon || '📋'}</span>
+                          <span className="font-medium">{linkedDeal.title}</span>
+                          <Badge variant="outline" className="text-[10px]">{dealCfg?.label || linkedDeal.deal_type}</Badge>
+                          <Badge className={`text-[10px] ${dealStatusColors[linkedDeal.status] || 'bg-muted text-muted-foreground'}`}>{linkedDeal.status}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Amount:</span>{' '}
+                            <span className="font-mono font-semibold">${linkedDeal.amount.toLocaleString()} {linkedDeal.currency}</span>
+                          </div>
+                          {linkedDeal.issue_date && (
+                            <div>
+                              <span className="text-muted-foreground">{t('issued')}:</span>{' '}
+                              <span>{linkedDeal.issue_date}</span>
+                            </div>
+                          )}
+                          {linkedDeal.due_date && (
+                            <div>
+                              <span className="text-muted-foreground">{t('due')}:</span>{' '}
+                              <span>{linkedDeal.due_date}</span>
+                            </div>
+                          )}
+                          {linkedDeal.metadata?.counterparty_share_pct && (
+                            <div>
+                              <span className="text-muted-foreground">{t('cpShare')}:</span>{' '}
+                              <span>{String(linkedDeal.metadata.counterparty_share_pct)}%</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                  </div>
-                  {a.status === 'pending' && a.reviewer_user_id === userId && (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> {t('approve')}</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleReject(a.id)} className="gap-1"><X className="w-3.5 h-3.5" /> {t('reject')}</Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+
+                    {/* Proposed payload details */}
+                    {Object.keys(payload).length > 0 && (
+                      <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
+                        <p className="text-[10px] font-mono uppercase text-muted-foreground mb-1.5 tracking-wider">Proposed Changes</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+                          {Object.entries(payload).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground capitalize">{k.replace(/_/g, ' ')}:</span>
+                              <span className="font-medium text-foreground">{typeof v === 'number' ? `$${v.toLocaleString()}` : String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {a.resolution_note && (
+                      <p className="text-xs text-muted-foreground italic">Note: {a.resolution_note}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
 
           {/* AUDIT */}
