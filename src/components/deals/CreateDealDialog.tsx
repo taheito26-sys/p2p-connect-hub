@@ -209,7 +209,7 @@ export function CreateDealDialog({
       // Persist customer/supplier references in metadata (mandatory)
       metadata.customer_id = selectedCustomerId;
       metadata.customer_name = selectedCustomer!.name;
-      metadata.supplier_name = selectedSupplierName;
+      metadata.supplier_name = autoSupplierName;
 
       const dealResult = await api.deals.create({
         relationship_id: relationshipId,
