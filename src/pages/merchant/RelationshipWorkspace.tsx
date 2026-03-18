@@ -647,6 +647,56 @@ export default function RelationshipWorkspace() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reject Deal Dialog with Counter-Proposal */}
+      <Dialog open={rejectDealOpen} onOpenChange={setRejectDealOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="w-4 h-4 text-destructive" /> Reject Deal
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Reject this deal and suggest changes. Your counter-proposal will be sent to the counterparty.
+            </p>
+          </DialogHeader>
+          {rejectDealData && (
+            <div className="space-y-4 py-2">
+              {/* Current deal summary */}
+              <div className="rounded-md bg-muted/50 border border-border p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Deal Terms</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Type:</span> <span className="capitalize">{rejectDealData.deal_type?.replace(/_/g, ' ')}</span></div>
+                  <div><span className="text-muted-foreground">Amount:</span> <span className="font-mono">${rejectDealData.amount?.toLocaleString()}</span></div>
+                  {rejectDealData.metadata?.counterparty_share_pct && (
+                    <div><span className="text-muted-foreground">Profit Share:</span> <span>{String(rejectDealData.metadata.counterparty_share_pct)}%</span></div>
+                  )}
+                  {rejectDealData.metadata?.partner_ratio && (
+                    <div><span className="text-muted-foreground">Partner Ratio:</span> <span>{String(rejectDealData.metadata.partner_ratio)}%</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Counter-proposal fields */}
+              <div className="space-y-2">
+                <Label>Suggested Amount ($)</Label>
+                <Input type="number" placeholder={String(rejectDealData.amount || '')} value={rejectForm.suggested_amount} onChange={e => setRejectForm(f => ({ ...f, suggested_amount: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Suggested Profit Share (%)</Label>
+                <Input type="number" min="0" max="100" placeholder={rejectDealData.metadata?.counterparty_share_pct ? String(rejectDealData.metadata.counterparty_share_pct) : '50'} value={rejectForm.suggested_share_pct} onChange={e => setRejectForm(f => ({ ...f, suggested_share_pct: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason / Note</Label>
+                <Textarea placeholder="Explain why you're rejecting and what terms you'd prefer..." value={rejectForm.note} onChange={e => setRejectForm(f => ({ ...f, note: e.target.value }))} rows={3} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDealOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRejectDeal}>Reject & Send Proposal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
