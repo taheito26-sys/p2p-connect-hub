@@ -19,6 +19,7 @@ class RealtimeEngine {
   private lastPollTime: string;
   private _unreadCount = 0;
   private _isRunning = false;
+  private activeSubscribers = 0;
 
   constructor() {
     this.lastPollTime = new Date(Date.now() - 60000).toISOString();
@@ -30,6 +31,18 @@ class RealtimeEngine {
   subscribe(listener: RealtimeListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  retain() {
+    this.activeSubscribers += 1;
+    this.start();
+  }
+
+  release() {
+    this.activeSubscribers = Math.max(0, this.activeSubscribers - 1);
+    if (this.activeSubscribers === 0) {
+      this.stop();
+    }
   }
 
   private emit(event: RealtimeEvent) {
