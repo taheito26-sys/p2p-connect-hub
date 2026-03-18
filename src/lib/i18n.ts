@@ -660,6 +660,7 @@ const translations = {
   netPnl: { en: 'Net P&L', ar: 'صافي الأرباح' },
   dealPartner: { en: 'Partner', ar: 'الشريك' },
   ordersLinked: { en: 'orders linked', ar: 'طلبات مرتبطة' },
+  partnerShare: { en: 'partner share', ar: 'حصة الشريك' },
   orSelectRelForDeal: { en: 'Or select a relationship to create a new deal:', ar: 'أو اختر علاقة لإنشاء صفقة جديدة:' },
 } as const;
 

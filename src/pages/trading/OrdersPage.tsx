@@ -433,6 +433,25 @@ export default function OrdersPage() {
     }
   };
 
+  // ─── Shared table style helpers (used by MY ORDERS merchant-deal tables) ───
+  const thStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '7px 10px', fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase',
+    fontWeight: 800, letterSpacing: '.3px', whiteSpace: 'nowrap', textAlign: right ? 'right' : 'left',
+  });
+  const tdStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '8px 10px', fontSize: 11, textAlign: right ? 'right' : 'left',
+    borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
+  });
+  const renderMargin = (margin: number) => {
+    const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
+    return Number.isFinite(margin) ? (
+      <td style={tdStyle()}>
+        <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
+      </td>
+    ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
+  };
+
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
