@@ -61,14 +61,18 @@ export function CreateDealDialog({
   trackerState,
   onStateChange,
   reserveTrackerTradeOnCreate = true,
+  prefillAmount,
+  prefillCurrency,
+  prefillCustomerId,
+  prefillCustomerName,
 }: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
   const [form, setForm] = useState({
-    customTitle: '', // optional custom label
-    amount: '',
-    currency: 'USDT',
+    customTitle: '',
+    amount: prefillAmount || '',
+    currency: prefillCurrency || 'USDT',
     due_date: '',
     expected_return: '',
     counterparty_share_pct: '60',
@@ -80,18 +84,26 @@ export function CreateDealDialog({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Customer/Supplier selection state
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const hasPrefillAmount = !!prefillAmount;
+  const hasPrefillCustomer = !!prefillCustomerId;
+
+  // Customer selection state
+  const [selectedCustomerId, setSelectedCustomerId] = useState(prefillCustomerId || '');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [supplierSearch, setSupplierSearch] = useState('');
   const [customerDropOpen, setCustomerDropOpen] = useState(false);
-  const [supplierDropOpen, setSupplierDropOpen] = useState(false);
+
+  // Auto-select supplier from batches (system-assigned)
+  const autoSupplierName = useMemo(() => {
+    const supplierNames = [...new Set(suppliers.filter(Boolean))];
+    return supplierNames.length > 0 ? supplierNames[0] : 'System';
+  }, [suppliers]);
 
   // Validation errors
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const selectedCustomer = prefillCustomerId
+    ? customers.find(c => c.id === prefillCustomerId) || (prefillCustomerName ? { id: prefillCustomerId, name: prefillCustomerName, phone: '', tier: 'C' as const, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() } : undefined)
+    : customers.find(c => c.id === selectedCustomerId);
 
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.trim().toLowerCase();
