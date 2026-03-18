@@ -74,10 +74,7 @@ export default function RelationshipWorkspace() {
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
-  const [settlementForm, setSettlementForm] = useState({ amount: '', note: '' });
-  const [profitOpen, setProfitOpen] = useState(false);
-  const [profitDealId, setProfitDealId] = useState('');
-  const [profitForm, setProfitForm] = useState({ amount: '', period_key: '', note: '' });
+  const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
 
   const [loading, setLoading] = useState(true);
 
