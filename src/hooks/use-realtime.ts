@@ -31,10 +31,8 @@ export function useRealtimeRefresh(callback: () => void, eventTypes: RealtimeEve
   const { isAuthenticated } = useAuth();
   const stableCallback = useCallback(callback, [callback]);
 
-  // FIX: Stabilize eventTypes array — the caller passes a new array literal
-  // on every render (e.g. ['new_message', ...]) which would cause the effect
-  // to re-run, creating duplicate subscriptions. We use a ref + join comparison
-  // to keep a stable reference.
+  // FIX: Stabilize eventTypes — caller passes a new array literal every render
+  // which causes the effect to re-run and create duplicate subscriptions.
   const eventTypesRef = useRef(eventTypes);
   const eventTypesKey = eventTypes.join(',');
   useEffect(() => { eventTypesRef.current = eventTypes; }, [eventTypesKey]);

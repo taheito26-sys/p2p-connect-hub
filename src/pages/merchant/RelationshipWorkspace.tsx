@@ -5,43 +5,42 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import { useTheme } from '@/lib/theme-context';
-import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { StatCard } from '@/components/layout/StatCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { DEAL_TYPE_CONFIGS, calculateOutstanding } from '@/lib/deal-engine';
 import { useRealtimeRefresh } from '@/hooks/use-realtime';
 import {
   Loader2, Send, Users, Briefcase, DollarSign, CheckSquare,
-  Plus, ArrowLeft, Check, X, AlertTriangle, Clock, MoreVertical, MailCheck, MailOpen,
+  Plus, ArrowLeft, Check, X, AlertTriangle, Clock, MessageCircle,
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerchantRelationship, MerchantMessage, MerchantDeal, MerchantApproval } from '@/types/domain';
 
-const dealStatusColors: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  active: 'bg-success text-success-foreground',
-  due: 'bg-warning text-warning-foreground',
-  settled: 'bg-primary text-primary-foreground',
-  closed: 'bg-secondary text-secondary-foreground',
-  overdue: 'bg-destructive text-destructive-foreground',
-  cancelled: 'bg-muted text-muted-foreground',
-};
-const approvalStatusColors: Record<string, string> = {
-  pending: 'bg-warning text-warning-foreground',
-  approved: 'bg-success text-success-foreground',
-  rejected: 'bg-destructive text-destructive-foreground',
-};
+/* ─── Helpers ─── */
+function dealStatusStyle(status: string) {
+  switch (status) {
+    case 'active': return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30';
+    case 'due': return 'bg-amber-500/10 text-amber-600 border border-amber-500/30';
+    case 'overdue': return 'bg-red-500/10 text-red-500 border border-red-500/30';
+    case 'settled': return 'bg-blue-500/10 text-blue-600 border border-blue-500/30';
+    case 'draft': return 'bg-muted text-muted-foreground border border-border';
+    case 'closed': return 'bg-muted text-muted-foreground border border-border';
+    default: return 'bg-muted text-muted-foreground border border-border';
+  }
+}
 
+/* ═══════════════════════════════════════════════════════════
+   RELATIONSHIP WORKSPACE — Flat, deals-centric
+   No tabs. Deals table = main content. Approvals = alert bars.
+   Chat = collapsible bottom drawer (rare usage).
+   ═══════════════════════════════════════════════════════════ */
 export default function RelationshipWorkspace() {
   const { id } = useParams<{ id: string }>();
   const { userId } = useAuth();
@@ -49,14 +48,11 @@ export default function RelationshipWorkspace() {
   const navigate = useNavigate();
   const t = useT();
 
-  // Load shared customer/supplier data from TrackerState
   const sharedData = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
   }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
-
   const [trackerState, setTrackerState] = useState(sharedData.state);
-
   const sharedCustomers = trackerState.customers;
   const sharedSuppliers = useMemo(() => {
     const names = trackerState.batches.map(b => b.source.trim()).filter(Boolean);
@@ -68,43 +64,32 @@ export default function RelationshipWorkspace() {
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
   const [relApprovals, setRelApprovals] = useState<MerchantApproval[]>([]);
   const [msgInput, setMsgInput] = useState('');
-  const [activeTab, setActiveTab] = useState('deals');
+  const [chatOpen, setChatOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
   const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
-
   const [rejectDealOpen, setRejectDealOpen] = useState(false);
   const [rejectDealId, setRejectDealId] = useState('');
   const [rejectDealData, setRejectDealData] = useState<MerchantDeal | null>(null);
   const [rejectForm, setRejectForm] = useState({ suggested_share_pct: '', suggested_amount: '', note: '' });
-
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     if (!id) return;
     try {
       const [
-        { relationship },
-        { messages },
-        { deals: relDealsData },
-        { approvals: inbox },
-        { approvals: sent }
+        { relationship }, { messages }, { deals: relDealsData }, { approvals: inbox }, { approvals: sent }
       ] = await Promise.all([
-        api.relationships.get(id),
-        api.messages.list(id),
-        api.deals.list(id),
-        api.approvals.inbox(),
-        api.approvals.sent()
+        api.relationships.get(id), api.messages.list(id), api.deals.list(id), api.approvals.inbox(), api.approvals.sent()
       ]);
-
       setRel(relationship);
       setMsgs(messages);
       setRelDeals(relDealsData);
       setRelApprovals([...inbox, ...sent].filter(a => a.relationship_id === id));
-    } catch (err: any) {
+    } catch {
       toast.error(t('failedLoadWorkspace'));
     } finally {
       setLoading(false);
@@ -113,49 +98,32 @@ export default function RelationshipWorkspace() {
 
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'approval_update', 'deal_update']);
+  useEffect(() => { if (chatOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, chatOpen]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [msgs]);
-
+  /* ─── Handlers ─── */
   const sendMsg = async () => {
     if (!msgInput.trim() || !id) return;
-    try {
-      await api.messages.send(id, msgInput.trim());
-      setMsgInput('');
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
+    try { await api.messages.send(id, msgInput.trim()); setMsgInput(''); await reload(); }
+    catch (err: any) { toast.error(err.message); }
   };
 
   const handleAcceptDeal = async (dealId: string) => {
-    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal accepted and activated'); await reload(); }
+    try { await api.deals.update(dealId, { status: 'active' }); toast.success('Deal accepted'); await reload(); }
     catch (err: any) { toast.error(err.message); }
   };
 
   const openRejectDeal = (deal: MerchantDeal) => {
-    setRejectDealId(deal.id);
-    setRejectDealData(deal);
-    setRejectForm({
-      suggested_share_pct: deal.metadata?.counterparty_share_pct ? String(deal.metadata.counterparty_share_pct) : '',
-      suggested_amount: String(deal.amount || ''),
-      note: '',
-    });
+    setRejectDealId(deal.id); setRejectDealData(deal);
+    setRejectForm({ suggested_share_pct: deal.metadata?.counterparty_share_pct ? String(deal.metadata.counterparty_share_pct) : '', suggested_amount: String(deal.amount || ''), note: '' });
     setRejectDealOpen(true);
   };
 
   const handleRejectDeal = async () => {
     try {
-      const note = [
-        rejectForm.note,
-        rejectForm.suggested_amount ? `Suggested amount: $${rejectForm.suggested_amount}` : '',
-        rejectForm.suggested_share_pct ? `Suggested profit share: ${rejectForm.suggested_share_pct}%` : '',
-      ].filter(Boolean).join(' | ');
+      const note = [rejectForm.note, rejectForm.suggested_amount ? `Suggested amount: $${rejectForm.suggested_amount}` : '', rejectForm.suggested_share_pct ? `Suggested profit share: ${rejectForm.suggested_share_pct}%` : ''].filter(Boolean).join(' | ');
       await api.deals.update(rejectDealId, { status: 'cancelled' });
-      // Send counter-proposal as a message so counterparty sees suggested changes
-      if (id && note) {
-        await api.messages.send(id, `⚠️ Deal rejected with counter-proposal:\n${note}`, 'system');
-      }
-      toast.success('Deal rejected — counter-proposal sent to counterparty');
+      if (id && note) await api.messages.send(id, `⚠️ Deal rejected with counter-proposal:\n${note}`, 'system');
+      toast.success('Deal rejected — counter-proposal sent');
       setRejectDealOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
@@ -170,22 +138,12 @@ export default function RelationshipWorkspace() {
   const handleSubmitSettlement = async () => {
     if (!settlementForm.amount) return;
     try {
-      // 1. Submit settlement (capital return)
       await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
-
-      // 2. Record profit if provided
       if (settlementForm.profit && parseFloat(settlementForm.profit) > 0) {
-        await api.deals.recordProfit(settleDealId, {
-          amount: parseFloat(settlementForm.profit),
-          period_key: settlementForm.period_key,
-          note: settlementForm.note,
-        });
+        await api.deals.recordProfit(settleDealId, { amount: parseFloat(settlementForm.profit), period_key: settlementForm.period_key, note: settlementForm.note });
       }
-
-      // 3. Auto-close the deal
       await api.deals.close(settleDealId, { note: 'Auto-closed on settlement submission' });
-
-      toast.success('Settlement submitted — deal will close once counterparty approves');
+      toast.success('Settlement submitted — deal will close once approved');
       setSettlementOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
@@ -200,394 +158,286 @@ export default function RelationshipWorkspace() {
     catch (err: any) { toast.error(err.message); }
   };
 
-  const handleMarkRead = async (messageId: string) => {
-    const target = msgs.find(msg => msg.id === messageId);
-    if (!target || target.is_read) return;
-
-    const previousMsgs = msgs;
-    setMsgs(current => current.map(msg => msg.id === messageId ? { ...msg, is_read: true } : msg));
-
-    try {
-      await api.messages.markRead(messageId);
-    } catch (err: any) {
-      setMsgs(previousMsgs);
-      toast.error(err.message || t('failedLoadMessages'));
-    }
-  };
-
-  const handleMarkUnread = (messageId: string) => {
-    setMsgs(current => current.map(msg => msg.id === messageId ? { ...msg, is_read: false } : msg));
-  };
-
   if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   if (!rel) return <div className="p-6 text-center text-muted-foreground">{t('relationshipNotFound')}</div>;
-
-  const statusColors: Record<string, string> = {
-    active: 'bg-success text-success-foreground',
-    restricted: 'bg-warning text-warning-foreground',
-    suspended: 'bg-destructive text-destructive-foreground',
-  };
 
   const pendingApprovals = relApprovals.filter(a => a.status === 'pending');
   const unreadMsgs = msgs.filter(m => !m.is_read && m.sender_user_id !== userId);
   const activeDeals = relDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
   const counterpartyName = rel.counterparty?.display_name || t('workspace');
 
-  return (
-    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
-      <Breadcrumbs counterpartyName={counterpartyName} />
+  const exposure = rel.summary?.activeExposure || 0;
+  const realizedPnl = rel.summary?.realizedProfit || 0;
+  const overdueCount = relDeals.filter(d => d.status === 'overdue').length;
 
-      <div className="px-6 pt-3 pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/network')}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-display font-bold">{counterpartyName}</h1>
-              <Badge className={statusColors[rel.status] || 'bg-muted text-muted-foreground'}>{rel.status}</Badge>
-              <Badge variant="outline" className="text-xs font-mono">{rel.counterparty?.merchant_id}</Badge>
-              <Badge variant="outline" className="text-xs capitalize">{rel.my_role}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {rel.relationship_type} {t('relationship_rel')} • {t('created')} {new Date(rel.created_at).toLocaleDateString()}
-            </p>
-          </div>
+  return (
+    <div dir={t.isRTL ? 'rtl' : 'ltr'} className="flex flex-col h-[calc(100vh-3.5rem)] border border-border/50 rounded-xl overflow-hidden bg-card mx-1 my-1">
+
+      {/* ─── HEADER ─── */}
+      <div className="shrink-0 flex items-center gap-2.5 px-4 h-[52px] border-b border-border bg-card">
+        <button onClick={() => navigate('/network')} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors shrink-0">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-[14px] font-medium text-blue-600 dark:text-blue-400 shrink-0">
+          {counterpartyName.charAt(0).toUpperCase()}
         </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-[15px] font-medium">{counterpartyName}</h1>
+            <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${
+              rel.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' :
+              rel.status === 'restricted' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30' :
+              'bg-muted text-muted-foreground border border-border'
+            }`}>{rel.status}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">{rel.my_role} · {rel.counterparty?.merchant_id} · Since {new Date(rel.created_at).toLocaleDateString()}</p>
+        </div>
+        <div className="flex-1" />
+
+        {/* Chat toggle */}
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors relative ${
+            chatOpen ? 'bg-blue-500/10 border-blue-500/30 text-blue-600' : 'border-border text-muted-foreground hover:bg-secondary'
+          }`}
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          Messages
+          {unreadMsgs.length > 0 && !chatOpen && (
+            <div className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-blue-500 text-white text-[9px] font-medium flex items-center justify-center px-0.5">
+              {unreadMsgs.length}
+            </div>
+          )}
+          {chatOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+        </button>
+
+        {/* New deal */}
+        <button
+          onClick={() => setCreateDealOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-foreground text-background text-[12px] font-medium hover:opacity-90 transition-opacity"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {t('newDeal')}
+        </button>
       </div>
 
-      <div className="p-6 space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard label={t('dealsLabel')} value={rel.summary?.totalDeals || 0} icon={Briefcase} />
-          <StatCard label={t('activeExposure')} value={`$${(rel.summary?.activeExposure || 0).toLocaleString()}`} icon={DollarSign} />
-          <StatCard label={t('realizedProfit')} value={`$${(rel.summary?.realizedProfit || 0).toLocaleString()}`} icon={Users} />
-          <StatCard label={t('pendingApprovalsLabel')} value={pendingApprovals.length} icon={CheckSquare} />
-          <StatCard label={t('unreadMessages')} value={unreadMsgs.length} icon={Send} />
+      {/* ─── KPI STRIP ─── */}
+      <div className="shrink-0 grid grid-cols-4 gap-2 px-4 py-2.5 border-b border-border">
+        <div className="px-3 py-2 rounded-lg bg-secondary">
+          <p className="text-[11px] text-muted-foreground">{t('activeDeals')}</p>
+          <p className="text-xl font-medium leading-tight mt-0.5">{activeDeals.length}</p>
         </div>
-
-        {/* Action Alerts */}
-        {(pendingApprovals.length > 0 || activeDeals.some(d => d.status === 'overdue')) && (
-          <div className="space-y-2">
-            {pendingApprovals.length > 0 && (
-              <Card className="border-warning/50 bg-warning/5">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                  <span className="text-sm">{pendingApprovals.length} {t('approvalNeedAttention')}</span>
-                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => setActiveTab('approvals')}>{t('review')}</Button>
-                </CardContent>
-              </Card>
-            )}
-            {activeDeals.filter(d => d.status === 'overdue').map(d => (
-              <Card key={d.id} className="border-destructive/50 bg-destructive/5">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-destructive shrink-0" />
-                  <span className="text-sm">"{d.title}" {t('dealOverdue')} — {t('due')} {d.due_date}</span>
-                  <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={() => openSettlement(d.id)}>{t('settle')}</Button>
-                </CardContent>
-              </Card>
-            ))}
+        <div className="px-3 py-2 rounded-lg bg-secondary">
+          <p className="text-[11px] text-muted-foreground">{t('activeExposure')}</p>
+          <p className="text-xl font-medium leading-tight mt-0.5 font-mono">${exposure.toLocaleString()}</p>
+        </div>
+        <div className="px-3 py-2 rounded-lg bg-secondary">
+          <p className="text-[11px] text-muted-foreground">{t('realizedProfit')}</p>
+          <p className={`text-xl font-medium leading-tight mt-0.5 font-mono ${realizedPnl >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {realizedPnl >= 0 ? '+' : ''}${realizedPnl.toLocaleString()}
+          </p>
+        </div>
+        {overdueCount > 0 ? (
+          <div className="px-3 py-2 rounded-lg bg-red-500/10">
+            <p className="text-[11px] text-red-500">{t('overdue')}</p>
+            <p className="text-xl font-medium leading-tight mt-0.5 text-red-500">{overdueCount}</p>
+          </div>
+        ) : (
+          <div className="px-3 py-2 rounded-lg bg-secondary">
+            <p className="text-[11px] text-muted-foreground">{t('pendingApprovalsLabel')}</p>
+            <p className="text-xl font-medium leading-tight mt-0.5">{pendingApprovals.length}</p>
           </div>
         )}
-
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 w-full">
-            <TabsTrigger value="deals" className="gap-1">
-              {t('dealsLabel')} {relDeals.length > 0 && <Badge className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">{relDeals.length}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-1">
-              {t('messagesLabel')} {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{unreadMsgs.length}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="approvals" className="gap-1">
-              {t('approvalsLabel')} {pendingApprovals.length > 0 && <Badge className="bg-warning text-warning-foreground text-[10px] px-1.5 py-0">{pendingApprovals.length}</Badge>}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* DEALS */}
-          <TabsContent value="deals" className="mt-4 space-y-3">
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => setCreateDealOpen(true)} className="gap-1"><Plus className="w-3.5 h-3.5" /> {t('newDeal')}</Button>
-            </div>
-            {relDeals.length === 0 && <p className="text-center text-muted-foreground py-8">{t('noDealsYet')}</p>}
-            {relDeals.map(deal => {
-              const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-              const outstandingVal = calculateOutstanding(deal);
-              return (
-                <Card key={deal.id} className="glass">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span>{cfg?.icon || '📋'}</span>
-                          <p className="font-medium">{deal.title}</p>
-                          <Badge variant="outline" className="text-xs">{cfg?.label || deal.deal_type}</Badge>
-                          <Badge className={dealStatusColors[deal.status] || 'bg-muted text-muted-foreground'}>{deal.status}</Badge>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                          <span>{t('issued')}: {deal.issue_date}</span>
-                          {deal.due_date && <span>{t('due')}: {deal.due_date}</span>}
-                          {deal.expected_return != null && <span>{t('expected')}: ${deal.expected_return.toLocaleString()}</span>}
-                          {deal.realized_pnl != null && deal.realized_pnl !== 0 && <span className="text-success">P&L: ${deal.realized_pnl.toLocaleString()}</span>}
-                          {outstandingVal.outstanding > 0 && outstandingVal.isOverdue && (
-                            <Badge className="bg-destructive text-destructive-foreground text-[10px]">{t('overdue').toUpperCase()}</Badge>
-                          )}
-                        </div>
-                        {deal.metadata && (deal.metadata.counterparty_share_pct || deal.metadata.partner_ratio || deal.metadata.pool_owner_share_pct) && (
-                          <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                            {deal.metadata.counterparty_share_pct && <span>{t('cpShare')}: {String(deal.metadata.counterparty_share_pct)}%</span>}
-                            {deal.metadata.partner_ratio && <span>{t('partnerLabel')}: {String(deal.metadata.partner_ratio)}%</span>}
-                            {deal.metadata.pool_owner_share_pct && <span>{t('poolOwner')}: {String(deal.metadata.pool_owner_share_pct)}%</span>}
-                          </div>
-                        )}
-                        {(deal.metadata?.customer_name || deal.metadata?.supplier_name) && (
-                          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-                            {deal.metadata?.customer_name && <span>👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{String(deal.metadata.customer_name)}</strong></span>}
-                            {deal.metadata?.supplier_name && <span>📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{String(deal.metadata.supplier_name)}</strong></span>}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right space-y-1">
-                        <p className="font-display font-bold text-lg">${deal.amount.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{deal.currency}</p>
-                        <div className="flex gap-1 justify-end flex-wrap">
-                          {deal.status === 'draft' && (
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="outline" className="text-xs h-7 border-success/50 text-success hover:bg-success/10" onClick={() => handleAcceptDeal(deal.id)}>
-                                <Check className="w-3 h-3 mr-1" /> Accept
-                              </Button>
-                              <Button size="sm" variant="outline" className="text-xs h-7 border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => openRejectDeal(deal)}>
-                                <X className="w-3 h-3 mr-1" /> Reject
-                              </Button>
-                            </div>
-                          )}
-                          {['active', 'due', 'overdue'].includes(deal.status) && (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openSettlement(deal.id)}>
-                                    <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[240px] text-xs">
-                                  <p className="font-semibold mb-0.5">Settle & Close</p>
-                                  <p className="text-muted-foreground">Return capital, record profit, and submit for counterparty approval. Deal closes automatically once approved.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </TabsContent>
-
-          {/* MESSAGES */}
-          <TabsContent value="messages" className="mt-4">
-            <Card className="glass">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b px-4 py-3">
-                <div>
-                  <CardTitle className="text-sm font-display">{t('messagesLabel')}</CardTitle>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {unreadMsgs.length > 0 ? `${unreadMsgs.length} ${t('unread').toLowerCase()}` : t('noMessagesShort')}
-                  </p>
-                </div>
-                {unreadMsgs.length > 0 && <Badge className="bg-primary text-primary-foreground">{unreadMsgs.length}</Badge>}
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-80 overflow-y-auto p-4 space-y-3">
-                  {msgs.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">{t('noMessagesYet')}</p>}
-                  {msgs.map(msg => {
-                    const isSystem = msg.message_type === 'system';
-                    const isOwn = msg.sender_user_id === userId;
-
-                    return (
-                      <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[78%] rounded-lg px-3 py-2 text-sm ${
-                          isSystem ? 'bg-muted text-muted-foreground text-center w-full text-xs italic'
-                            : isOwn ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-                        }`}>
-                          {!isSystem && (
-                            <div className="mb-1 flex items-start justify-between gap-2">
-                              <p className="text-[10px] font-mono opacity-70">{msg.sender_name || msg.sender_merchant_id}</p>
-                              <div className="flex items-center gap-2">
-                                {!msg.is_read && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{t('unread')}</Badge>}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className={`h-6 w-6 shrink-0 ${isOwn ? 'text-primary-foreground hover:bg-primary-foreground/10' : 'text-muted-foreground hover:bg-background/80'}`}
-                                    >
-                                      <MoreVertical className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align={isOwn ? 'end' : 'start'}>
-                                    {msg.is_read ? (
-                                      <DropdownMenuItem onClick={() => handleMarkUnread(msg.id)}><MailOpen className="mr-2 h-3.5 w-3.5" />Mark as unread</DropdownMenuItem>
-                                    ) : (
-                                      <DropdownMenuItem onClick={() => handleMarkRead(msg.id)}><MailCheck className="mr-2 h-3.5 w-3.5" />Mark as read</DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </div>
-                          )}
-                          <p>{msg.body}</p>
-                          <p className="text-[10px] opacity-50 mt-0.5">{new Date(msg.created_at).toLocaleTimeString()}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div ref={messagesEndRef} />
-                </div>
-                <div className="border-t p-3 flex gap-2">
-                  <Input placeholder={t('typeMessage')} value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} />
-                  <Button onClick={sendMsg} size="icon"><Send className="w-4 h-4" /></Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* APPROVALS */}
-          <TabsContent value="approvals" className="mt-4 space-y-3">
-            {relApprovals.length === 0 && <p className="text-center text-muted-foreground py-8">{t('noApprovals')}</p>}
-            {relApprovals.map(a => {
-              // Find the linked deal for context
-              const linkedDeal = a.target_entity_type === 'deal' ? relDeals.find(d => d.id === a.target_entity_id) : null;
-              const dealCfg = linkedDeal ? DEAL_TYPE_CONFIGS[linkedDeal.deal_type] : null;
-              const payload = a.proposed_payload || {};
-
-              return (
-                <Card key={a.id} className={`glass ${a.status === 'pending' ? 'border-warning/40' : ''}`}>
-                  <CardContent className="p-4 space-y-3">
-                    {/* Header row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
-                        <Badge className={approvalStatusColors[a.status] || 'bg-muted text-muted-foreground'}>{a.status}</Badge>
-                        <span className="text-xs text-muted-foreground">{new Date(a.submitted_at).toLocaleDateString()}</span>
-                      </div>
-                      {a.status === 'pending' && a.reviewer_user_id === userId && (
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1"><Check className="w-3.5 h-3.5" /> {t('approve')}</Button>
-                          <Button size="sm" variant="outline" onClick={() => handleReject(a.id)} className="gap-1"><X className="w-3.5 h-3.5" /> {t('reject')}</Button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Linked deal context */}
-                    {linkedDeal && (
-                      <div className="rounded-md bg-muted/40 border border-border/50 p-3 space-y-1.5">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span>{dealCfg?.icon || '📋'}</span>
-                          <span className="font-medium">{linkedDeal.title}</span>
-                          <Badge variant="outline" className="text-[10px]">{dealCfg?.label || linkedDeal.deal_type}</Badge>
-                          <Badge className={`text-[10px] ${dealStatusColors[linkedDeal.status] || 'bg-muted text-muted-foreground'}`}>{linkedDeal.status}</Badge>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                          <div>
-                            <span className="text-muted-foreground">Amount:</span>{' '}
-                            <span className="font-mono font-semibold">${linkedDeal.amount.toLocaleString()} {linkedDeal.currency}</span>
-                          </div>
-                          {linkedDeal.issue_date && (
-                            <div>
-                              <span className="text-muted-foreground">{t('issued')}:</span>{' '}
-                              <span>{linkedDeal.issue_date}</span>
-                            </div>
-                          )}
-                          {linkedDeal.due_date && (
-                            <div>
-                              <span className="text-muted-foreground">{t('due')}:</span>{' '}
-                              <span>{linkedDeal.due_date}</span>
-                            </div>
-                          )}
-                          {linkedDeal.metadata?.counterparty_share_pct && (
-                            <div>
-                              <span className="text-muted-foreground">{t('cpShare')}:</span>{' '}
-                              <span>{String(linkedDeal.metadata.counterparty_share_pct)}%</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Proposed payload details */}
-                    {Object.keys(payload).length > 0 && (
-                      <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
-                        <p className="text-[10px] font-mono uppercase text-muted-foreground mb-1.5 tracking-wider">Proposed Changes</p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs">
-                          {Object.entries(payload).map(([k, v]) => (
-                            <div key={k} className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground capitalize">{k.replace(/_/g, ' ')}:</span>
-                              <span className="font-medium text-foreground">{typeof v === 'number' ? `$${v.toLocaleString()}` : String(v)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {a.resolution_note && (
-                      <p className="text-xs text-muted-foreground italic">Note: {a.resolution_note}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </TabsContent>
-
-        </Tabs>
       </div>
 
-      <CreateDealDialog
-        open={createDealOpen}
-        onOpenChange={setCreateDealOpen}
-        relationshipId={id!}
-        counterpartyName={counterpartyName}
-        onCreated={reload}
-        customers={sharedCustomers}
-        suppliers={sharedSuppliers}
-        trackerState={trackerState}
-        onStateChange={setTrackerState}
-      />
+      {/* ─── APPROVAL ALERT BARS (only when pending) ─── */}
+      {pendingApprovals.map(a => {
+        const linkedDeal = a.target_entity_type === 'deal' ? relDeals.find(d => d.id === a.target_entity_id) : null;
+        const payload = a.proposed_payload || {};
+        return (
+          <div key={a.id} className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-[12px]">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="flex-1 min-w-0 truncate">
+              <span className="font-medium capitalize">{a.type.replace(/_/g, ' ')}</span>
+              {linkedDeal && <span className="text-muted-foreground"> — {linkedDeal.title || DEAL_TYPE_CONFIGS[linkedDeal.deal_type]?.label}</span>}
+              {payload.amount && <span className="text-muted-foreground"> · ${Number(payload.amount).toLocaleString()}</span>}
+            </span>
+            {a.reviewer_user_id === userId && (
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => handleApprove(a.id)} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1"><Check className="w-3 h-3" /> {t('approve')}</button>
+                <button onClick={() => handleReject(a.id)} className="px-2 py-1 rounded-md text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
-      {/* Settle & Close Dialog */}
+      {/* ─── DEALS TABLE (main content, full width) ─── */}
+      <div className="flex-1 overflow-y-auto">
+        {relDeals.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3">
+              <Briefcase className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">{t('noDealsYet')}</p>
+            <button onClick={() => setCreateDealOpen(true)} className="mt-3 text-[12px] font-medium text-blue-600 hover:underline">Create your first deal</button>
+          </div>
+        ) : (
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-secondary sticky top-0 z-[1]">
+                <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Deal</th>
+                <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Dates</th>
+                <th className="text-right px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
+                <th className="text-right px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">P&L</th>
+                <th className="text-right px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {relDeals.map(deal => {
+                const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                const net = deal.realized_pnl ?? 0;
+                const outstandingVal = calculateOutstanding(deal);
+                return (
+                  <tr key={deal.id} className="border-b border-border/50 hover:bg-secondary/50 transition-colors relative">
+                    {deal.status === 'overdue' && <td className="absolute left-0 top-0 bottom-0 w-[3px] bg-red-500 rounded-r-sm p-0" />}
+                    {deal.status === 'due' && <td className="absolute left-0 top-0 bottom-0 w-[3px] bg-amber-500 rounded-r-sm p-0" />}
+
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0 ${
+                          deal.status === 'overdue' ? 'bg-red-500/10' :
+                          ['active', 'due'].includes(deal.status) ? 'bg-emerald-500/10' : 'bg-secondary'
+                        }`}>{cfg?.icon || '📋'}</div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{cfg?.label || deal.deal_type}</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">{deal.title || deal.id.slice(0, 12)}</p>
+                          {(deal.metadata?.customer_name || deal.metadata?.supplier_name) && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {deal.metadata?.customer_name && <span>👤 {String(deal.metadata.customer_name)}</span>}
+                              {deal.metadata?.customer_name && deal.metadata?.supplier_name && <span> · </span>}
+                              {deal.metadata?.supplier_name && <span>📦 {String(deal.metadata.supplier_name)}</span>}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${dealStatusStyle(deal.status)}`}>{deal.status}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-[12px] text-muted-foreground whitespace-nowrap">
+                      {deal.issue_date}{deal.due_date ? ` → ${deal.due_date}` : ''}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <p className="font-mono font-medium">${deal.amount.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{deal.currency}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono">
+                      {net !== 0 ? (
+                        <span className={net >= 0 ? 'text-emerald-600 font-medium' : 'text-red-500 font-medium'}>
+                          {net >= 0 ? '+' : ''}${net.toLocaleString()}
+                        </span>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="flex gap-1 justify-end">
+                        {deal.status === 'draft' && (
+                          <>
+                            <button onClick={() => handleAcceptDeal(deal.id)} className="px-2 py-1 rounded-md text-[11px] font-medium border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors flex items-center gap-1"><Check className="w-3 h-3" /> Accept</button>
+                            <button onClick={() => openRejectDeal(deal)} className="px-2 py-1 rounded-md text-[11px] border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                          </>
+                        )}
+                        {['active', 'due', 'overdue'].includes(deal.status) && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button onClick={() => openSettlement(deal.id)} className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors flex items-center gap-1">
+                                  <DollarSign className="w-3 h-3" /> {t('settle')}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-[200px] text-xs">Return capital, record profit, submit for approval.</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ─── CHAT DRAWER (collapsible) ─── */}
+      {chatOpen && (
+        <div className="shrink-0 border-t border-border flex flex-col" style={{ height: 240 }}>
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-secondary">
+            <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[12px] font-medium">Messages</span>
+            {unreadMsgs.length > 0 && <span className="text-[11px] text-blue-600">· {unreadMsgs.length} unread</span>}
+            <div className="flex-1" />
+            <button onClick={() => setChatOpen(false)} className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:bg-card transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-1.5">
+            {msgs.length === 0 && <p className="text-center text-muted-foreground text-xs py-4">{t('noMessagesYet')}</p>}
+            {msgs.map(msg => {
+              const isOwn = msg.sender_user_id === userId;
+              const isSystem = msg.message_type === 'system';
+              return (
+                <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[72%] px-3 py-1.5 text-[12px] leading-[1.5] ${
+                    isSystem ? 'bg-secondary text-muted-foreground text-center text-[11px] italic rounded-md max-w-full'
+                    : isOwn ? 'bg-foreground text-background rounded-[12px_12px_3px_12px]'
+                    : 'bg-secondary rounded-[12px_12px_12px_3px]'
+                  }`}>
+                    {!isSystem && !isOwn && <p className="text-[10px] text-muted-foreground mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>}
+                    <p>{msg.body}</p>
+                    <p className={`text-[9px] mt-0.5 ${isOwn ? 'opacity-40' : 'text-muted-foreground'}`}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 border-t border-border">
+            <div className="flex-1 flex items-center px-3 h-8 rounded-full bg-secondary text-[12px]">
+              <input placeholder={t('typeMessage')} value={msgInput} onChange={e => setMsgInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()}
+                className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[12px]" />
+            </div>
+            <button onClick={sendMsg} className="w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center shrink-0"><Send className="w-3 h-3" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DIALOGS (unchanged logic) ─── */}
+      <CreateDealDialog open={createDealOpen} onOpenChange={setCreateDealOpen} relationshipId={id!} counterpartyName={counterpartyName} onCreated={reload} customers={sharedCustomers} suppliers={sharedSuppliers} trackerState={trackerState} onStateChange={setTrackerState} />
+
       <Dialog open={settlementOpen} onOpenChange={setSettlementOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Settle & Close Deal</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Submit the capital return and profit. Once the counterparty approves, the deal closes automatically.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Submit the capital return and profit. Once the counterparty approves, the deal closes automatically.</p>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>{t('amountUsdtLabel')} *</Label>
               <Input type="number" placeholder="8000" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
-              <p className="text-[11px] text-muted-foreground">Capital amount being returned to the counterparty</p>
+              <p className="text-[11px] text-muted-foreground">Capital amount being returned</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Profit Earned</Label>
-                <Input type="number" placeholder="900" value={settlementForm.profit} onChange={e => setSettlementForm(f => ({ ...f, profit: e.target.value }))} />
-                <p className="text-[11px] text-muted-foreground">Profit amount (optional)</p>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('period')}</Label>
-                <Input type="month" value={settlementForm.period_key} onChange={e => setSettlementForm(f => ({ ...f, period_key: e.target.value }))} />
-              </div>
+              <div className="space-y-2"><Label>Profit Earned</Label><Input type="number" placeholder="900" value={settlementForm.profit} onChange={e => setSettlementForm(f => ({ ...f, profit: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('period')}</Label><Input type="month" value={settlementForm.period_key} onChange={e => setSettlementForm(f => ({ ...f, period_key: e.target.value }))} /></div>
             </div>
-            <div className="space-y-2">
-              <Label>{t('noteOptional')}</Label>
-              <Textarea placeholder="Final settlement note..." value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
-            </div>
+            <div className="space-y-2"><Label>{t('noteOptional')}</Label><Textarea placeholder="Settlement note..." value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} /></div>
             <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-              <span>This will submit the settlement, record profit (if provided), and request deal closure. The counterparty must approve for the deal to finalize.</span>
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>This will submit the settlement, record profit, and request deal closure.</span>
             </div>
           </div>
           <DialogFooter>
@@ -597,47 +447,25 @@ export default function RelationshipWorkspace() {
         </DialogContent>
       </Dialog>
 
-      {/* Reject Deal Dialog with Counter-Proposal */}
       <Dialog open={rejectDealOpen} onOpenChange={setRejectDealOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <X className="w-4 h-4 text-destructive" /> Reject Deal
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Reject this deal and suggest changes. Your counter-proposal will be sent to the counterparty.
-            </p>
+            <DialogTitle className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Reject Deal</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">Reject and suggest changes.</p>
           </DialogHeader>
           {rejectDealData && (
             <div className="space-y-4 py-2">
-              {/* Current deal summary */}
               <div className="rounded-md bg-muted/50 border border-border p-3 space-y-1.5">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Deal Terms</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Terms</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-muted-foreground">Type:</span> <span className="capitalize">{rejectDealData.deal_type?.replace(/_/g, ' ')}</span></div>
                   <div><span className="text-muted-foreground">Amount:</span> <span className="font-mono">${rejectDealData.amount?.toLocaleString()}</span></div>
-                  {rejectDealData.metadata?.counterparty_share_pct && (
-                    <div><span className="text-muted-foreground">Profit Share:</span> <span>{String(rejectDealData.metadata.counterparty_share_pct)}%</span></div>
-                  )}
-                  {rejectDealData.metadata?.partner_ratio && (
-                    <div><span className="text-muted-foreground">Partner Ratio:</span> <span>{String(rejectDealData.metadata.partner_ratio)}%</span></div>
-                  )}
+                  {rejectDealData.metadata?.counterparty_share_pct && <div><span className="text-muted-foreground">Share:</span> {String(rejectDealData.metadata.counterparty_share_pct)}%</div>}
                 </div>
               </div>
-
-              {/* Counter-proposal fields */}
-              <div className="space-y-2">
-                <Label>Suggested Amount ($)</Label>
-                <Input type="number" placeholder={String(rejectDealData.amount || '')} value={rejectForm.suggested_amount} onChange={e => setRejectForm(f => ({ ...f, suggested_amount: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Suggested Profit Share (%)</Label>
-                <Input type="number" min="0" max="100" placeholder={rejectDealData.metadata?.counterparty_share_pct ? String(rejectDealData.metadata.counterparty_share_pct) : '50'} value={rejectForm.suggested_share_pct} onChange={e => setRejectForm(f => ({ ...f, suggested_share_pct: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Reason / Note</Label>
-                <Textarea placeholder="Explain why you're rejecting and what terms you'd prefer..." value={rejectForm.note} onChange={e => setRejectForm(f => ({ ...f, note: e.target.value }))} rows={3} />
-              </div>
+              <div className="space-y-2"><Label>Suggested Amount ($)</Label><Input type="number" placeholder={String(rejectDealData.amount || '')} value={rejectForm.suggested_amount} onChange={e => setRejectForm(f => ({ ...f, suggested_amount: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Suggested Profit Share (%)</Label><Input type="number" min="0" max="100" value={rejectForm.suggested_share_pct} onChange={e => setRejectForm(f => ({ ...f, suggested_share_pct: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Reason</Label><Textarea placeholder="Why are you rejecting?" value={rejectForm.note} onChange={e => setRejectForm(f => ({ ...f, note: e.target.value }))} rows={3} /></div>
             </div>
           )}
           <DialogFooter>
