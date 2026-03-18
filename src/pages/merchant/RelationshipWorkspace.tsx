@@ -441,11 +441,17 @@ export default function RelationshipWorkspace() {
             <p className="text-sm text-muted-foreground mt-1">Submit the capital return and profit. Once the counterparty approves, the deal closes automatically.</p>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>{t('amountUsdtLabel')} *</Label>
-              <Input type="number" placeholder="8000" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
-              <p className="text-[11px] text-muted-foreground">Capital amount being returned</p>
-            </div>
+            {isPartnershipSettle ? (
+              <div className="rounded-md bg-blue-500/5 border border-blue-500/20 p-3 text-xs text-blue-700 dark:text-blue-400">
+                Capital stays with the merchant. Only the profit earned is submitted for settlement.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>{t('amountUsdtLabel')} *</Label>
+                <Input type="number" placeholder="8000" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">Capital amount being returned</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Profit Earned</Label><Input type="number" placeholder="900" value={settlementForm.profit} onChange={e => setSettlementForm(f => ({ ...f, profit: e.target.value }))} /></div>
               <div className="space-y-2"><Label>{t('period')}</Label><Input type="month" value={settlementForm.period_key} onChange={e => setSettlementForm(f => ({ ...f, period_key: e.target.value }))} /></div>

@@ -98,6 +98,13 @@ export default function NetworkPage() {
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update', 'deal_update']);
 
+  // Auto-redirect to workspace if only one relationship
+  useEffect(() => {
+    if (!loading && rels.length === 1 && inbox.filter(i => i.status === 'pending').length === 0) {
+      navigate(`/network/relationships/${rels[0].id}`, { replace: true });
+    }
+  }, [loading, rels, inbox, navigate]);
+
   /* ─── Handlers ─── */
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
