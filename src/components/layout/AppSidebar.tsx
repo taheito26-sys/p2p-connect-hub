@@ -43,7 +43,7 @@ const networkNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { profile, userId, isAuthenticated } = useAuth();
+  const { profile, userId, isAuthenticated, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const t = useT();
 
