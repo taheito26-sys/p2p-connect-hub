@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
@@ -9,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
+import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { MerchantRelationship, MerchantDeal } from '@/types/domain';
@@ -22,6 +24,7 @@ export default function OrdersPage() {
   const { settings } = useTheme();
   const { userId } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
 
   const initial = useMemo(() => createDemoState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -63,15 +66,29 @@ export default function OrdersPage() {
   const [relDeals, setRelDeals] = useState<MerchantDeal[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
+  const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
+  const [createDealOpen, setCreateDealOpen] = useState(false);
 
-  useEffect(() => {
-    api.relationships.list().then(r => setRelationships(r.relationships)).catch(() => {});
-    api.deals.list().then(r => setAllMerchantDeals(r.deals)).catch(() => {});
+  const reloadMerchantData = useCallback(async () => {
+    try {
+      const [relationshipsRes, dealsRes] = await Promise.all([
+        api.relationships.list(),
+        api.deals.list(),
+      ]);
+      setRelationships(relationshipsRes.relationships);
+      setAllMerchantDeals(dealsRes.deals);
+    } catch {
+      // keep tracker usable even if merchant data refresh fails
+    }
   }, []);
 
   useEffect(() => {
+    reloadMerchantData();
+  }, [reloadMerchantData]);
+
+  useEffect(() => {
     if (!linkedRelId) { setRelDeals([]); setLinkedDealId(''); return; }
-    api.deals.list(linkedRelId).then(r => setRelDeals(r.deals.filter(d => ['active', 'due'].includes(d.status)))).catch(() => {});
+    api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
   }, [linkedRelId]);
 
   useEffect(() => {
@@ -115,6 +132,16 @@ export default function OrdersPage() {
       return [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase().includes(query);
     });
   }, [list, query, state.customers]);
+
+  const merchantDealsForPanel = useMemo(() => allMerchantDeals, [allMerchantDeals]);
+  const creatorMerchantDeals = useMemo(
+    () => merchantDealsForPanel.filter(d => d.created_by === userId),
+    [merchantDealsForPanel, userId],
+  );
+  const partnerMerchantDeals = useMemo(
+    () => merchantDealsForPanel.filter(d => d.created_by !== userId),
+    [merchantDealsForPanel, userId],
+  );
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
@@ -169,6 +196,8 @@ export default function OrdersPage() {
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
+    if (merchantOrderEnabled && !linkedRelId) { setSaleMessage(`${t('fixFields')} ${t('relationship')}`); return; }
+    if (merchantOrderEnabled && !linkedDealId) { setSaleMessage(`${t('fixFields')} ${t('deal')}`); return; }
 
     let nextCustomers = state.customers;
     let customerId = buyerId;
@@ -203,6 +232,7 @@ export default function OrdersPage() {
     }
 
     setSaleAmount('');
+    setMerchantOrderEnabled(false);
     setLinkedRelId('');
     setLinkedDealId('');
     setAllocationPreview(null);
@@ -397,21 +427,69 @@ export default function OrdersPage() {
             <div className="panel" style={{ marginTop: 12 }}>
               <div className="panel-head">
                 <h2>🤝 {t('merchantDealsInOrders')}</h2>
-                <span className="pill">{allMerchantDeals.filter(d => ['active', 'due'].includes(d.status)).length} {t('activeDeals')}</span>
+                <span className="pill">{merchantDealsForPanel.length} {t('dealsLabel')}</span>
               </div>
               <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {allMerchantDeals.filter(d => ['active', 'due', 'overdue', 'draft'].includes(d.status)).map(deal => {
+                {partnerMerchantDeals.length > 0 && (
+                  <div style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'color-mix(in srgb, var(--bg) 85%, black 15%)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('date')}</th>
+                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('merchantLabel')}</th>
+                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('type')}</th>
+                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('amount')}</th>
+                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>P&amp;L</th>
+                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>ROI</th>
+                          <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {partnerMerchantDeals.map(deal => {
+                          const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                          const rel = relationships.find(r => r.id === deal.relationship_id);
+                          const roi = deal.realized_pnl != null && deal.amount > 0 ? (deal.realized_pnl / deal.amount) * 100 : null;
+                          const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                          return (
+                            <tr key={deal.id} style={{ borderTop: '1px solid color-mix(in srgb, var(--line) 85%, transparent)' }}>
+                              <td style={{ padding: '10px', fontSize: 11 }}>{deal.issue_date}</td>
+                              <td style={{ padding: '10px', fontSize: 11, fontWeight: 700 }}>{rel?.counterparty?.display_name || '—'}</td>
+                              <td style={{ padding: '10px', fontSize: 11 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{cfg?.icon}</span>
+                                  <span>{cfg?.label || deal.deal_type}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', fontWeight: 700 }}>${deal.amount.toLocaleString()} {deal.currency}</td>
+                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                                {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
+                              </td>
+                              <td style={{ padding: '10px', fontSize: 11, textAlign: 'right', color: roi != null ? (roi >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                                {roi != null ? `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%` : '—'}
+                              </td>
+                              <td style={{ padding: '10px', textAlign: 'right' }}>
+                                <button className="rowBtn" type="button" onClick={() => navigate(workspacePath)}>
+                                  {t('viewInWorkspace')}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {creatorMerchantDeals.map(deal => {
                   const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                   const rel = relationships.find(r => r.id === deal.relationship_id);
+                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
                   const custName = deal.metadata?.customer_name as string | undefined;
                   const suppName = deal.metadata?.supplier_name as string | undefined;
-                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
                   return (
                     <div key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, padding: '8px 10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         <span>{cfg?.icon}</span>
                         <span style={{ fontWeight: 700, fontSize: 11 }}>{deal.title}</span>
-                        <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
                         {cfg?.hasCounterpartyShare && (
                           <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
                             {t('capitalShared')}
@@ -428,7 +506,7 @@ export default function OrdersPage() {
                     </div>
                   );
                 })}
-                {allMerchantDeals.filter(d => ['active', 'due', 'overdue', 'draft'].includes(d.status)).length === 0 && (
+                {merchantDealsForPanel.length === 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
                 )}
               </div>
@@ -512,41 +590,68 @@ export default function OrdersPage() {
                 <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
               </label>
 
-              {/* ─── MERCHANT DEAL LINKING ─── */}
-              <div className="previewBox" style={{ marginTop: 6, borderColor: linkedDealId ? 'var(--brand)' : undefined }}>
+              {/* ─── MERCHANT ORDER LINKING / CREATION ─── */}
+              <div className="previewBox" style={{ marginTop: 6, borderColor: merchantOrderEnabled ? 'var(--brand)' : undefined }}>
                 <div className="pt" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {t('linkToMerchantDeal')}
+                  {t('merchantOrder')}
                   <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
                 </div>
-                <div className="field2" style={{ marginBottom: 4 }}>
-                  <div className="lbl">{t('relationship')}</div>
-                  <select
-                    value={linkedRelId}
-                    onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }}
-                    style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                  >
-                    <option value="">{t('noneSelected')}</option>
-                    {relationships.map(r => (
-                      <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>
-                    ))}
-                  </select>
-                </div>
-                {linkedRelId && (
-                  <div className="field2" style={{ marginBottom: 4 }}>
-                    <div className="lbl">{t('deal')}</div>
-                    <select
-                      value={linkedDealId}
-                      onChange={e => setLinkedDealId(e.target.value)}
-                      style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                    >
-                      <option value="">{t('selectDeal')}</option>
-                      {relDeals.map(d => {
-                        const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
-                        return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${d.amount.toLocaleString()} {d.currency})</option>;
-                      })}
-                    </select>
-                    {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noActiveDeals')}</div>}
-                  </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)', marginBottom: merchantOrderEnabled ? 8 : 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={merchantOrderEnabled}
+                    onChange={e => {
+                      const nextEnabled = e.target.checked;
+                      setMerchantOrderEnabled(nextEnabled);
+                      if (!nextEnabled) {
+                        setLinkedRelId('');
+                        setLinkedDealId('');
+                        setAllocationPreview(null);
+                      }
+                    }}
+                    style={{ accentColor: 'var(--brand)' }}
+                  /> {t('addSaleAsMerchantOrder')}
+                </label>
+                {merchantOrderEnabled && (
+                  <>
+                    <div className="field2" style={{ marginBottom: 4 }}>
+                      <div className="lbl">{t('relationship')}</div>
+                      <select
+                        value={linkedRelId}
+                        onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                      >
+                        <option value="">{t('noneSelected')}</option>
+                        {relationships.map(r => (
+                          <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>
+                        ))}
+                      </select>
+                    </div>
+                    {linkedRelId && (
+                      <>
+                        <div className="field2" style={{ marginBottom: 4 }}>
+                          <div className="lbl">{t('deal')}</div>
+                          <select
+                            value={linkedDealId}
+                            onChange={e => setLinkedDealId(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                          >
+                            <option value="">{t('selectDeal')}</option>
+                            {relDeals.map(d => {
+                              const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
+                              return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${d.amount.toLocaleString()} {d.currency})</option>;
+                            })}
+                          </select>
+                          {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noLinkedDeals')}</div>}
+                        </div>
+                        <div className="formActions" style={{ justifyContent: 'flex-start' }}>
+                          <button className="btn secondary" type="button" onClick={() => setCreateDealOpen(true)}>
+                            {t('createMerchantDealFromOrder')}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
@@ -603,6 +708,25 @@ export default function OrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {linkedRelId && (
+        <CreateDealDialog
+          open={createDealOpen}
+          onOpenChange={setCreateDealOpen}
+          relationshipId={linkedRelId}
+          counterpartyName={relationships.find(r => r.id === linkedRelId)?.counterparty?.display_name || ''}
+          onCreated={async () => {
+            await reloadMerchantData();
+            const dealsRes = await api.deals.list(linkedRelId);
+            setRelDeals(dealsRes.deals);
+          }}
+          customers={state.customers}
+          suppliers={[...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))}
+          trackerState={state}
+          onStateChange={applyState}
+          reserveTrackerTradeOnCreate={false}
+        />
+      )}
     </div>
   );
 }
