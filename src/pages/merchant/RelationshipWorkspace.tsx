@@ -572,50 +572,44 @@ export default function RelationshipWorkspace() {
         onStateChange={setTrackerState}
       />
 
-      {/* Settlement Dialog */}
+      {/* Settle & Close Dialog */}
       <Dialog open={settlementOpen} onOpenChange={setSettlementOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{t('submitSettlement')}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Settle & Close Deal</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Submit the capital return and profit. Once the counterparty approves, the deal closes automatically.
+            </p>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>{t('amountUsdtLabel')}</Label>
-              <Input type="number" placeholder="10150" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
+              <Label>{t('amountUsdtLabel')} *</Label>
+              <Input type="number" placeholder="8000" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
+              <p className="text-[11px] text-muted-foreground">Capital amount being returned to the counterparty</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Profit Earned</Label>
+                <Input type="number" placeholder="900" value={settlementForm.profit} onChange={e => setSettlementForm(f => ({ ...f, profit: e.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">Profit amount (optional)</p>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('period')}</Label>
+                <Input type="month" value={settlementForm.period_key} onChange={e => setSettlementForm(f => ({ ...f, period_key: e.target.value }))} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('noteOptional')}</Label>
-              <Textarea placeholder={t('principalReturn')} value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+              <Textarea placeholder="Final settlement note..." value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+            </div>
+            <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <span>This will submit the settlement, record profit (if provided), and request deal closure. The counterparty must approve for the deal to finalize.</span>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettlementOpen(false)}>{t('cancel')}</Button>
             <Button onClick={handleSubmitSettlement}>{t('submitForApproval')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Profit Recording Dialog */}
-      <Dialog open={profitOpen} onOpenChange={setProfitOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{t('recordProfit')}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t('amountUsdtLabel')}</Label>
-                <Input type="number" placeholder="500" value={profitForm.amount} onChange={e => setProfitForm(f => ({ ...f, amount: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('period')}</Label>
-                <Input type="month" value={profitForm.period_key} onChange={e => setProfitForm(f => ({ ...f, period_key: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('noteOptional')}</Label>
-              <Textarea placeholder={t('monthlyProfitShare')} value={profitForm.note} onChange={e => setProfitForm(f => ({ ...f, note: e.target.value }))} rows={2} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProfitOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleRecordProfit}>{t('submitForApproval')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
