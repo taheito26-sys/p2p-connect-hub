@@ -73,10 +73,11 @@ export default function OrdersPage() {
         api.relationships.list(),
         api.deals.list(),
       ]);
-      setRelationships(relationshipsRes.relationships);
-      setAllMerchantDeals(dealsRes.deals);
+      setRelationships(Array.isArray(relationshipsRes.relationships) ? relationshipsRes.relationships : []);
+      setAllMerchantDeals(Array.isArray(dealsRes.deals) ? dealsRes.deals : []);
     } catch {
-      // keep tracker usable even if merchant data refresh fails
+      setRelationships([]);
+      setAllMerchantDeals([]);
     }
   }, []);
 
@@ -86,7 +87,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!linkedRelId) { setRelDeals([]); setLinkedDealId(''); return; }
-    api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
+    api.deals.list(linkedRelId).then(r => setRelDeals(Array.isArray(r.deals) ? r.deals : [])).catch(() => setRelDeals([]));
   }, [linkedRelId]);
 
   useEffect(() => {
