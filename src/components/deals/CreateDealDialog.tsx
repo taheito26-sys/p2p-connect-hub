@@ -510,7 +510,7 @@ export function CreateDealDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)}>{t('backStep')}</Button>
-              <Button disabled={!form.amount || !selectedCustomerId || !selectedSupplierName} onClick={() => { if (validateStep2()) setStep(3); }}>{t('reviewAndConfirm')}</Button>
+              <Button disabled={!form.amount || !selectedCustomerId} onClick={() => { if (validateStep2()) setStep(3); }}>{t('reviewAndConfirm')}</Button>
             </DialogFooter>
           </div>
         )}
