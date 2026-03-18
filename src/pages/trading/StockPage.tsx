@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createDemoState } from '@/lib/tracker-demo-data';
 import {
   fmtU,
@@ -47,6 +47,7 @@ export default function StockPage() {
 
   const [batchDate, setBatchDate] = useState(nowInput());
   const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
+  const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
   const [batchPrice, setBatchPrice] = useState('');
   const [batchAmount, setBatchAmount] = useState('');
   const [batchSupplier, setBatchSupplier] = useState('');
@@ -275,7 +276,8 @@ export default function StockPage() {
                     const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
 
                     return (
-                      <tr key={b.id}>
+                      <React.Fragment key={b.id}>
+                      <tr>
                         <td className="mono">{fmtDate(b.ts)}</td>
                         <td>{b.source || '—'}</td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
@@ -292,10 +294,29 @@ export default function StockPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             <span className={`pill ${stCls}`}>{st}</span>
                             {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
+                            <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
                             <button className="rowBtn" onClick={() => openEdit(b.id)}>{t('edit')}</button>
                           </div>
                         </td>
                       </tr>
+                      {detailsOpen[b.id] && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11 }}>
+                              <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
+                              <div><span className="muted">{t('batchSource')}:</span> <strong>{b.source || '—'}</strong></div>
+                              <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
+                              <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
+                              <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
+                              <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
+                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtQ(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
+                              {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
+                              {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

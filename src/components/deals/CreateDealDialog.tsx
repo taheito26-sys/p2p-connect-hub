@@ -502,16 +502,13 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
               </div>
             )}
 
-            {/* Optional custom label */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                {t('dealTitleOptional')}
-              </Label>
-              <Input placeholder={autoTitle || t('dealAutoTitle')} value={form.customTitle} onChange={e => setForm(f => ({ ...f, customTitle: e.target.value }))} />
-              {autoTitle && !form.customTitle && (
-                <p className="text-xs text-muted-foreground">{t('dealAutoTitle')}: <strong>{autoTitle}</strong></p>
-              )}
-            </div>
+            {/* Auto-generated label display */}
+            {autoTitle && (
+              <div className="flex items-center gap-2 text-xs p-2 rounded-md bg-muted/30">
+                <span className="text-muted-foreground">{t('dealAutoTitle')}:</span>
+                <strong className="text-foreground">{autoTitle}</strong>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>{t('notesOptional')}</Label>
