@@ -185,7 +185,7 @@ export function CreateDealDialog({
   };
 
   const handleSubmit = async () => {
-    if (!selectedType || !form.amount || !selectedCustomerId || !selectedSupplierName) return;
+    if (!selectedType || !form.amount || !selectedCustomerId) return;
     if (!effectiveTitle) return;
 
     setSubmitting(true);
