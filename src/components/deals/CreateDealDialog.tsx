@@ -44,10 +44,10 @@ interface Props {
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
 
-/** Generate a structured deal label from deal type + customer + supplier */
-function generateDealLabel(dealType: DealType, customerName: string, supplierName: string): string {
+/** Generate a structured deal label from deal type + customer */
+function generateDealLabel(dealType: DealType, customerName: string): string {
   const cfg = DEAL_TYPE_CONFIGS[dealType];
-  return `${cfg.label} · ${customerName} · ${supplierName}`;
+  return `${cfg.label} · ${customerName}`;
 }
 
 export function CreateDealDialog({
