@@ -6,9 +6,8 @@ import { useT } from '@/lib/i18n';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,39 +17,42 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import {
   Loader2, Search, UserPlus, Check, X, RotateCcw, Mail, Users,
   ExternalLink, CheckSquare, MessageCircle, AlertCircle, Briefcase,
-  DollarSign, ArrowRight, Clock, Send, ChevronLeft,
+  DollarSign, ArrowRight, Clock, Send, ChevronLeft, Filter,
+  ArrowUpRight, Circle, Zap, Bell, Hash, LayoutGrid, List,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerchantSearchResult, MerchantInvite, MerchantRelationship, MerchantApproval, MerchantMessage, MerchantDeal } from '@/types/domain';
 
+/* ─── Status color maps ─── */
 const inviteStatusColors: Record<string, string> = {
-  pending: 'bg-destructive/15 text-destructive border-destructive/30',
-  accepted: 'bg-success/15 text-success border-success/30',
-  rejected: 'bg-destructive/15 text-destructive border-destructive/30',
+  pending: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  accepted: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+  rejected: 'bg-red-500/15 text-red-500 border-red-500/30',
   withdrawn: 'bg-muted text-muted-foreground',
   expired: 'bg-muted text-muted-foreground',
 };
 const relStatusColors: Record<string, string> = {
-  active: 'bg-success/15 text-success border-success/30',
-  restricted: 'bg-warning/15 text-warning border-warning/30',
-  suspended: 'bg-destructive/15 text-destructive border-destructive/30',
+  active: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+  restricted: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  suspended: 'bg-red-500/15 text-red-500 border-red-500/30',
   terminated: 'bg-muted text-muted-foreground',
-};
-const approvalStatusColors: Record<string, string> = {
-  pending: 'bg-destructive/15 text-destructive border-destructive/30',
-  approved: 'bg-success/15 text-success border-success/30',
-  rejected: 'bg-destructive/15 text-destructive border-destructive/30',
 };
 const dealStatusColors: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
-  active: 'bg-success/15 text-success border-success/30',
-  due: 'bg-warning/15 text-warning border-warning/30',
-  settled: 'bg-primary/15 text-primary border-primary/30',
-  closed: 'bg-secondary text-secondary-foreground',
-  overdue: 'bg-destructive/15 text-destructive border-destructive/30',
+  active: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+  due: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  settled: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
+  closed: 'bg-muted text-muted-foreground',
+  overdue: 'bg-red-500/15 text-red-500 border-red-500/30',
   cancelled: 'bg-muted text-muted-foreground',
 };
+const approvalStatusColors: Record<string, string> = {
+  pending: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  approved: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+  rejected: 'bg-red-500/15 text-red-500 border-red-500/30',
+};
 
+/* ─── Types ─── */
 interface ConversationSummary {
   relationshipId: string;
   counterpartyName: string;
@@ -61,14 +63,30 @@ interface ConversationSummary {
   messages: MerchantMessage[];
 }
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong';
+type MainView = 'activity' | 'chat' | 'deals';
+type ActivityFilter = 'all' | 'invites' | 'approvals';
+
+/* ─── Helpers ─── */
+function timeAgo(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  if (diffMs < 60000) return 'now';
+  if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m`;
+  if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h`;
+  if (diffMs < 604800000) return `${Math.floor(diffMs / 86400000)}d`;
+  return d.toLocaleDateString();
 }
 
+/* ═══════════════════════════════════════════════════════════
+   NETWORK PAGE — Unified Command Center
+   ═══════════════════════════════════════════════════════════ */
 export default function NetworkPage() {
   const { userId } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+
+  /* ─── State ─── */
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerchantSearchResult[]>([]);
   const [searched, setSearched] = useState(false);
@@ -82,13 +100,17 @@ export default function NetworkPage() {
   const [inviteTarget, setInviteTarget] = useState<MerchantSearchResult | null>(null);
   const [inviteForm, setInviteForm] = useState({ purpose: '', role: 'partner', message: '' });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('invitations');
 
-  // Inbox state
+  // View state
+  const [mainView, setMainView] = useState<MainView>('activity');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [msgInput, setMsgInput] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  /* ─── Data loading ─── */
   const reload = useCallback(async () => {
     try {
       const [
@@ -96,7 +118,6 @@ export default function NetworkPage() {
       ] = await Promise.all([
         api.invites.inbox(), api.invites.sent(), api.relationships.list(), api.approvals.inbox(), api.deals.list()
       ]);
-
       setInbox(inInbox);
       setSent(outSent);
       setRels(relationships);
@@ -116,7 +137,6 @@ export default function NetworkPage() {
           messages,
         };
       });
-
       const convos = await Promise.all(convoPromises);
       convos.sort((a, b) => {
         const ta = a.lastMessage ? new Date(a.lastMessage.created_at).getTime() : 0;
@@ -129,15 +149,13 @@ export default function NetworkPage() {
     } finally {
       setLoading(false);
     }
-  }, [t, userId]);
+  }, [userId]);
 
   useEffect(() => { reload(); }, [reload]);
   useRealtimeRefresh(reload, ['new_message', 'new_invite', 'invite_update', 'approval_update']);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeConvoId, conversations]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeConvoId, conversations]);
-
+  /* ─── Handlers ─── */
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (query.length < 2) { toast.error(t('enterMin2Chars')); return; }
@@ -145,7 +163,8 @@ export default function NetworkPage() {
       const res = await api.merchant.search(query);
       setResults(res.results);
       setSearched(true);
-    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
+      setSearchOpen(true);
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const openInviteDialog = (merchant: MerchantSearchResult) => {
@@ -166,69 +185,48 @@ export default function NetworkPage() {
       toast.success(`${t('inviteSentTo')} ${inviteTarget.display_name}`);
       setInviteDialogOpen(false);
       await reload();
-    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleAccept = async (id: string) => {
     try { await api.invites.accept(id); toast.success(t('inviteAccepted')); await reload(); }
-    catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    catch (err: any) { toast.error(err.message); }
   };
   const handleReject = async (id: string) => {
     try { await api.invites.reject(id); toast.success(t('inviteRejected')); await reload(); }
-    catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    catch (err: any) { toast.error(err.message); }
   };
   const handleWithdraw = async (id: string) => {
     try { await api.invites.withdraw(id); toast.success(t('inviteWithdrawn')); await reload(); }
-    catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    catch (err: any) { toast.error(err.message); }
   };
   const handleApprove = async (id: string) => {
-    try {
-      await api.approvals.approve(id);
-      toast.success(t('approved'));
-      await reload(); // Reload everything including deals to reflect status change
-    }
-    catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    try { await api.approvals.approve(id); toast.success(t('approved')); await reload(); }
+    catch (err: any) { toast.error(err.message); }
   };
   const handleRejectApproval = async (id: string) => {
-    try {
-      await api.approvals.reject(id);
-      toast.success(t('rejected'));
-      await reload();
-    }
-    catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    try { await api.approvals.reject(id); toast.success(t('rejected')); await reload(); }
+    catch (err: any) { toast.error(err.message); }
   };
 
-  // Mark messages as read when opening a conversation
   const markConvoRead = useCallback(async (relId: string) => {
     const convo = conversations.find(c => c.relationshipId === relId);
     if (!convo || convo.unreadCount === 0) return;
-
-    const unreadIds = convo.messages
-      .filter(m => !m.is_read && m.sender_user_id !== userId)
-      .map(m => m.id);
-
-    if (unreadIds.length === 0) return;
-
-    setConversations(prev => prev.map(c =>
-      c.relationshipId === relId
-        ? {
-            ...c,
-            unreadCount: 0,
-            messages: c.messages.map(m => unreadIds.includes(m.id) ? { ...m, is_read: true } : m),
-          }
-        : c
-    ));
-
     try {
-      await Promise.all(unreadIds.map(messageId => api.messages.markRead(messageId)));
-    } catch {
-      await reload();
-    }
-  }, [conversations, reload, userId]);
+      const unreadMsgs = convo.messages.filter(m => !m.is_read && m.sender_user_id !== userId);
+      await Promise.all(unreadMsgs.map(m => api.messages.markRead(m.id)));
+      setConversations(prev => prev.map(c =>
+        c.relationshipId === relId
+          ? { ...c, unreadCount: 0, messages: c.messages.map(m => ({ ...m, is_read: true })) }
+          : c
+      ));
+    } catch {}
+  }, [conversations, userId]);
 
   const handleSelectConvo = useCallback((relId: string) => {
     setActiveConvoId(relId);
-    void markConvoRead(relId);
+    setMainView('chat');
+    markConvoRead(relId);
   }, [markConvoRead]);
 
   const sendMsg = async () => {
@@ -237,297 +235,547 @@ export default function NetworkPage() {
       await api.messages.send(activeConvoId, msgInput.trim());
       setMsgInput('');
       await reload();
-    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const pendingInvites = inbox.filter(i => i.status === 'pending').length;
-  const pendingApprovals = aprInbox.filter(a => a.status === 'pending').length;
+  /* ─── Derived data ─── */
+  const pendingInvites = inbox.filter(i => i.status === 'pending');
+  const pendingApprovals = aprInbox.filter(a => a.status === 'pending');
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
   const overdueDeals = allDeals.filter(d => d.status === 'overdue');
   const activeDeals = allDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
   const activeConvo = conversations.find(c => c.relationshipId === activeConvoId);
 
-  if (loading) return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  const totalAlerts = pendingInvites.length + pendingApprovals.length + overdueDeals.length;
 
-  return (
-    <div dir={t.isRTL ? 'rtl' : 'ltr'}>
-      <Breadcrumbs />
-
-      <div className="px-6 pt-3 pb-4 border-b border-border">
-        <h1 className="text-xl font-display font-bold">{t('networkTitle')}</h1>
-        <p className="text-xs text-muted-foreground">{t('networkDesc')}</p>
-      </div>
-
-      <div className="p-6 space-y-6">
-        {/* ── Command Center KPIs (clickable, color-coded) ── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingInvites > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => setActiveTab('invitations')}
-          >
-            <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {t('invitations')}</p>
-              <p className={`text-xl font-bold mt-1 ${pendingInvites > 0 ? 'text-destructive' : ''}`}>{pendingInvites}</p>
-              {pendingInvites > 0 && <p className="text-[10px] text-destructive font-medium">{t('actionNeeded')}</p>}
-            </CardContent>
-          </Card>
-
-          <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 ${pendingApprovals > 0 ? 'border-destructive/40 bg-destructive/5' : ''}`}
-            onClick={() => setActiveTab('approvals')}
-          >
-            <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><CheckSquare className="w-3 h-3" /> {t('approvals')}</p>
-              <p className={`text-xl font-bold mt-1 ${pendingApprovals > 0 ? 'text-destructive' : ''}`}>{pendingApprovals}</p>
-              {pendingApprovals > 0 && <p className="text-[10px] text-destructive font-medium">{t('actionNeeded')}</p>}
-            </CardContent>
-          </Card>
-
-          <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 ${totalUnread > 0 ? 'border-primary/40 bg-primary/5' : ''}`}
-            onClick={() => {
-              setActiveTab('inbox');
-              const firstUnread = conversations.find(c => c.unreadCount > 0);
-              if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
-            }}
-          >
-            <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {t('unread')}</p>
-              <p className={`text-xl font-bold mt-1 ${totalUnread > 0 ? 'text-primary' : ''}`}>{totalUnread}</p>
-              {totalUnread > 0 && <p className="text-[10px] text-primary font-medium">{t('newMessages')}</p>}
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => setActiveTab('deals')}>
-            <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Briefcase className="w-3 h-3" /> {t('activeDeals')}</p>
-              <p className="text-xl font-bold mt-1">{activeDeals.length}</p>
-              {overdueDeals.length > 0 && <p className="text-[10px] text-destructive font-medium">{overdueDeals.length} {t('overdue')}</p>}
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={() => navigate('/network')}>
-            <CardContent className="p-3">
-              <p className="text-[10px] uppercase text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> {t('relationships')}</p>
-              <p className="text-xl font-bold mt-1">{rels.length}</p>
-            </CardContent>
-          </Card>
+  /* ─── Loading ─── */
+  if (loading) return (
+    <div className="flex h-[70vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="relative">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Users className="w-5 h-5 text-primary" />
+          </div>
+          <Loader2 className="absolute -top-1 -right-1 w-4 h-4 animate-spin text-primary" />
         </div>
+        <p className="text-xs text-muted-foreground">{t('networkTitle')}</p>
+      </div>
+    </div>
+  );
 
-        {/* Relationships */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-display font-bold uppercase tracking-wider text-muted-foreground">{t('relationships')}</h2>
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder={t('findMerchant')} value={query} onChange={e => setQuery(e.target.value)} className="pl-8 h-8 text-xs w-48" />
-              </div>
-              <Button type="submit" size="sm" className="h-8 text-xs">{t('search')}</Button>
-            </form>
+  /* ═══════════════════════════════════════════════════════
+     RENDER
+     ═══════════════════════════════════════════════════════ */
+  return (
+    <div dir={t.isRTL ? 'rtl' : 'ltr'} className="flex flex-col h-[calc(100vh-3.5rem)]">
+      {/* ─── Top bar: Search + Stats + Quick actions ─── */}
+      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-20">
+        <div className="flex items-center gap-3 px-4 h-14">
+          {/* Title */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold leading-tight">{t('networkTitle')}</h1>
+              <p className="text-[10px] text-muted-foreground leading-tight">{rels.length} {t('relationships')}</p>
+            </div>
           </div>
 
-          {searched && results.length > 0 && (
-            <div className="mb-4 space-y-2">
-              <p className="text-xs text-muted-foreground">{t('searchResults')}</p>
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Inline stat pills */}
+          <div className="hidden md:flex items-center gap-1.5">
+            {totalAlerts > 0 && (
+              <button
+                onClick={() => setMainView('activity')}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 text-red-500 text-[11px] font-medium hover:bg-red-500/20 transition-colors"
+              >
+                <Bell className="w-3 h-3" />
+                {totalAlerts} {t('actionNeeded')}
+              </button>
+            )}
+            {totalUnread > 0 && (
+              <button
+                onClick={() => {
+                  setMainView('chat');
+                  const firstUnread = conversations.find(c => c.unreadCount > 0);
+                  if (firstUnread) handleSelectConvo(firstUnread.relationshipId);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-500 text-[11px] font-medium hover:bg-blue-500/20 transition-colors"
+              >
+                <MessageCircle className="w-3 h-3" />
+                {totalUnread} {t('unread')}
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-[11px]">
+              <Briefcase className="w-3 h-3" />
+              {activeDeals.length} {t('activeDeals')}
+            </div>
+          </div>
+
+          {/* Search trigger */}
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder={t('findMerchant')}
+              value={query}
+              onChange={e => { setQuery(e.target.value); if (!e.target.value) { setSearched(false); setSearchOpen(false); } }}
+              className="pl-8 h-8 text-xs w-44 md:w-56 rounded-lg"
+            />
+          </form>
+        </div>
+
+        {/* Search results dropdown */}
+        {searched && searchOpen && results.length > 0 && (
+          <div className="absolute right-4 top-14 w-80 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+            <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{results.length} {t('searchResults')}</p>
+              <button onClick={() => { setSearchOpen(false); setSearched(false); setQuery(''); }} className="text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
               {results.map(r => (
-                <Card key={r.id} className="glass hover:border-primary/50 transition-colors">
-                  <CardContent className="flex items-center justify-between p-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm">{r.display_name}</p>
-                        <Badge variant="outline" className="font-mono text-[10px]">{r.merchant_id}</Badge>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">@{r.nickname} • {r.region}</p>
-                    </div>
-                    <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={() => openInviteDialog(r)}>
-                      <UserPlus className="w-3 h-3" /> {t('invite')}
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div key={r.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{r.display_name}</p>
+                    <p className="text-[10px] text-muted-foreground">@{r.nickname} · {r.region} · <span className="font-mono">{r.merchant_id}</span></p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 gap-1 h-7 text-xs rounded-lg ml-2" onClick={() => { openInviteDialog(r); setSearchOpen(false); }}>
+                    <UserPlus className="w-3 h-3" /> {t('invite')}
+                  </Button>
+                </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {rels.length === 0 && !searched && (
-            <Card className="glass"><CardContent className="py-8 text-center text-muted-foreground">
-              <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>{t('noRelationshipsYet')}</p>
-              <p className="text-xs mt-1">{t('searchToCollaborate')}</p>
-            </CardContent></Card>
-          )}
-          <div className="space-y-2">
-            {rels.map(rel => {
-              const convo = conversations.find(c => c.relationshipId === rel.id);
-              return (
-                <Link key={rel.id} to={`/network/relationships/${rel.id}`}>
-                  <Card className="glass hover:border-primary/50 transition-colors cursor-pointer">
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Users className="w-5 h-5 text-primary" />
+      {/* ─── Main workspace: Sidebar + Content ─── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ═══ LEFT SIDEBAR: Relationships + Conversations ═══ */}
+        <aside className={`shrink-0 border-r border-border bg-muted/20 flex flex-col overflow-hidden transition-all duration-200 ${
+          sidebarCollapsed ? 'w-0 md:w-14' : 'w-full md:w-72 lg:w-80'
+        } ${mainView === 'chat' && activeConvoId ? 'hidden md:flex' : 'flex'}`}>
+
+          {/* Sidebar header with view switcher */}
+          <div className="shrink-0 px-3 py-2.5 border-b border-border/60 flex items-center gap-1.5">
+            <button
+              onClick={() => setMainView('activity')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                mainView === 'activity' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              <Zap className="w-3 h-3" />
+              <span className="hidden md:inline">{t('invitations')}</span>
+              {totalAlerts > 0 && <span className="ml-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{totalAlerts}</span>}
+            </button>
+            <button
+              onClick={() => setMainView('chat')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                mainView === 'chat' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              <MessageCircle className="w-3 h-3" />
+              <span className="hidden md:inline">{t('inbox')}</span>
+              {totalUnread > 0 && <span className="ml-0.5 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">{totalUnread}</span>}
+            </button>
+            <button
+              onClick={() => setMainView('deals')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                mainView === 'deals' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              <Briefcase className="w-3 h-3" />
+              <span className="hidden md:inline">{t('dealsLabel')}</span>
+            </button>
+          </div>
+
+          {/* Sidebar content — always shows relationships + conversations */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Relationships list */}
+            <div className="px-2 pt-2 pb-1">
+              <p className="px-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">{t('relationships')}</p>
+            </div>
+
+            {rels.length === 0 ? (
+              <div className="text-center py-6 px-4">
+                <Users className="w-6 h-6 mx-auto mb-2 opacity-30 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">{t('noRelationshipsYet')}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t('searchToCollaborate')}</p>
+              </div>
+            ) : (
+              <div className="px-2 space-y-0.5">
+                {rels.map(rel => {
+                  const convo = conversations.find(c => c.relationshipId === rel.id);
+                  const isActive = activeConvoId === rel.id;
+                  return (
+                    <button
+                      key={rel.id}
+                      className={`w-full text-left rounded-lg px-2.5 py-2.5 transition-all group ${
+                        isActive
+                          ? 'bg-accent ring-1 ring-primary/20'
+                          : 'hover:bg-accent/50'
+                      }`}
+                      onClick={() => handleSelectConvo(rel.id)}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {/* Avatar */}
+                        <div className="relative shrink-0">
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${
+                            isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+                          }`}>
+                            {(rel.counterparty?.display_name || '?').charAt(0).toUpperCase()}
+                          </div>
+                          {/* Online/status dot */}
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${
+                            rel.status === 'active' ? 'bg-emerald-500' : rel.status === 'restricted' ? 'bg-amber-500' : 'bg-muted-foreground'
+                          }`} />
+                          {/* Unread badge */}
+                          {convo && convo.unreadCount > 0 && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[8px] font-bold flex items-center justify-center">
+                              {convo.unreadCount}
+                            </div>
+                          )}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium truncate">{rel.counterparty?.display_name || 'Unknown'}</p>
-                            <Badge className={relStatusColors[rel.status]}>{rel.status}</Badge>
-                            <Badge variant="outline" className="font-mono text-[10px]">{rel.counterparty?.merchant_id}</Badge>
-                            {convo && convo.unreadCount > 0 && (
-                              <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{convo.unreadCount}</Badge>
+
+                        {/* Name + details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className={`text-sm truncate ${convo?.unreadCount ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
+                              {rel.counterparty?.display_name || 'Unknown'}
+                            </p>
+                            {convo?.lastMessage && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(convo.lastMessage.created_at)}</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
-                            <span>{t('role')}: {rel.my_role}</span>
-                            <span>{rel.relationship_type}</span>
-                            {rel.summary && (
-                              <>
-                                <span>{rel.summary.totalDeals} {t('dealsLabel')}</span>
-                                <span>{t('exposure')}: ${rel.summary.activeExposure.toLocaleString()}</span>
-                                {rel.summary.pendingApprovals > 0 && (
-                                  <Badge className="bg-destructive/15 text-destructive text-[10px] px-1 py-0">{rel.summary.pendingApprovals} {t('pending')}</Badge>
-                                )}
-                              </>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 rounded">{rel.my_role}</Badge>
+                            {rel.summary && rel.summary.totalDeals > 0 && (
+                              <span className="text-[10px] text-muted-foreground">{rel.summary.totalDeals} deals</span>
                             )}
                           </div>
                           {convo?.lastMessage && (
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            <p className={`text-[11px] truncate mt-0.5 ${convo.unreadCount ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                               {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
                             </p>
                           )}
                         </div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Activity: Invitations + Approvals + Deals */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="invitations" className="gap-1">
-              {t('invitations')} {pendingInvites > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingInvites}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="approvals" className="gap-1">
-              {t('approvals')} {pendingApprovals > 0 && <Badge className="bg-destructive/15 text-destructive text-[10px] px-1.5 py-0">{pendingApprovals}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="deals" className="gap-1">
-              {t('dealsLabel')} {activeDeals.length > 0 && <Badge className="bg-primary/15 text-primary text-[10px] px-1.5 py-0">{activeDeals.length}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="inbox" className="gap-1">
-              <MessageCircle className="w-3.5 h-3.5" />
-              {t('inbox')}
-              {totalUnread > 0 && <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">{totalUnread}</Badge>}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="invitations" className="mt-3 space-y-2">
-            {inbox.filter(i => i.status === 'pending').map(inv => (
-              <Card key={inv.id} className="border-destructive/30 bg-destructive/5">
-                <CardContent className="flex items-center justify-between p-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm">{inv.from_display_name}</p>
-                      <Badge className={inviteStatusColors[inv.status]}>{inv.status}</Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{inv.purpose} • {t('role')}: {inv.requested_role} • @{inv.from_nickname}</p>
-                    {inv.message && <p className="text-xs text-muted-foreground italic mt-1">"{inv.message}"</p>}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs bg-success hover:bg-success/90 text-success-foreground"><Check className="w-3 h-3" /> {t('accept')}</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"><X className="w-3 h-3" /> {t('reject')}</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
-              <Card key={inv.id} className="glass">
-                <CardContent className="flex items-center justify-between p-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</p>
-                      <Badge className={inviteStatusColors[inv.status]}>{inv.status}</Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">{inv.purpose || t('generalCollaboration')}</p>
-                  </div>
-                  {inv.status === 'pending' && inv.to_merchant_id && (
-                    <Button size="sm" variant="outline" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-7 text-xs"><RotateCcw className="w-3 h-3" /> {t('withdraw')}</Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            {inbox.length + sent.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-sm">{t('noInvitations')}</div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </TabsContent>
+          </div>
+        </aside>
 
-          <TabsContent value="approvals" className="mt-3 space-y-2">
-            {aprInbox.filter(a => a.status === 'pending').map(a => (
-              <Card key={a.id} className="border-destructive/30 bg-destructive/5">
-                <CardContent className="flex items-center justify-between p-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm capitalize">{a.type.replace(/_/g, ' ')}</p>
-                      <Badge className={approvalStatusColors[a.status]}>{a.status}</Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">{t('target')}: {a.target_entity_type} • {new Date(a.submitted_at).toLocaleDateString()}</p>
-                    {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
-                      <div className="mt-1 text-[10px] text-muted-foreground">
-                        {Object.entries(a.proposed_payload).map(([k, v]) => (
-                          <span key={k} className="mr-2">{k}: <span className="text-foreground">{String(v)}</span></span>
+        {/* ═══ MAIN CONTENT AREA ═══ */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-background">
+
+          {/* ════════ ACTIVITY VIEW ════════ */}
+          {mainView === 'activity' && (
+            <div className="flex-1 overflow-y-auto">
+              {/* Activity filter bar */}
+              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b border-border/50 px-4 py-2 flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                {(['all', 'invites', 'approvals'] as ActivityFilter[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setActivityFilter(f)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      activityFilter === f
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {f === 'all' ? t('invitations') + ' & ' + t('approvals') : f === 'invites' ? t('invitations') : t('approvals')}
+                    {f === 'invites' && pendingInvites.length > 0 && (
+                      <span className="ml-1 text-[9px] text-red-500">({pendingInvites.length})</span>
+                    )}
+                    {f === 'approvals' && pendingApprovals.length > 0 && (
+                      <span className="ml-1 text-[9px] text-red-500">({pendingApprovals.length})</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-4 space-y-3">
+                {/* ── Pending Invites ── */}
+                {(activityFilter === 'all' || activityFilter === 'invites') && pendingInvites.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                      <Mail className="w-3 h-3" /> {t('invitations')} — {t('actionNeeded')}
+                    </p>
+                    {pendingInvites.map(inv => (
+                      <Card key={inv.id} className="border-amber-500/20 bg-amber-500/5 overflow-hidden">
+                        <CardContent className="p-0">
+                          <div className="flex items-stretch">
+                            <div className="w-1 bg-amber-500 shrink-0" />
+                            <div className="flex-1 flex items-center justify-between p-3 gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                                    <Mail className="w-3.5 h-3.5 text-amber-600" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{inv.from_display_name}</p>
+                                    <p className="text-[10px] text-muted-foreground">{inv.purpose} · {t('role')}: {inv.requested_role} · @{inv.from_nickname}</p>
+                                  </div>
+                                </div>
+                                {inv.message && <p className="text-xs text-muted-foreground italic mt-1.5 ml-9">"{inv.message}"</p>}
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <Button size="sm" onClick={() => handleAccept(inv.id)} className="gap-1 h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+                                  <Check className="w-3 h-3" /> {t('accept')}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => handleReject(inv.id)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Pending Approvals ── */}
+                {(activityFilter === 'all' || activityFilter === 'approvals') && pendingApprovals.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                      <CheckSquare className="w-3 h-3" /> {t('approvals')} — {t('actionNeeded')}
+                    </p>
+                    {pendingApprovals.map(a => (
+                      <Card key={a.id} className="border-amber-500/20 bg-amber-500/5 overflow-hidden">
+                        <CardContent className="p-0">
+                          <div className="flex items-stretch">
+                            <div className="w-1 bg-amber-500 shrink-0" />
+                            <div className="flex-1 flex items-center justify-between p-3 gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                                    <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium capitalize">{a.type.replace(/_/g, ' ')}</p>
+                                    <p className="text-[10px] text-muted-foreground">{t('target')}: {a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                {a.proposed_payload && Object.keys(a.proposed_payload).length > 0 && (
+                                  <div className="mt-1.5 ml-9 flex flex-wrap gap-1.5">
+                                    {Object.entries(a.proposed_payload).map(([k, v]) => (
+                                      <span key={k} className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{k}: <span className="font-medium text-foreground">{String(v)}</span></span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+                                  <Check className="w-3 h-3" /> {t('approve')}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── History (non-pending invites + sent + resolved approvals) ── */}
+                {(activityFilter === 'all' || activityFilter === 'invites') && (
+                  <>
+                    {[...inbox.filter(i => i.status !== 'pending'), ...sent].length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-2">{t('invitations')} — History</p>
+                        {[...inbox.filter(i => i.status !== 'pending'), ...sent].map(inv => (
+                          <div key={inv.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              <p className="text-xs truncate">{inv.from_display_name || `${t('sent')}: ${inv.to_display_name || inv.to_merchant_id}`}</p>
+                              <Badge variant="outline" className={`text-[9px] shrink-0 ${inviteStatusColors[inv.status]}`}>{inv.status}</Badge>
+                            </div>
+                            {inv.status === 'pending' && (inv as any).to_merchant_id && (
+                              <Button size="sm" variant="ghost" onClick={() => handleWithdraw(inv.id)} className="gap-1 h-6 text-[10px] text-muted-foreground">
+                                <RotateCcw className="w-3 h-3" /> {t('withdraw')}
+                              </Button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleApprove(a.id)} className="gap-1 h-7 text-xs bg-success hover:bg-success/90 text-success-foreground"><Check className="w-3 h-3" /> {t('approve')}</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleRejectApproval(a.id)} className="gap-1 h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"><X className="w-3 h-3" /> {t('reject')}</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {aprInbox.filter(a => a.status !== 'pending').map(a => (
-              <Card key={a.id} className="glass">
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm capitalize">{a.type.replace(/_/g, ' ')}</p>
-                    <Badge className={approvalStatusColors[a.status]}>{a.status}</Badge>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">{new Date(a.submitted_at).toLocaleDateString()}{a.resolution_note && ` • ${a.resolution_note}`}</p>
-                </CardContent>
-              </Card>
-            ))}
-            {aprInbox.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-sm">{t('noApprovals')}</div>
-            )}
-          </TabsContent>
+                  </>
+                )}
 
-          {/* ── Deals Tab with table view ── */}
-          <TabsContent value="deals" className="mt-3">
-            {allDeals.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">{t('noDeals')}</div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('date')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('type')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('buyer')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('supplier')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('qty')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('amount')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('volume')}</th>
-                      <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('net')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('margin')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('statusEdit')}</th>
-                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                {(activityFilter === 'all' || activityFilter === 'approvals') && (
+                  <>
+                    {aprInbox.filter(a => a.status !== 'pending').length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mt-2">{t('approvals')} — History</p>
+                        {aprInbox.filter(a => a.status !== 'pending').map(a => (
+                          <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <CheckSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              <p className="text-xs capitalize truncate">{a.type.replace(/_/g, ' ')}</p>
+                              <Badge variant="outline" className={`text-[9px] shrink-0 ${approvalStatusColors[a.status]}`}>{a.status}</Badge>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {new Date(a.submitted_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Empty state */}
+                {pendingInvites.length === 0 && pendingApprovals.length === 0 &&
+                  inbox.length + sent.length === 0 && aprInbox.length === 0 && (
+                  <div className="text-center py-16">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
+                      <Zap className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">{t('noInvitations')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('searchToCollaborate')}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ════════ CHAT VIEW ════════ */}
+          {mainView === 'chat' && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {!activeConvoId || !activeConvo ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
+                      <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">{t('selectConversation')}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Chat header */}
+                  <div className="shrink-0 flex items-center gap-3 px-4 h-12 border-b border-border bg-muted/20">
+                    <Button variant="ghost" size="icon" className="md:hidden shrink-0 h-7 w-7" onClick={() => setActiveConvoId(null)}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{activeConvo.counterpartyName.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{activeConvo.counterpartyName}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{activeConvo.counterpartyMerchantId}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-xs h-7 rounded-lg gap-1" onClick={() => navigate(`/network/relationships/${activeConvoId}`)}>
+                      {t('viewInWorkspace')} <ArrowUpRight className="w-3 h-3" />
+                    </Button>
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2.5">
+                    {activeConvo.messages.length === 0 && (
+                      <p className="text-center text-muted-foreground text-xs py-8">{t('noMessagesYet')}</p>
+                    )}
+                    {activeConvo.messages.map(msg => {
+                      const isOwn = msg.sender_user_id === userId;
+                      const isSystem = msg.message_type === 'system';
+                      return (
+                        <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[70%] px-3.5 py-2 text-sm ${
+                            isSystem
+                              ? 'bg-muted text-muted-foreground text-center w-full text-[11px] italic rounded-lg'
+                              : isOwn
+                                ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md'
+                                : 'bg-muted rounded-2xl rounded-bl-md'
+                          }`}>
+                            {!isSystem && !isOwn && (
+                              <p className="text-[10px] font-medium opacity-60 mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>
+                            )}
+                            <p className="leading-relaxed">{msg.body}</p>
+                            <p className={`text-[9px] mt-1 ${isOwn ? 'text-primary-foreground/40' : 'text-muted-foreground/60'}`}>
+                              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  {/* Message input */}
+                  <div className="shrink-0 border-t border-border p-3">
+                    <div className="flex gap-2 items-center bg-muted/40 rounded-xl px-3 py-1">
+                      <Input
+                        placeholder={t('typeMessage')}
+                        value={msgInput}
+                        onChange={e => setMsgInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendMsg()}
+                        className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 h-9 text-sm"
+                      />
+                      <Button onClick={sendMsg} size="icon" className="shrink-0 rounded-full h-8 w-8">
+                        <Send className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ════════ DEALS VIEW ════════ */}
+          {mainView === 'deals' && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4">
+                {/* Deals summary strip */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
+                    <Briefcase className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-lg font-bold leading-tight">{activeDeals.length}</p>
+                      <p className="text-[10px] text-muted-foreground">{t('activeDeals')}</p>
+                    </div>
+                  </div>
+                  {overdueDeals.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <div>
+                        <p className="text-lg font-bold leading-tight text-red-500">{overdueDeals.length}</p>
+                        <p className="text-[10px] text-red-500">{t('overdue')}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50">
+                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-lg font-bold leading-tight">
+                        ${allDeals.reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Total Volume</p>
+                    </div>
+                  </div>
+                </div>
+
+                {allDeals.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
+                      <Briefcase className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">{t('noDeals')}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
                     {allDeals.map(deal => {
                       const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                       const custName = deal.metadata?.customer_name as string | undefined;
@@ -536,217 +784,80 @@ export default function NetworkPage() {
                       const net = deal.realized_pnl ?? 0;
                       const margin = volume > 0 ? (net / volume) * 100 : 0;
                       return (
-                        <tr key={deal.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap">{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm">{cfg?.icon || '📋'}</span>
-                              <span className="text-xs font-medium">{cfg?.label || deal.deal_type}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs">{custName ? <span className="font-medium">👤 {custName}</span> : <span className="text-muted-foreground">—</span>}</td>
-                          <td className="px-3 py-2.5 text-xs">{suppName ? <span className="font-medium">📦 {suppName}</span> : <span className="text-muted-foreground">—</span>}</td>
-                          <td className="px-3 py-2.5 text-xs text-right font-mono">{deal.amount.toLocaleString()}</td>
-                          <td className="px-3 py-2.5 text-xs text-right font-mono font-bold">${deal.amount.toLocaleString()}</td>
-                          <td className="px-3 py-2.5 text-xs text-right font-mono">${volume.toLocaleString()}</td>
-                          <td className="px-3 py-2.5 text-xs text-right font-mono">
-                            {net !== 0 ? (
-                              <span className={net >= 0 ? 'text-success font-bold' : 'text-destructive font-bold'}>
-                                {net >= 0 ? '+' : ''}${net.toLocaleString()}
-                              </span>
-                            ) : <span className="text-muted-foreground">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs">
-                            {net !== 0 ? (
-                              <span className={`font-mono ${margin >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                {margin.toFixed(2)}%
-                              </span>
-                            ) : <span className="text-muted-foreground">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Badge className={`text-[10px] ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs h-6 px-2"
-                              onClick={() => {
-                                const rel = rels.find(r => r.id === deal.relationship_id);
-                                if (rel) navigate(`/network/relationships/${rel.id}`);
-                              }}
-                            >
-                              {t('details')} →
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* ── Inbox Tab ── */}
-          <TabsContent value="inbox" className="mt-3">
-            <Card className="glass overflow-hidden">
-              <CardContent className="p-0">
-                <div className="flex" style={{ minHeight: 380 }}>
-                  {/* Conversation list */}
-                  <div className={`border-r border-border overflow-y-auto ${activeConvoId ? 'hidden md:block' : ''}`} style={{ width: 300, minWidth: 260 }}>
-                    {conversations.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground text-sm px-4">
-                        <MessageCircle className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                        <p>{t('noConversations')}</p>
-                      </div>
-                    )}
-                    {conversations.map(convo => {
-                      const isSelected = activeConvoId === convo.relationshipId;
-                      const hasUnread = convo.unreadCount > 0;
-
-                      return (
-                        <button
-                        key={convo.relationshipId}
-                        className={`w-full text-left px-4 py-3 border-b transition-colors flex items-center gap-3 ${
-                          isSelected
-                            ? hasUnread
-                              ? 'border-primary/40 bg-primary/12 shadow-[inset_3px_0_0_theme(colors.primary.DEFAULT)]'
-                              : 'border-border/50 bg-accent'
-                            : hasUnread
-                              ? 'border-primary/20 bg-primary/8 hover:bg-primary/12'
-                              : 'border-border/50 hover:bg-accent/50'
-                        }`}
-                        onClick={() => handleSelectConvo(convo.relationshipId)}
-                      >
-                        <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Users className="w-4 h-4 text-primary" />
+                        <div
+                          key={deal.id}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer group"
+                          onClick={() => {
+                            const rel = rels.find(r => r.id === deal.relationship_id);
+                            if (rel) navigate(`/network/relationships/${rel.id}`);
+                          }}
+                        >
+                          {/* Deal type icon */}
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${
+                            deal.status === 'overdue' ? 'bg-red-500/15' : deal.status === 'active' ? 'bg-emerald-500/10' : 'bg-muted'
+                          }`}>
+                            {cfg?.icon || '📋'}
                           </div>
-                          {hasUnread && (
-                            <div className="absolute -top-1 -right-1 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center ring-2 ring-background" style={{ width: 18, height: 18 }}>
-                              {convo.unreadCount}
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{cfg?.label || deal.deal_type}</p>
+                              <Badge variant="outline" className={`text-[9px] shrink-0 ${dealStatusColors[deal.status]}`}>{deal.status}</Badge>
                             </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className={`font-medium text-sm truncate ${hasUnread ? 'text-foreground' : 'text-muted-foreground'}`}>{convo.counterpartyName}</p>
-                            {convo.lastMessage && (
-                              <span className={`text-[10px] whitespace-nowrap shrink-0 ${hasUnread ? 'text-primary' : 'text-muted-foreground'}`}>
-                                {(() => {
-                                  const d = new Date(convo.lastMessage.created_at);
-                                  const now = new Date();
-                                  const diffMs = now.getTime() - d.getTime();
-                                  if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m`;
-                                  if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h`;
-                                  return d.toLocaleDateString();
-                                })()}
-                              </span>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {custName && <span>👤 {custName}</span>}
+                              {custName && suppName && <span> → </span>}
+                              {suppName && <span>📦 {suppName}</span>}
+                              {!custName && !suppName && <span>{deal.issue_date || new Date(deal.created_at).toLocaleDateString()}</span>}
+                            </p>
+                          </div>
+
+                          {/* Amount + P&L */}
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-bold font-mono">${deal.amount.toLocaleString()}</p>
+                            {net !== 0 ? (
+                              <p className={`text-[11px] font-mono font-semibold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {net >= 0 ? '+' : ''}${net.toLocaleString()} ({margin.toFixed(1)}%)
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground">Vol: ${volume.toLocaleString()}</p>
                             )}
                           </div>
-                          {convo.lastMessage ? (
-                            <p className={`text-xs truncate mt-0.5 ${hasUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-                              {convo.lastMessage.sender_user_id === userId ? `${t('you')}: ` : ''}{convo.lastMessage.body}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground italic mt-0.5">{t('noMessagesShort')}</p>
-                          )}
+
+                          {/* Arrow */}
+                          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                         </div>
-                        </button>
                       );
                     })}
                   </div>
-
-                  {/* Message pane */}
-                  <div className={`flex-1 flex flex-col ${!activeConvoId ? 'hidden md:flex' : 'flex'}`}>
-                    {!activeConvoId ? (
-                      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                        <div className="text-center">
-                          <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                          <p>{t('selectConversation')}</p>
-                        </div>
-                      </div>
-                    ) : activeConvo ? (
-                      <>
-                        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/20">
-                          <Button variant="ghost" size="icon" className="md:hidden shrink-0" onClick={() => setActiveConvoId(null)}>
-                            <ChevronLeft className="w-4 h-4" />
-                          </Button>
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <Users className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm">{activeConvo.counterpartyName}</p>
-                            <p className="text-[10px] text-muted-foreground">{activeConvo.counterpartyMerchantId}</p>
-                          </div>
-                          <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(`/network/relationships/${activeConvoId}`)}>
-                            <ExternalLink className="w-3 h-3 mr-1" /> {t('viewInWorkspace')}
-                          </Button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ maxHeight: 300 }}>
-                          {activeConvo.messages.length === 0 && (
-                            <p className="text-center text-muted-foreground text-sm py-4">{t('noMessagesYet')}</p>
-                          )}
-                          {activeConvo.messages.map(msg => {
-                            const isOwn = msg.sender_user_id === userId;
-                            const isSystem = msg.message_type === 'system';
-                            return (
-                              <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isOwn ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                                  isSystem ? 'bg-muted text-muted-foreground text-center w-full text-xs italic rounded-lg'
-                                    : isOwn ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-secondary text-secondary-foreground rounded-bl-md'
-                                }`}>
-                                  {!isSystem && !isOwn && <p className="text-[10px] font-medium opacity-70 mb-0.5">{msg.sender_name || msg.sender_merchant_id}</p>}
-                                  <p>{msg.body}</p>
-                                  <p className={`text-[10px] mt-1 ${isOwn ? 'text-primary-foreground/50' : 'text-muted-foreground'}`}>
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <div ref={messagesEndRef} />
-                        </div>
-
-                        <div className="border-t border-border p-3 flex gap-2 items-center">
-                          <Input
-                            placeholder={t('typeMessage')}
-                            value={msgInput}
-                            onChange={e => setMsgInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && sendMsg()}
-                            className="flex-1"
-                          />
-                          <Button onClick={sendMsg} size="icon" className="shrink-0 rounded-full">
-                            <Send className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
 
-      {/* Invite Dialog */}
+      {/* ─── Invite Dialog ─── */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{t('sendInviteTo')} {inviteTarget?.display_name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <UserPlus className="w-4 h-4 text-primary" />
+              </div>
+              {t('sendInviteTo')} {inviteTarget?.display_name}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>{t('purpose')}</Label>
-              <Input placeholder={t('purposePlaceholder')} value={inviteForm.purpose} onChange={e => setInviteForm(f => ({ ...f, purpose: e.target.value }))} />
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t('purpose')}</Label>
+              <Input placeholder={t('purposePlaceholder')} value={inviteForm.purpose} onChange={e => setInviteForm(f => ({ ...f, purpose: e.target.value }))} className="rounded-lg" />
             </div>
-            <div className="space-y-2">
-              <Label>{t('requestedRole')}</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t('requestedRole')}</Label>
               <Select value={inviteForm.role} onValueChange={v => setInviteForm(f => ({ ...f, role: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="partner">{t('partner')}</SelectItem>
                   <SelectItem value="lender">{t('lender')}</SelectItem>
@@ -755,14 +866,16 @@ export default function NetworkPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>{t('messageOptional')}</Label>
-              <Textarea placeholder={t('addANote')} value={inviteForm.message} onChange={e => setInviteForm(f => ({ ...f, message: e.target.value }))} rows={3} />
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t('messageOptional')}</Label>
+              <Textarea placeholder={t('addANote')} value={inviteForm.message} onChange={e => setInviteForm(f => ({ ...f, message: e.target.value }))} rows={3} className="rounded-lg" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleSendInvite}>{t('sendInvite')}</Button>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="rounded-lg">{t('cancel')}</Button>
+            <Button onClick={handleSendInvite} className="rounded-lg gap-1.5">
+              <Send className="w-3.5 h-3.5" /> {t('sendInvite')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
