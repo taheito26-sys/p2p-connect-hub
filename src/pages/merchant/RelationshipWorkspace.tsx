@@ -74,10 +74,7 @@ export default function RelationshipWorkspace() {
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
-  const [settlementForm, setSettlementForm] = useState({ amount: '', note: '' });
-  const [profitOpen, setProfitOpen] = useState(false);
-  const [profitDealId, setProfitDealId] = useState('');
-  const [profitForm, setProfitForm] = useState({ amount: '', period_key: '', note: '' });
+  const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
 
   const [loading, setLoading] = useState(true);
 
@@ -135,39 +132,34 @@ export default function RelationshipWorkspace() {
 
   const openSettlement = (dealId: string) => {
     setSettleDealId(dealId);
-    setSettlementForm({ amount: '', note: '' });
+    setSettlementForm({ amount: '', profit: '', period_key: new Date().toISOString().substring(0, 7), note: '' });
     setSettlementOpen(true);
   };
 
   const handleSubmitSettlement = async () => {
     if (!settlementForm.amount) return;
     try {
+      // 1. Submit settlement (capital return)
       await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
-      toast.success(t('settlementSubmitted'));
+
+      // 2. Record profit if provided
+      if (settlementForm.profit && parseFloat(settlementForm.profit) > 0) {
+        await api.deals.recordProfit(settleDealId, {
+          amount: parseFloat(settlementForm.profit),
+          period_key: settlementForm.period_key,
+          note: settlementForm.note,
+        });
+      }
+
+      // 3. Auto-close the deal
+      await api.deals.close(settleDealId, { note: 'Auto-closed on settlement submission' });
+
+      toast.success('Settlement submitted — deal will close once counterparty approves');
       setSettlementOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const openProfit = (dealId: string) => {
-    setProfitDealId(dealId);
-    setProfitForm({ amount: '', period_key: new Date().toISOString().substring(0, 7), note: '' });
-    setProfitOpen(true);
-  };
-
-  const handleRecordProfit = async () => {
-    if (!profitForm.amount) return;
-    try {
-      await api.deals.recordProfit(profitDealId, { amount: parseFloat(profitForm.amount), period_key: profitForm.period_key, note: profitForm.note });
-      toast.success(t('profitRecorded'));
-      setProfitOpen(false);
-      await reload();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const handleCloseDeal = async (dealId: string) => {
-    try { await api.deals.close(dealId); toast.success(t('closeRequest')); await reload(); }
-    catch (err: any) { toast.error(err.message); }
   };
 
   const handleApprove = async (approvalId: string) => {
@@ -404,31 +396,9 @@ export default function RelationshipWorkspace() {
                                     <DollarSign className="w-3 h-3 mr-1" /> {t('settle')}
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Return Capital</p>
-                                  <p className="text-muted-foreground">Submit a partial or full capital return to the counterparty. Requires their approval.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openProfit(deal.id)}>
-                                    <Plus className="w-3 h-3 mr-1" /> {t('profit')}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Record Profit</p>
-                                  <p className="text-muted-foreground">Log earned profit for a period. The counterparty must approve the recorded amount.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleCloseDeal(deal.id)}>
-                                    <Lock className="w-3 h-3 mr-1" /> {t('close')}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-                                  <p className="font-semibold mb-0.5">Close Deal</p>
-                                  <p className="text-muted-foreground">Finalize and close this deal. No further settlements or profits can be recorded after closure.</p>
+                                <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                                  <p className="font-semibold mb-0.5">Settle & Close</p>
+                                  <p className="text-muted-foreground">Return capital, record profit, and submit for counterparty approval. Deal closes automatically once approved.</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -599,50 +569,44 @@ export default function RelationshipWorkspace() {
         onStateChange={setTrackerState}
       />
 
-      {/* Settlement Dialog */}
+      {/* Settle & Close Dialog */}
       <Dialog open={settlementOpen} onOpenChange={setSettlementOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{t('submitSettlement')}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Settle & Close Deal</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Submit the capital return and profit. Once the counterparty approves, the deal closes automatically.
+            </p>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>{t('amountUsdtLabel')}</Label>
-              <Input type="number" placeholder="10150" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
+              <Label>{t('amountUsdtLabel')} *</Label>
+              <Input type="number" placeholder="8000" value={settlementForm.amount} onChange={e => setSettlementForm(f => ({ ...f, amount: e.target.value }))} />
+              <p className="text-[11px] text-muted-foreground">Capital amount being returned to the counterparty</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Profit Earned</Label>
+                <Input type="number" placeholder="900" value={settlementForm.profit} onChange={e => setSettlementForm(f => ({ ...f, profit: e.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">Profit amount (optional)</p>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('period')}</Label>
+                <Input type="month" value={settlementForm.period_key} onChange={e => setSettlementForm(f => ({ ...f, period_key: e.target.value }))} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('noteOptional')}</Label>
-              <Textarea placeholder={t('principalReturn')} value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+              <Textarea placeholder="Final settlement note..." value={settlementForm.note} onChange={e => setSettlementForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+            </div>
+            <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <span>This will submit the settlement, record profit (if provided), and request deal closure. The counterparty must approve for the deal to finalize.</span>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettlementOpen(false)}>{t('cancel')}</Button>
             <Button onClick={handleSubmitSettlement}>{t('submitForApproval')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Profit Recording Dialog */}
-      <Dialog open={profitOpen} onOpenChange={setProfitOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{t('recordProfit')}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t('amountUsdtLabel')}</Label>
-                <Input type="number" placeholder="500" value={profitForm.amount} onChange={e => setProfitForm(f => ({ ...f, amount: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('period')}</Label>
-                <Input type="month" value={profitForm.period_key} onChange={e => setProfitForm(f => ({ ...f, period_key: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('noteOptional')}</Label>
-              <Textarea placeholder={t('monthlyProfitShare')} value={profitForm.note} onChange={e => setProfitForm(f => ({ ...f, note: e.target.value }))} rows={2} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProfitOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleRecordProfit}>{t('submitForApproval')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
