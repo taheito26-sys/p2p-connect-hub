@@ -380,45 +380,6 @@ export function CreateDealDialog({
               )}
             </div>
 
-            {/* ─── SUPPLIER SELECTOR (MANDATORY) ─── */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1">
-                📦 {t('dealSupplier')} <span className="text-xs text-destructive font-bold">*</span>
-              </Label>
-              <div className="relative">
-                <div className={`flex items-center border rounded-md bg-background ${validationErrors.includes(t('dealSupplierRequired')) ? 'border-destructive' : 'border-input'}`}>
-                  <Search className="w-3.5 h-3.5 ml-2.5 text-muted-foreground shrink-0" />
-                  <input
-                    className="flex-1 h-9 px-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder={t('searchSupplierPlaceholder')}
-                    value={supplierSearch}
-                    onChange={e => { setSupplierSearch(e.target.value); setSupplierDropOpen(true); }}
-                    onFocus={() => setSupplierDropOpen(true)}
-                  />
-                  {selectedSupplierName && (
-                    <Badge variant="secondary" className="mr-2 text-xs shrink-0">{selectedSupplierName}</Badge>
-                  )}
-                </div>
-                {supplierDropOpen && filteredSuppliers.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto border border-border rounded-md bg-popover shadow-md">
-                    {filteredSuppliers.map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${selectedSupplierName === s ? 'bg-accent/50' : ''}`}
-                        onClick={() => { setSelectedSupplierName(s); setSupplierSearch(''); setSupplierDropOpen(false); setValidationErrors(prev => prev.filter(e => e !== t('dealSupplierRequired'))); }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {validationErrors.includes(t('dealSupplierRequired')) && (
-                <p className="text-xs text-destructive">{t('dealSupplierRequired')}</p>
-              )}
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>{t('amount')} <span className="text-xs text-destructive font-bold">*</span></Label>
