@@ -532,13 +532,10 @@ export function CreateDealDialog({
                   {form.due_date && <span>{t('dueDate')}: <strong className="text-foreground">{form.due_date}</strong></span>}
                   {form.expected_return && <span>{t('expectedReturn')}: <strong className="text-foreground">{Number(form.expected_return).toLocaleString()} {form.currency}</strong></span>}
                 </div>
-                {/* Customer/Supplier summary in review (always shown, both mandatory) */}
+                {/* Customer summary in review */}
                 <div className="flex flex-wrap gap-3 text-xs mt-2 pt-2 border-t border-border/50">
                   <span className="flex items-center gap-1">
                     👤 {t('dealLinkedCustomer')}: <strong className="text-foreground">{selectedCustomer?.name}</strong>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    📦 {t('dealLinkedSupplier')}: <strong className="text-foreground">{selectedSupplierName}</strong>
                   </span>
                 </div>
               </CardContent>
