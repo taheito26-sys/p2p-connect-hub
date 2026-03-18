@@ -80,9 +80,11 @@ const App = () => (
               {/* Supporting */}
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/deals" element={<DealsPage />} />
+              <Route path="/invitations" element={<InvitationsPage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/relationships" element={<RelationshipsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/vault" element={<VaultPage />} />
-              <Route path="/audit" element={<AuditPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
             </Route>
