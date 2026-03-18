@@ -411,6 +411,7 @@ export default function OrdersPage() {
                         <tr style={{ background: 'color-mix(in srgb, var(--bg) 85%, black 15%)' }}>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('merchantLabel')}</th>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('type')}</th>
+                          <th style={{ textAlign: 'center', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Share</th>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Status</th>
                           <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('amount')}</th>
                           <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>P&amp;L</th>
