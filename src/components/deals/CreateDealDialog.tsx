@@ -30,6 +30,8 @@ interface Props {
   trackerState?: TrackerState;
   /** Callback to apply state changes (stock reservation) */
   onStateChange?: (next: TrackerState) => void;
+  /** Whether creating a deal should also reserve/add a tracker trade */
+  reserveTrackerTradeOnCreate?: boolean;
 }
 
 const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
@@ -40,7 +42,18 @@ function generateDealLabel(dealType: DealType, customerName: string, supplierNam
   return `${cfg.label} · ${customerName} · ${supplierName}`;
 }
 
-export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpartyName, onCreated, customers = [], suppliers = [], trackerState, onStateChange }: Props) {
+export function CreateDealDialog({
+  open,
+  onOpenChange,
+  relationshipId,
+  counterpartyName,
+  onCreated,
+  customers = [],
+  suppliers = [],
+  trackerState,
+  onStateChange,
+  reserveTrackerTradeOnCreate = true,
+}: Props) {
   const t = useT();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<DealType | null>(null);
@@ -200,7 +213,7 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
       });
 
       // ── Stock reservation: create a linked trade entry in Orders ──
-      if (trackerState && onStateChange && form.currency === 'USDT' && dealAmountUSDT > 0) {
+      if (reserveTrackerTradeOnCreate && trackerState && onStateChange && form.currency === 'USDT' && dealAmountUSDT > 0) {
         const dealId = dealResult.deal?.id || '';
         // Ensure customer exists in tracker state
         let nextCustomers = trackerState.customers;
@@ -243,6 +256,8 @@ export function CreateDealDialog({ open, onOpenChange, relationshipId, counterpa
         };
         onStateChange(nextState);
         toast.success(t('dealCreatedAsOrder'));
+      } else if (reserveTrackerTradeOnCreate) {
+        toast.success(t('dealCreated'));
       } else {
         toast.success(t('dealCreated'));
       }

@@ -143,9 +143,7 @@ export default function RelationshipWorkspace() {
   const isPartnershipSettle = settlingDeal?.deal_type === 'partnership';
 
   const handleSubmitSettlement = async () => {
-    // For partnership deals, amount is not required (capital stays with borrower)
-    if (!isPartnershipSettle && !settlementForm.amount) return;
-    if (submittingSettlement || settlementSubmitLock.current) return;
+    if (!settlementForm.amount || submittingSettlement || settlementSubmitLock.current) return;
     settlementSubmitLock.current = true;
     setSubmittingSettlement(true);
     try {
