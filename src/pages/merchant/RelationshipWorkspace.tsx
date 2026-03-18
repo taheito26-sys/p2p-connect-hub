@@ -66,11 +66,13 @@ export default function RelationshipWorkspace() {
   const [msgInput, setMsgInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const settlementSubmitLock = useRef(false);
 
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [settleDealId, setSettleDealId] = useState('');
   const [settlementForm, setSettlementForm] = useState({ amount: '', profit: '', period_key: '', note: '' });
+  const [submittingSettlement, setSubmittingSettlement] = useState(false);
   const [rejectDealOpen, setRejectDealOpen] = useState(false);
   const [rejectDealId, setRejectDealId] = useState('');
   const [rejectDealData, setRejectDealData] = useState<MerchantDeal | null>(null);
@@ -132,11 +134,15 @@ export default function RelationshipWorkspace() {
   const openSettlement = (dealId: string) => {
     setSettleDealId(dealId);
     setSettlementForm({ amount: '', profit: '', period_key: new Date().toISOString().substring(0, 7), note: '' });
+    settlementSubmitLock.current = false;
+    setSubmittingSettlement(false);
     setSettlementOpen(true);
   };
 
   const handleSubmitSettlement = async () => {
-    if (!settlementForm.amount) return;
+    if (!settlementForm.amount || submittingSettlement || settlementSubmitLock.current) return;
+    settlementSubmitLock.current = true;
+    setSubmittingSettlement(true);
     try {
       await api.deals.submitSettlement(settleDealId, { amount: parseFloat(settlementForm.amount), note: settlementForm.note });
       if (settlementForm.profit && parseFloat(settlementForm.profit) > 0) {
@@ -147,6 +153,10 @@ export default function RelationshipWorkspace() {
       setSettlementOpen(false);
       await reload();
     } catch (err: any) { toast.error(err.message); }
+    finally {
+      settlementSubmitLock.current = false;
+      setSubmittingSettlement(false);
+    }
   };
 
   const handleApprove = async (approvalId: string) => {
@@ -441,8 +451,10 @@ export default function RelationshipWorkspace() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettlementOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleSubmitSettlement}>{t('submitForApproval')}</Button>
+            <Button variant="outline" onClick={() => setSettlementOpen(false)} disabled={submittingSettlement}>{t('cancel')}</Button>
+            <Button onClick={handleSubmitSettlement} disabled={submittingSettlement}>
+              {submittingSettlement ? 'Submitting...' : t('submitForApproval')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
