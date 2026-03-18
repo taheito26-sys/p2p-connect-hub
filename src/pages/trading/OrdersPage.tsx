@@ -118,18 +118,7 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  const merchantDealsForPanel = useMemo(
-    () => allMerchantDeals.filter(d => ['active', 'due', 'overdue', 'draft'].includes(d.status)),
-    [allMerchantDeals],
-  );
-  const creatorMerchantDeals = useMemo(
-    () => merchantDealsForPanel.filter(d => d.created_by === userId),
-    [merchantDealsForPanel, userId],
-  );
-  const partnerMerchantDeals = useMemo(
-    () => merchantDealsForPanel.filter(d => d.created_by !== userId),
-    [merchantDealsForPanel, userId],
-  );
+  const merchantDealsForPanel = allMerchantDeals;
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
