@@ -404,12 +404,11 @@ export default function OrdersPage() {
                 <span className="pill">{allMerchantDeals.filter(d => ['active', 'due'].includes(d.status)).length} {t('activeDeals')}</span>
               </div>
               <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {partnerMerchantDeals.length > 0 && (
+                {merchantDealsForPanel.length > 0 ? (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, overflow: 'hidden' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: 'color-mix(in srgb, var(--bg) 85%, black 15%)' }}>
-                          <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('date')}</th>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('merchantLabel')}</th>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('type')}</th>
                           <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Status</th>
@@ -420,19 +419,28 @@ export default function OrdersPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {partnerMerchantDeals.map(deal => {
+                        {merchantDealsForPanel.map(deal => {
                           const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                           const rel = relationships.find(r => r.id === deal.relationship_id);
                           const roi = deal.realized_pnl != null && deal.amount > 0 ? (deal.realized_pnl / deal.amount) * 100 : null;
                           const workspacePath = rel ? `/network/relationships/${rel.id}` : '/deals';
+                          const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
                           return (
                             <tr key={deal.id} style={{ borderTop: '1px solid color-mix(in srgb, var(--line) 85%, transparent)' }}>
-                              <td style={{ padding: '10px', fontSize: 11 }}>{deal.issue_date}</td>
-                              <td style={{ padding: '10px', fontSize: 11, fontWeight: 700 }}>{rel?.counterparty?.display_name || '—'}</td>
-                              <td style={{ padding: '10px', fontSize: 11 }}>
+                              <td style={{ padding: '10px', fontSize: 11, fontWeight: 700 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span>{cfg?.icon}</span>
+                                  <span>{rel?.counterparty?.display_name || '—'}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '10px', fontSize: 11 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                   <span>{cfg?.label || deal.deal_type}</span>
+                                  {cfg?.hasCounterpartyShare && (
+                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                                      {t('capitalShared')}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td style={{ padding: '10px', fontSize: 11 }}><span className="pill" style={{ fontSize: 8 }}>{deal.status}</span></td>
@@ -444,9 +452,12 @@ export default function OrdersPage() {
                                 {roi != null ? `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%` : '—'}
                               </td>
                               <td style={{ padding: '10px', textAlign: 'right' }}>
-                                <button className="rowBtn" type="button" onClick={() => navigate(workspacePath)}>
-                                  {t('viewInWorkspace')}
-                                </button>
+                                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  {linkedOrderCount > 0 && <span style={{ fontSize: 9, color: 'var(--muted)' }}>{linkedOrderCount} {t('orders')}</span>}
+                                  <button className="rowBtn" type="button" onClick={() => navigate(workspacePath)}>
+                                    {t('viewInWorkspace')}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -454,36 +465,7 @@ export default function OrdersPage() {
                       </tbody>
                     </table>
                   </div>
-                )}
-                {creatorMerchantDeals.map(deal => {
-                  const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
-                  const rel = relationships.find(r => r.id === deal.relationship_id);
-                  const linkedOrderCount = state.trades.filter(tr => tr.linkedDealId === deal.id).length;
-                  const custName = deal.metadata?.customer_name as string | undefined;
-                  const suppName = deal.metadata?.supplier_name as string | undefined;
-                  return (
-                    <div key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 5%, var(--bg))', border: '1px solid color-mix(in srgb, var(--brand) 15%, var(--line))', borderRadius: 6, padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span>{cfg?.icon}</span>
-                        <span style={{ fontWeight: 700, fontSize: 11 }}>{deal.title}</span>
-                        <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
-                        {cfg?.hasCounterpartyShare && (
-                          <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                            {t('capitalShared')}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 9, color: 'var(--muted)' }}>
-                        <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>${deal.amount.toLocaleString()} {deal.currency}</strong></span>
-                        {rel?.counterparty?.display_name && <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--t1)' }}>{rel.counterparty.display_name}</strong></span>}
-                        {custName && <span>👤 {custName}</span>}
-                        {suppName && <span>📦 {suppName}</span>}
-                        <span>{t('orders')}: <strong style={{ color: 'var(--t1)' }}>{linkedOrderCount}</strong></span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {merchantDealsForPanel.length === 0 && (
+                ) : (
                   <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: 8 }}>{t('noMerchantDeals')}</div>
                 )}
               </div>

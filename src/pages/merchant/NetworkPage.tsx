@@ -238,23 +238,74 @@ export default function NetworkPage() {
                     </div>
                   </div>
                 ))}
-                {pendingApprovals.map(a => (
-                  <div key={a.id} className="px-3 py-2.5 border-b border-border/50 last:border-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CheckSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium capitalize truncate">{a.type.replace(/_/g, ' ')}</p>
-                          <p className="text-[11px] text-muted-foreground">{a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
+                {/* Group approvals by deal — show one consolidated entry per deal */}
+                {(() => {
+                  const dealGroups = new Map<string, MerchantApproval[]>();
+                  const standalone: MerchantApproval[] = [];
+                  pendingApprovals.forEach(a => {
+                    const dealId = a.target_entity_type === 'deal' && a.target_entity_id ? a.target_entity_id : null;
+                    if (dealId) {
+                      if (!dealGroups.has(dealId)) dealGroups.set(dealId, []);
+                      dealGroups.get(dealId)!.push(a);
+                    } else {
+                      standalone.push(a);
+                    }
+                  });
+                  const entries: React.ReactNode[] = [];
+                  dealGroups.forEach((group, dealId) => {
+                    const primary = group[0];
+                    const deal = allDeals.find(d => d.id === dealId);
+                    const rel = deal ? rels.find(r => r.id === deal.relationship_id) : null;
+                    const cfg = deal ? DEAL_TYPE_CONFIGS[deal.deal_type] : null;
+                    const label = deal
+                      ? `${cfg?.label || deal.deal_type} · ${rel?.counterparty?.display_name || ''}`
+                      : primary.type.replace(/_/g, ' ');
+                    const details = group.map(a => {
+                      const t = a.type.replace(/_/g, ' ');
+                      const amt = a.proposed_payload?.amount;
+                      return amt != null ? `${t} · $${Number(amt).toLocaleString()}` : t;
+                    });
+                    entries.push(
+                      <div key={`deal-${dealId}`} className="px-3 py-2.5 border-b border-border/50 last:border-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-medium truncate">{label}</p>
+                              {details.map((d, i) => (
+                                <p key={i} className="text-[11px] text-muted-foreground">⚠ {d}</p>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={async () => { for (const a of group) await handleApproveApproval(a.id); setBellOpen(false); }} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"><Check className="w-3 h-3" /></button>
+                            <button onClick={async () => { for (const a of group) await handleRejectApproval(a.id); setBellOpen(false); }} className="px-2 py-1 rounded-md text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => { handleApproveApproval(a.id); setBellOpen(false); }} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"><Check className="w-3 h-3" /></button>
-                        <button onClick={() => { handleRejectApproval(a.id); setBellOpen(false); }} className="px-2 py-1 rounded-md text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                    );
+                  });
+                  standalone.forEach(a => {
+                    entries.push(
+                      <div key={a.id} className="px-3 py-2.5 border-b border-border/50 last:border-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CheckSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-medium capitalize truncate">{a.type.replace(/_/g, ' ')}</p>
+                              <p className="text-[11px] text-muted-foreground">{a.target_entity_type} · {new Date(a.submitted_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => { handleApproveApproval(a.id); setBellOpen(false); }} className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"><Check className="w-3 h-3" /></button>
+                            <button onClick={() => { handleRejectApproval(a.id); setBellOpen(false); }} className="px-2 py-1 rounded-md text-red-500 hover:bg-red-500/10 transition-colors"><X className="w-3 h-3" /></button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  });
+                  return entries;
+                })()}
                 {totalAlerts === 0 && (
                   <div className="text-center py-6 text-sm text-muted-foreground">No pending actions</div>
                 )}
