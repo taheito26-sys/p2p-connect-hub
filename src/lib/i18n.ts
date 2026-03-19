@@ -642,6 +642,16 @@ const translations = {
   batchNotes: { en: 'Notes', ar: 'ملاحظات' },
   batchLinkedDeals: { en: 'Linked Merchant Deals', ar: 'الصفقات التجارية المرتبطة' },
   noLinkedDeals: { en: 'No linked merchant deals', ar: 'لا توجد صفقات تجارية مرتبطة' },
+
+  // ── Orders Sub-tabs ──
+  myOrders: { en: 'My Orders', ar: 'طلباتي' },
+  incomingOrders: { en: 'Incoming Orders', ar: 'الطلبات الواردة' },
+  outgoingOrders: { en: 'Outgoing Orders', ar: 'الطلبات الصادرة' },
+  partnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
+  count: { en: 'Count', ar: 'العدد' },
+  selectDealToLink: { en: 'Select a deal to view linked orders', ar: 'اختر صفقة لعرض الطلبات المرتبطة' },
+  createNewDealShortcut: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
+  noPnlYet: { en: 'No P&L yet', ar: 'لا أرباح/خسائر بعد' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
