@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, CheckCircle, Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
-import { DEAL_TYPE_CONFIGS, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
+import { DEAL_TYPE_CONFIGS, SUPPORTED_DEAL_TYPES, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
 import { useT } from '@/lib/i18n';
 import type { DealType } from '@/types/domain';
 import type { Customer, TrackerState, Trade, Batch } from '@/lib/tracker-helpers';
@@ -42,7 +42,7 @@ interface Props {
   prefillCustomerName?: string;
 }
 
-const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
+const dealTypeOrder: DealType[] = SUPPORTED_DEAL_TYPES;
 
 /** Generate a structured deal label from deal type + customer */
 function generateDealLabel(dealType: DealType, customerName: string): string {
@@ -117,8 +117,7 @@ export function CreateDealDialog({
     if (!config?.hasCounterpartyShare) return 0;
     const cpShare = Number(
       selectedType === 'arbitrage' ? form.counterparty_share_pct :
-      selectedType === 'partnership' ? form.partner_ratio :
-      selectedType === 'capital_placement' ? form.pool_owner_share_pct : 0
+      selectedType === 'partnership' ? form.partner_ratio : 0
     );
     return 100 - cpShare;
   }, [selectedType, form, config]);
@@ -198,8 +197,6 @@ export function CreateDealDialog({
         } else if (selectedType === 'partnership') {
           metadata.partner_ratio = Number(form.partner_ratio);
           metadata.merchant_ratio = 100 - Number(form.partner_ratio);
-        } else if (selectedType === 'capital_placement') {
-          metadata.pool_owner_share_pct = Number(form.pool_owner_share_pct);
         }
         metadata.settlement_period = form.settlement_period;
       }
@@ -466,18 +463,6 @@ export function CreateDealDialog({
               </div>
             )}
 
-            {config.hasCounterpartyShare && selectedType === 'capital_placement' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>{t('poolOwnerShare')} ({counterpartyName})</Label>
-                  <Input type="number" min="1" max="99" value={form.pool_owner_share_pct} onChange={e => setForm(f => ({ ...f, pool_owner_share_pct: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('yourSharePct')}</Label>
-                  <Input disabled value={String(100 - Number(form.pool_owner_share_pct))} />
-                </div>
-              </div>
-            )}
 
             {config.hasCounterpartyShare && (
               <div className="space-y-2">

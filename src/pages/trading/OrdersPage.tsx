@@ -10,7 +10,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
-import { DEAL_TEMPLATES, buildTemplateMetadata, generateTemplateTitle, getTemplateRatioLabel, type DealTemplate } from '@/lib/deal-templates';
+import { AGREEMENT_TEMPLATES, buildTemplateMetadata, generateTemplateTitle, getTemplateRatioLabel, getAgreementFamilyLabel, getDealShares, type AgreementTemplate } from '@/lib/deal-templates';
+import { isSupportedDealType } from '@/types/domain';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -102,16 +103,12 @@ export default function OrdersPage() {
     }
   }, []);
 
-  const applyTemplate = useCallback(async (template: DealTemplate) => {
+  const applyTemplate = useCallback(async (template: AgreementTemplate) => {
     if (!linkedRelId) return;
     const rel = relationships.find(r => r.id === linkedRelId);
     if (!rel) return;
 
-    // Validate required fields for advance template
-    if (template.requiresDueDate && !templateDueDate) {
-      setSaleMessage(`${t('fixFields')} ${t('dueDate')}`);
-      return;
-    }
+    // No more advance templates, so no due date validation needed
 
     const customerName = buyerName.trim() || t('buyer');
     const amount = Number(saleAmount) || 0;
@@ -140,8 +137,6 @@ export default function OrdersPage() {
         title,
         amount,
         currency,
-        due_date: templateDueDate || undefined,
-        expected_return: templateExpectedReturn ? parseFloat(templateExpectedReturn) : undefined,
         metadata,
       });
 
@@ -164,7 +159,7 @@ export default function OrdersPage() {
     } finally {
       setApplyingTemplate(false);
     }
-  }, [linkedRelId, relationships, buyerName, saleAmount, saleMode, templateDueDate, templateExpectedReturn, t, reloadMerchantData]);
+  }, [linkedRelId, relationships, buyerName, saleAmount, saleMode, t, reloadMerchantData]);
 
   useEffect(() => {
     reloadMerchantData();
@@ -175,19 +170,7 @@ export default function OrdersPage() {
     api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
   }, [linkedRelId]);
 
-  useEffect(() => {
-    if (!linkedDealId || !saleAmount) { setAllocationPreview(null); return; }
-    const deal = relDeals.find(d => d.id === linkedDealId);
-    const rel = relationships.find(r => r.id === linkedRelId);
-    if (!deal || !rel) { setAllocationPreview(null); return; }
-    const raw = Number(saleAmount);
-    const sell = Number(saleSell);
-    const orderAmount = saleMode === 'USDT' ? raw * sell : raw;
-    const alloc = calculateAllocation(deal, orderAmount, 'QAR');
-    if (alloc) {
-      setAllocationPreview({ ...alloc, counterpartyName: rel.counterparty?.display_name || t('buyer'), dealTitle: deal.title });
-    } else { setAllocationPreview(null); }
-  }, [linkedDealId, saleAmount, saleSell, saleMode, relDeals, relationships, linkedRelId]);
+  // Allocation preview is computed after salePreview (see below)
 
   const applyState = (next: TrackerState) => {
     setState(next);
@@ -251,6 +234,44 @@ export default function OrdersPage() {
     const net = calc?.ok ? rev - cost : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
   }, [saleAmount, saleDate, saleMode, saleSell, state.batches, state.trades]);
+
+  // Compute allocation preview with correct base (net profit vs sale economics)
+  const allocationWithBase = useMemo(() => {
+    if (!linkedDealId || !saleAmount) return null;
+    const deal = relDeals.find(d => d.id === linkedDealId);
+    const rel = relationships.find(r => r.id === linkedRelId);
+    if (!deal || !rel) return null;
+    const raw = Number(saleAmount);
+    const sell = Number(saleSell);
+    const orderAmount = saleMode === 'USDT' ? raw * sell : raw;
+    const netProfit = salePreview?.net != null && Number.isFinite(salePreview.net) ? salePreview.net : undefined;
+    const alloc = calculateAllocation(deal, orderAmount, 'QAR', netProfit);
+    if (alloc) {
+      return {
+        ...alloc,
+        counterpartyName: rel.counterparty?.display_name || t('partner'),
+        dealTitle: deal.title,
+        orderAmount,
+        netProfit: netProfit ?? null,
+        fifoCost: salePreview?.cost != null && Number.isFinite(salePreview.cost) ? salePreview.cost : null,
+        revenue: salePreview?.revenue ?? orderAmount,
+      };
+    }
+    return null;
+  }, [linkedDealId, saleAmount, saleSell, saleMode, relDeals, relationships, linkedRelId, salePreview]);
+
+  useEffect(() => {
+    if (allocationWithBase) {
+      setAllocationPreview({
+        counterpartyAmount: allocationWithBase.counterpartyAmount,
+        merchantAmount: allocationWithBase.merchantAmount,
+        counterpartyName: allocationWithBase.counterpartyName,
+        dealTitle: allocationWithBase.dealTitle,
+      });
+    } else {
+      setAllocationPreview(null);
+    }
+  }, [allocationWithBase]);
 
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
@@ -387,10 +408,8 @@ export default function OrdersPage() {
   };
 
   const getDealSharePct = (deal: MerchantDeal): number | null => {
-    if (deal.deal_type === 'arbitrage') return (deal.metadata?.counterparty_share_pct as number) ?? null;
-    if (deal.deal_type === 'partnership') return (deal.metadata?.partner_ratio as number) ?? null;
-    if (deal.deal_type === 'capital_placement') return (deal.metadata?.pool_owner_share_pct as number) ?? null;
-    return null;
+    const { partnerPct } = getDealShares(deal);
+    return partnerPct;
   };
 
   const openAdjustDeal = (dealId: string) => {
@@ -416,8 +435,6 @@ export default function OrdersPage() {
       } else if (deal.deal_type === 'partnership') {
         updatedMetadata.partner_ratio = newPct;
         updatedMetadata.merchant_ratio = 100 - newPct;
-      } else if (deal.deal_type === 'capital_placement') {
-        updatedMetadata.pool_owner_share_pct = newPct;
       }
       await api.deals.update(adjustingDealId, { metadata: updatedMetadata });
       await reloadMerchantData();
@@ -611,7 +628,7 @@ export default function OrdersPage() {
                                 {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
                                 {isMerchantOrder && (
                                   <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)', fontWeight: 700, letterSpacing: '.3px' }}>
-                                    {t('merchantOrder')}
+                                     {t('partnerAgreement')}
                                   </span>
                                 )}
                               </div>
@@ -621,11 +638,14 @@ export default function OrdersPage() {
                                   {linkedRel?.counterparty?.display_name && (
                                     <span className="pill" style={{ fontSize: 8 }}>🤝 {linkedRel.counterparty.display_name}</span>
                                   )}
-                                  {dealCfg?.hasCounterpartyShare && (
-                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                                      {t('capitalShared')}
-                                    </span>
-                                  )}
+                                  {dealCfg?.hasCounterpartyShare && (() => {
+                                    const { partnerPct, allocationBase } = getDealShares(linkedDeal!);
+                                    return (
+                                      <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                                        {allocationBase === 'net_profit' ? t('netProfitSplit') : t('saleLinkedSplit')} {partnerPct != null ? `${partnerPct}%` : ''}
+                                      </span>
+                                    );
+                                  })()}
                                   {dealCustomerName && <span style={{ fontSize: 8 }}>👤 {dealCustomerName}</span>}
                                   {dealSupplierName && <span style={{ fontSize: 8 }}>📦 {dealSupplierName}</span>}
                                 </div>
@@ -1067,9 +1087,9 @@ export default function OrdersPage() {
                             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('quickAgreements')}</div>
                             <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 8 }}>{t('quickAgreementsDesc')}</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {DEAL_TEMPLATES.map(tmpl => {
+                              {AGREEMENT_TEMPLATES.map(tmpl => {
                                 const isSelected = selectedTemplateId === tmpl.id;
-                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : tmpl.accent === 'good' ? 'var(--good)' : tmpl.accent === 'bad' ? 'var(--bad)' : 'var(--warn)';
+                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
                                 return (
                                   <div
                                     key={tmpl.id}
@@ -1104,25 +1124,14 @@ export default function OrdersPage() {
                                     {isSelected && (
                                       <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid color-mix(in srgb, ${accentVar} 20%, transparent)` }}>
                                         {/* Ratio preview */}
-                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 6 }}>
+                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
                                           {getTemplateRatioLabel(tmpl, t.lang)}
                                         </div>
 
-                                        {/* Due date for advance templates */}
-                                        {tmpl.requiresDueDate && (
-                                          <div className="field2" style={{ marginBottom: 6 }}>
-                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateDueDate')}</div>
-                                            <div className="inputBox"><input type="date" value={templateDueDate} onChange={e => setTemplateDueDate(e.target.value)} /></div>
-                                          </div>
-                                        )}
-
-                                        {/* Expected return for lending */}
-                                        {tmpl.dealType === 'lending' && (
-                                          <div className="field2" style={{ marginBottom: 6 }}>
-                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateExpectedReturn')}</div>
-                                            <div className="inputBox"><input type="number" inputMode="decimal" placeholder="0" value={templateExpectedReturn} onChange={e => setTemplateExpectedReturn(e.target.value)} /></div>
-                                          </div>
-                                        )}
+                                        {/* Helper text */}
+                                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4, fontStyle: 'italic' }}>
+                                          {tmpl.helperText[t.lang]}
+                                        </div>
 
                                         {/* Amount note */}
                                         {saleAmount && (
@@ -1179,12 +1188,20 @@ export default function OrdersPage() {
                       )}
                     </>
                   )}
-                  {allocationPreview && (
+                  {allocationWithBase && (
                     <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('allocationPreview')}</div>
-                      <div className="prev-row"><span className="muted">{t('deal')}</span><strong style={{ fontSize: 10 }}>{allocationPreview.dealTitle}</strong></div>
-                      <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName}{t('counterpartyShare')}</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
-                      <div className="prev-row"><span className="muted">{t('yourShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
+                      <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationWithBase.revenue)}</strong></div>
+                      {allocationWithBase.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationWithBase.fifoCost)}</strong></div>}
+                      {allocationWithBase.allocationBase === 'net_profit' && (
+                        <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: (allocationWithBase.netProfit ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationWithBase.netProfit != null ? `${allocationWithBase.netProfit >= 0 ? '+' : ''}${fmtQ(allocationWithBase.netProfit)}` : '—'}</strong></div>
+                      )}
+                      <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 4, marginTop: 2 }}>
+                        <span className="muted">{t('allocationBaseLabel')}</span>
+                        <strong style={{ fontSize: 9 }}>{allocationWithBase.allocationBase === 'net_profit' ? t('netProfitBase') : t('saleEconomicsBase')}</strong>
+                      </div>
+                      <div className="prev-row"><span className="muted">{t('estPartnerShare')} ({allocationWithBase.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationWithBase.counterpartyAmount)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('estMerchantShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationWithBase.merchantAmount)}</strong></div>
                       <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('autoApprovalNote')}</div>
                     </div>
                   )}
