@@ -435,7 +435,48 @@ export default function OrdersPage() {
     toast.success(t('tradeCancelled'));
   };
 
-  const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
+  // ─── Merchant Deal Edit/Delete Handlers ───────────────────────────
+  const openDealEdit = (deal: MerchantDeal) => {
+    setEditingDealId(deal.id);
+    setEditDealTitle(deal.title || '');
+    setEditDealAmount(String(deal.amount || 0));
+    setEditDealQty(String((deal.metadata as any)?.quantity ?? deal.amount ?? ''));
+    setEditDealSell(String((deal.metadata as any)?.sell_price ?? ''));
+    setEditDealFee(String((deal.metadata as any)?.fee ?? '0'));
+    setEditDealNote(String((deal.metadata as any)?.note ?? ''));
+  };
+
+  const saveDealEdit = async () => {
+    if (!editingDealId) return;
+    const qty = Number(editDealQty);
+    const sell = Number(editDealSell);
+    const fee = Number(editDealFee) || 0;
+    if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
+    try {
+      const deal = allMerchantDeals.find(d => d.id === editingDealId);
+      const existingMeta = (deal?.metadata || {}) as Record<string, unknown>;
+      await api.deals.update(editingDealId, {
+        title: editDealTitle,
+        amount: qty * sell,
+        metadata: { ...existingMeta, quantity: qty, sell_price: sell, fee, note: editDealNote },
+      });
+      await reloadMerchantData();
+      setEditingDealId(null);
+      toast.success(t('saveCorrection'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const deleteDeal = async (dealId: string) => {
+    try {
+      await api.deals.update(dealId, { status: 'cancelled' });
+      await reloadMerchantData();
+      setDeleteDealConfirm(null);
+      setEditingDealId(null);
+      toast.success(t('dealCancelled'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
     const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
