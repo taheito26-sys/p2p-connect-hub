@@ -725,10 +725,12 @@ export default function OrdersPage() {
                     <thead>
                       <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                         <th style={thStyle()}>{t('date')}</th>
-                        <th style={thStyle()}>{t('partner')}</th>
-                        <th style={thStyle()}>{t('agreementType')}</th>
-                        <th style={thStyle(true)}>{t('amount')}</th>
-                        <th style={thStyle()}>{t('status')}</th>
+                        <th style={thStyle()}>{t('merchantDealType')}</th>
+                        <th style={thStyle(true)}>{t('qty')}</th>
+                        <th style={thStyle(true)}>{t('sell')}</th>
+                        <th style={thStyle(true)}>{t('volume')}</th>
+                        <th style={thStyle(true)}>{t('net')}</th>
+                        <th style={thStyle()}>{t('marginLabel')}</th>
                         <th style={thStyle()}>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -737,17 +739,19 @@ export default function OrdersPage() {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const counterpartyName = rel?.counterparty?.display_name || '—';
                         const isDraft = deal.status === 'draft';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
+                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
+                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const dealVol = dealQty * (dealSell || 1);
+                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
+                        const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
 
                         return (
                           <tr key={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 3%, transparent)' }}>
                             <td style={tdStyle()}>
                               <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
-                            </td>
-                            <td style={tdStyle()}>
-                              <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
                             </td>
                             <td style={tdStyle()}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -757,13 +761,15 @@ export default function OrdersPage() {
                                 {isLegacy && <span className="pill" style={{ fontSize: 7, color: 'var(--muted)' }}>{t('legacyAgreement')}</span>}
                               </span>
                             </td>
-                            <td className="mono" style={tdStyle(true)}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                            <td className="mono" style={tdStyle(true)}>{fmtU(dealQty)}</td>
+                            <td className="mono" style={tdStyle(true)}>{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
+                            <td className="mono" style={tdStyle(true)}>{fmtQ(dealVol)}</td>
+                            <td className="mono" style={{ ...tdStyle(true), color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                              {dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                            </td>
                             <td style={tdStyle()}>
-                              {isDraft ? (
-                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)', fontWeight: 700 }}>{t('pendingApprovalStatus')}</span>
-                              ) : (
-                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700 }}>{deal.status}</span>
-                              )}
+                              <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(Math.abs(dealMargin) * 100).toFixed(0)}%` }} /></div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}%` : '—'}</div>
                             </td>
                             <td style={tdStyle()}>
                               <div className="actionsRow">
@@ -825,13 +831,12 @@ export default function OrdersPage() {
                     <thead>
                       <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                         <th style={thStyle()}>{t('date')}</th>
-                        <th style={thStyle()}>{t('partner')}</th>
-                        <th style={thStyle()}>{t('agreementType')}</th>
+                        <th style={thStyle()}>{t('merchantDealType')}</th>
                         <th style={thStyle(true)}>{t('qty')}</th>
                         <th style={thStyle(true)}>{t('sell')}</th>
                         <th style={thStyle(true)}>{t('volume')}</th>
                         <th style={thStyle(true)}>{t('net')}</th>
-                        <th style={thStyle()}>{t('status')}</th>
+                        <th style={thStyle()}>{t('marginLabel')}</th>
                         <th style={thStyle()}>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -841,16 +846,14 @@ export default function OrdersPage() {
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
                         const net = ok ? c!.netQAR : NaN;
-                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-                        const counterpartyName = linkedRel?.counterparty?.display_name || '—';
+                        const margin = ok && rev > 0 ? net / rev : NaN;
+                        const pct = Number.isFinite(margin) ? Math.min(Math.abs(margin), 1) : 0;
                         const familyLabel = tr.agreementFamily === 'profit_share' ? t('profitShareFamily') : tr.agreementFamily === 'sales_deal' ? t('salesDealFamily') : '—';
+                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
                         return (
                           <tr key={tr.id} style={{ background: 'color-mix(in srgb, var(--good) 3%, transparent)' }}>
                             <td style={tdStyle()}>
                               <span className="mono">{fmtDate(tr.ts)}</span>
-                            </td>
-                            <td style={tdStyle()}>
-                              <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
                             </td>
                             <td style={tdStyle()}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -866,7 +869,8 @@ export default function OrdersPage() {
                               {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
                             </td>
                             <td style={tdStyle()}>
-                              {getApprovalStatusBadge(tr.approvalStatus)}
+                              <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}%` : '—'}</div>
                             </td>
                             <td style={tdStyle()}>
                               <div className="actionsRow">
