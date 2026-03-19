@@ -19,6 +19,29 @@ import '@/styles/tracker.css';
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  return 'Unknown error';
+}
+function formatDealAmount(amount: number | null | undefined) {
+  return Number.isFinite(amount) ? Number(amount).toLocaleString() : '—';
+}
+function formatDealCurrency(currency: string | null | undefined) {
+  return currency?.trim() || '—';
+}
+function normalizeRelationships(input: unknown): MerchantRelationship[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((item): item is MerchantRelationship => !!item && typeof item === 'object');
+}
+function normalizeDeals(input: unknown): MerchantDeal[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((item): item is MerchantDeal => !!item && typeof item === 'object')
+    .map((deal) => ({
+      ...deal,
+      metadata: deal.metadata && typeof deal.metadata === 'object' ? deal.metadata : {},
+    }));
+}
 
 export default function OrdersPage() {
   const { settings } = useTheme();
@@ -88,8 +111,8 @@ export default function OrdersPage() {
         api.relationships.list(),
         api.deals.list(),
       ]);
-      setRelationships(relationshipsRes.relationships);
-      setAllMerchantDeals(dealsRes.deals);
+      setRelationships(normalizeRelationships(relationshipsRes.relationships));
+      setAllMerchantDeals(normalizeDeals(dealsRes.deals));
     } catch {
       // keep tracker usable even if merchant data refresh fails
     }
@@ -101,7 +124,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!linkedRelId) { setRelDeals([]); setLinkedDealId(''); return; }
-    api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
+    api.deals.list(linkedRelId).then(r => setRelDeals(normalizeDeals(r.deals))).catch(() => {});
   }, [linkedRelId]);
 
   useEffect(() => {
@@ -171,7 +194,7 @@ export default function OrdersPage() {
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
     const ts = new Date(saleDate).getTime();
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
@@ -206,7 +229,7 @@ export default function OrdersPage() {
     const ts = new Date(saleDate).getTime();
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
@@ -242,8 +265,8 @@ export default function OrdersPage() {
           note: `Auto-allocation from sell order: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)} QAR. Total: ${fmtQ(revenue)}. ${allocationPreview.counterpartyName}'s share: ${fmtQ(allocationPreview.counterpartyAmount)}.`,
         });
         toast.success(t('tradeLogged'));
-      } catch (err: any) {
-        toast.error(err.message);
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err));
       }
     } else {
       setSaleMessage(t('tradeLogged'));
@@ -349,11 +372,30 @@ export default function OrdersPage() {
       await reloadMerchantData();
       toast.success(t('saveChanges'));
       setAdjustingDealId(null);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setAdjustSaving(false);
     }
+  };
+
+  // ─── Shared table style helpers (used by MY ORDERS merchant-deal tables) ───
+  const thStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '7px 10px', fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase',
+    fontWeight: 800, letterSpacing: '.3px', whiteSpace: 'nowrap', textAlign: right ? 'right' : 'left',
+  });
+  const tdStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '8px 10px', fontSize: 11, textAlign: right ? 'right' : 'left',
+    borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
+  });
+  const renderMargin = (margin: number) => {
+    const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
+    return Number.isFinite(margin) ? (
+      <td style={tdStyle()}>
+        <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
+      </td>
+    ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
   };
 
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
@@ -385,6 +427,34 @@ export default function OrdersPage() {
         )) : <div className="msg">{t('noSlices')}</div>}
       </div>
     );
+  };
+
+  const thStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '7px 10px',
+    fontSize: 9,
+    color: 'var(--muted)',
+    textTransform: 'uppercase',
+    fontWeight: 800,
+    letterSpacing: '.3px',
+    whiteSpace: 'nowrap',
+    textAlign: right ? 'right' : 'left',
+  });
+
+  const tdStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '9px 10px',
+    fontSize: 11,
+    textAlign: right ? 'right' : 'left',
+    borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
+  });
+
+  const renderMargin = (margin: number) => {
+    const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
+    return Number.isFinite(margin) ? (
+      <td style={tdStyle()}>
+        <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
+      </td>
+    ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
   };
 
   return (
@@ -592,9 +662,9 @@ export default function OrdersPage() {
                                       {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
                                     </span>
                                   </td>
-                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}</td>
                                   <td style={tdStyle(true)}><span style={{ color: 'var(--muted)' }}>—</span></td>
-                                  <td className="mono" style={{ ...tdStyle(true) }}>{deal.amount.toLocaleString()} {deal.currency}</td>
+                                  <td className="mono" style={{ ...tdStyle(true) }}>{formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}</td>
                                   <td className="mono" style={{ ...tdStyle(true), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
                                     {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
                                   </td>
@@ -709,7 +779,7 @@ export default function OrdersPage() {
                                     </span>
                                   </td>
                                   <td colSpan={3} style={{ ...tdStyle(), color: 'var(--muted)', fontStyle: 'italic', fontSize: 10 }}>
-                                    {t('noLinkedOrders')} · {deal.amount.toLocaleString()} {deal.currency}
+                                    {t('noLinkedOrders')} · {formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}
                                   </td>
                                   <td style={{ ...tdStyle(), color: deal.realized_pnl != null ? (deal.realized_pnl >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
                                     {deal.realized_pnl != null ? `${deal.realized_pnl >= 0 ? '+' : ''}${fmtQ(deal.realized_pnl)}` : '—'}
@@ -1120,7 +1190,7 @@ export default function OrdersPage() {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 10, color: 'var(--muted)' }}>
                       <span>{t('counterpartyLabel')}: <strong style={{ color: 'var(--text)' }}>{adjustRel?.counterparty?.display_name || '—'}</strong></span>
-                      <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>{adjustDeal.amount.toLocaleString()} {adjustDeal.currency}</strong></span>
+                      <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>{formatDealAmount(adjustDeal.amount)} {formatDealCurrency(adjustDeal.currency)}</strong></span>
                     </div>
                   </div>
 
