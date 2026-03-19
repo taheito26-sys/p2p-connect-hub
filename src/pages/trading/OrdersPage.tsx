@@ -838,9 +838,8 @@ export default function OrdersPage() {
                                     }}>{t('reject')}</button>
                                   </>
                                 )}
-                                {!isDraft && rel && (
-                                  <button className="rowBtn" onClick={() => navigate(`/network/relationships/${rel.id}`)}>{t('viewInWorkspace')}</button>
-                                )}
+                                <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
+                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
                               </div>
                             </td>
                           </tr>
