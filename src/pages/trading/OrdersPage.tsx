@@ -1124,85 +1124,56 @@ export default function OrdersPage() {
                       </div>
                       {linkedRelId && (
                         <>
-                          {/* ─── QUICK AGREEMENT TEMPLATES ─── */}
+                          {/* ─── AGREEMENT TEMPLATES DROPDOWN ─── */}
                           <div style={{ marginTop: 6, marginBottom: 4 }}>
                             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('quickAgreements')}</div>
-                            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 8 }}>{t('quickAgreementsDesc')}</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {AGREEMENT_TEMPLATES.map(tmpl => {
-                                const isSelected = selectedTemplateId === tmpl.id;
-                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
-                                return (
-                                  <div
-                                    key={tmpl.id}
-                                    onClick={() => { setSelectedTemplateId(isSelected ? null : tmpl.id); setLinkedDealId(''); }}
-                                    style={{
-                                      padding: '8px 10px', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                                      background: isSelected ? `color-mix(in srgb, ${accentVar} 10%, transparent)` : 'color-mix(in srgb, var(--bg) 50%, var(--line))',
-                                      border: `1px solid ${isSelected ? accentVar : 'color-mix(in srgb, var(--line) 60%, transparent)'}`,
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                        <span style={{ fontSize: 14 }}>{tmpl.icon}</span>
-                                        <div style={{ minWidth: 0 }}>
-                                          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? accentVar : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {tmpl.label[t.lang]}
-                                          </div>
-                                          <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, marginTop: 1 }}>{tmpl.description[t.lang]}</div>
-                                        </div>
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
-                                        <span className="pill" style={{ fontSize: 9, fontWeight: 800, color: accentVar, borderColor: `color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
-                                          {tmpl.ratioDisplay}
-                                        </span>
-                                        {tmpl.tags.includes('popular') && (
-                                          <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--warn)', letterSpacing: '.3px', textTransform: 'uppercase' }}>⭐ {t('popular')}</span>
-                                        )}
-                                      </div>
-                                    </div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6 }}>{t('quickAgreementsDesc')}</div>
+                            <select
+                              value={selectedTemplateId || ''}
+                              onChange={e => { const v = e.target.value; setSelectedTemplateId(v || null); if (v) setLinkedDealId(''); }}
+                              style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                            >
+                              <option value="">{t('selectTemplate')}</option>
+                              {AGREEMENT_TEMPLATES.map(tmpl => (
+                                <option key={tmpl.id} value={tmpl.id}>
+                                  {tmpl.icon} {tmpl.label[t.lang]} ({tmpl.ratioDisplay}){tmpl.tags.includes('popular') ? ' ⭐' : ''}
+                                </option>
+                              ))}
+                            </select>
 
-                                    {/* Expanded details when selected */}
-                                    {isSelected && (
-                                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid color-mix(in srgb, ${accentVar} 20%, transparent)` }}>
-                                        {/* Ratio preview */}
-                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
-                                          {getTemplateRatioLabel(tmpl, t.lang)}
-                                        </div>
-
-                                        {/* Helper text */}
-                                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4, fontStyle: 'italic' }}>
-                                          {tmpl.helperText[t.lang]}
-                                        </div>
-
-                                        {/* Amount note */}
-                                        {saleAmount && (
-                                          <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            ℹ️ {t('templateAmountHint')}: <strong className="mono">{saleAmount} {saleMode}</strong>
-                                          </div>
-                                        )}
-
-                                        {/* Auto-approval note */}
-                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 6 }}>{t('autoApprovalNote')}</div>
-
-                                        <button
-                                          className="btn"
-                                          disabled={applyingTemplate}
-                                          onClick={e => { e.stopPropagation(); applyTemplate(tmpl); }}
-                                          style={{ width: '100%', fontSize: 11, padding: '6px 12px', opacity: applyingTemplate ? 0.7 : 1 }}
-                                        >
-                                          {applyingTemplate ? t('applyingTemplate') : t('applyTemplate')}
-                                        </button>
-                                      </div>
-                                    )}
+                            {/* Expanded details for selected template */}
+                            {selectedTemplateId && (() => {
+                              const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
+                              if (!tmpl) return null;
+                              const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                              return (
+                                <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 10%, transparent)`, border: `1px solid ${accentVar}` }}>
+                                  <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
+                                    {getTemplateRatioLabel(tmpl, t.lang)}
                                   </div>
-                                );
-                              })}
-                            </div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.4 }}>{tmpl.description[t.lang]}</div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, fontStyle: 'italic' }}>{tmpl.helperText[t.lang]}</div>
+                                  {saleAmount && (
+                                    <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      ℹ️ {t('templateAmountHint')}: <strong className="mono">{saleAmount} {saleMode}</strong>
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 6 }}>{t('autoApprovalNote')}</div>
+                                  <button
+                                    className="btn"
+                                    disabled={applyingTemplate}
+                                    onClick={() => applyTemplate(tmpl)}
+                                    style={{ width: '100%', fontSize: 11, padding: '6px 12px', opacity: applyingTemplate ? 0.7 : 1 }}
+                                  >
+                                    {applyingTemplate ? t('applyingTemplate') : t('applyTemplate')}
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </div>
 
-                          {/* ─── EXISTING DEALS SECTION ─── */}
-                          {relDeals.length > 0 && (
+                          {/* ─── EXISTING DEALS SECTION (hidden when template selected) ─── */}
+                          {!selectedTemplateId && relDeals.length > 0 && (
                             <div style={{ marginTop: 8 }}>
                               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orSelectExisting')}</div>
                               <select
@@ -1220,12 +1191,14 @@ export default function OrdersPage() {
                           )}
 
                           {/* ─── CUSTOM DEAL SHORTCUT ─── */}
-                          <div style={{ marginTop: 6 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orCreateCustom')}</div>
-                            <button className="btn secondary" type="button" style={{ width: '100%', fontSize: 10 }} onClick={() => setCreateDealOpen(true)}>
-                              {t('customDeal')} →
-                            </button>
-                          </div>
+                          {!selectedTemplateId && (
+                            <div style={{ marginTop: 6 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orCreateCustom')}</div>
+                              <button className="btn secondary" type="button" style={{ width: '100%', fontSize: 10 }} onClick={() => setCreateDealOpen(true)}>
+                                {t('customDeal')} →
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
                     </>
@@ -1264,6 +1237,13 @@ export default function OrdersPage() {
                           {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
                         </strong>
                       </div>
+                      {/* Merchant Net Profit when linked to deal */}
+                      {allocationWithBase && (
+                        <div style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5, marginTop: 4 }}>
+                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--good)' }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 12 }}>{fmtQ(allocationWithBase.merchantAmount)}</strong></div>
+                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--bad)' }}>🤝 {t('partnerNetProfit')}</span><strong style={{ color: 'var(--bad)', fontSize: 12 }}>{fmtQ(allocationWithBase.counterpartyAmount)}</strong></div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
