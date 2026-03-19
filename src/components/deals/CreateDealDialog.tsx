@@ -197,8 +197,6 @@ export function CreateDealDialog({
         } else if (selectedType === 'partnership') {
           metadata.partner_ratio = Number(form.partner_ratio);
           metadata.merchant_ratio = 100 - Number(form.partner_ratio);
-        } else if (selectedType === 'capital_placement') {
-          metadata.pool_owner_share_pct = Number(form.pool_owner_share_pct);
         }
         metadata.settlement_period = form.settlement_period;
       }
