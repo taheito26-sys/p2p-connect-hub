@@ -607,6 +607,7 @@ const translations = {
   incomingDeals: { en: 'Incoming Trades', ar: 'الصفقات الواردة' },
   outcomeDeals: { en: 'Outgoing Trades', ar: 'صفقاتك الصادرة' },
   yourDealsSection: { en: 'Your Trades', ar: 'صفقاتك' },
+  merchant: { en: 'Merchant', ar: 'التاجر' },
   merchantDealType: { en: 'Agreement Type', ar: 'نوع الاتفاقية' },
   avgBuySellPrice: { en: 'Avg Buy / Sell Price', ar: 'متوسط سعر الشراء / البيع' },
   exposeBuyerToLender: { en: 'Share buyer with partner', ar: 'مشاركة المشتري مع الشريك' },
