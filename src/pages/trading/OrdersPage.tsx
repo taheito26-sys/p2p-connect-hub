@@ -1087,9 +1087,9 @@ export default function OrdersPage() {
                             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('quickAgreements')}</div>
                             <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 8 }}>{t('quickAgreementsDesc')}</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {DEAL_TEMPLATES.map(tmpl => {
+                              {AGREEMENT_TEMPLATES.map(tmpl => {
                                 const isSelected = selectedTemplateId === tmpl.id;
-                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : tmpl.accent === 'good' ? 'var(--good)' : tmpl.accent === 'bad' ? 'var(--bad)' : 'var(--warn)';
+                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
                                 return (
                                   <div
                                     key={tmpl.id}
