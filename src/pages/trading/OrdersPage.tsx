@@ -712,6 +712,7 @@ export default function OrdersPage() {
                     <thead>
                       <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                         <th style={thStyle()}>{t('date')}</th>
+                        <th style={thStyle()}>{t('partner')}</th>
                         <th style={thStyle()}>{t('merchantDealType')}</th>
                         <th style={thStyle(true)}>{t('qty')}</th>
                         <th style={thStyle(true)}>{t('sell')}</th>
