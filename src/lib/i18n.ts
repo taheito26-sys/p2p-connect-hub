@@ -672,7 +672,7 @@ const translations = {
   partnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
   count: { en: 'Count', ar: 'العدد' },
   selectDealToLink: { en: 'Select a deal to view linked orders', ar: 'اختر صفقة لعرض الطلبات المرتبطة' },
-  createNewDealShortcut: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
+  createNewDealShortcut: { en: '+ Create New Agreement', ar: '+ إنشاء اتفاقية جديدة' },
   noPnlYet: { en: 'No P&L yet', ar: 'لا أرباح/خسائر بعد' },
 
   // ── Deal Agreement Templates ──
