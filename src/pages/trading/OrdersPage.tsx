@@ -108,11 +108,7 @@ export default function OrdersPage() {
     const rel = relationships.find(r => r.id === linkedRelId);
     if (!rel) return;
 
-    // Validate required fields for advance template
-    if (template.requiresDueDate && !templateDueDate) {
-      setSaleMessage(`${t('fixFields')} ${t('dueDate')}`);
-      return;
-    }
+    // No more advance templates, so no due date validation needed
 
     const customerName = buyerName.trim() || t('buyer');
     const amount = Number(saleAmount) || 0;
