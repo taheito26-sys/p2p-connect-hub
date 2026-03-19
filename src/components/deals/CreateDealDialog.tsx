@@ -42,7 +42,7 @@ interface Props {
   prefillCustomerName?: string;
 }
 
-const dealTypeOrder: DealType[] = ['lending', 'arbitrage', 'partnership', 'capital_placement', 'general'];
+const dealTypeOrder: DealType[] = SUPPORTED_DEAL_TYPES;
 
 /** Generate a structured deal label from deal type + customer */
 function generateDealLabel(dealType: DealType, customerName: string): string {
