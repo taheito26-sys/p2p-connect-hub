@@ -235,6 +235,44 @@ export default function OrdersPage() {
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
   }, [saleAmount, saleDate, saleMode, saleSell, state.batches, state.trades]);
 
+  // Compute allocation preview with correct base (net profit vs sale economics)
+  const allocationWithBase = useMemo(() => {
+    if (!linkedDealId || !saleAmount) return null;
+    const deal = relDeals.find(d => d.id === linkedDealId);
+    const rel = relationships.find(r => r.id === linkedRelId);
+    if (!deal || !rel) return null;
+    const raw = Number(saleAmount);
+    const sell = Number(saleSell);
+    const orderAmount = saleMode === 'USDT' ? raw * sell : raw;
+    const netProfit = salePreview?.net != null && Number.isFinite(salePreview.net) ? salePreview.net : undefined;
+    const alloc = calculateAllocation(deal, orderAmount, 'QAR', netProfit);
+    if (alloc) {
+      return {
+        ...alloc,
+        counterpartyName: rel.counterparty?.display_name || t('partner'),
+        dealTitle: deal.title,
+        orderAmount,
+        netProfit: netProfit ?? null,
+        fifoCost: salePreview?.cost != null && Number.isFinite(salePreview.cost) ? salePreview.cost : null,
+        revenue: salePreview?.revenue ?? orderAmount,
+      };
+    }
+    return null;
+  }, [linkedDealId, saleAmount, saleSell, saleMode, relDeals, relationships, linkedRelId, salePreview]);
+
+  useEffect(() => {
+    if (allocationWithBase) {
+      setAllocationPreview({
+        counterpartyAmount: allocationWithBase.counterpartyAmount,
+        merchantAmount: allocationWithBase.merchantAmount,
+        counterpartyName: allocationWithBase.counterpartyName,
+        dealTitle: allocationWithBase.dealTitle,
+      });
+    } else {
+      setAllocationPreview(null);
+    }
+  }, [allocationWithBase]);
+
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers };
