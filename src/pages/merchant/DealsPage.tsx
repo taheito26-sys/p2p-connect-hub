@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Briefcase } from 'lucide-react';
+import { getAgreementFamilyLabel, getDealShares } from '@/lib/deal-templates';
+import { isSupportedDealType } from '@/types/domain';
 import type { MerchantDeal, MerchantRelationship } from '@/types/domain';
 
 const statusColors: Record<string, string> = {
@@ -58,21 +60,35 @@ export default function DealsPage() {
           const relationship = relationships.find(rel => rel.id === deal.relationship_id);
           const isDealCreator = deal.created_by === userId;
           const roi = deal.realized_pnl != null && deal.amount > 0 ? (deal.realized_pnl / deal.amount) * 100 : null;
+          const { label: familyLabel, icon: familyIcon } = getAgreementFamilyLabel(deal.deal_type, t.lang);
+          const { partnerPct, merchantPct, allocationBase } = getDealShares(deal);
+          const isLegacy = !isSupportedDealType(deal.deal_type);
 
           return (
             <Card key={deal.id} className="glass">
               <CardContent className="flex items-center justify-between p-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>{familyIcon}</span>
                     <p className="font-medium">{deal.title}</p>
-                    <Badge variant="outline" className="text-xs font-mono">{deal.deal_type}</Badge>
+                    <Badge variant="outline" className="text-xs font-mono">{familyLabel}</Badge>
+                    {isLegacy && <Badge variant="secondary" className="text-xs">{t('legacyAgreement')}</Badge>}
                     <Badge className={statusColors[deal.status]}>{deal.status}</Badge>
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     <span>{t('issued')}: {deal.issue_date}</span>
                     {deal.due_date && <span>{t('due')}: {deal.due_date}</span>}
+                    {partnerPct != null && (
+                      <span>
+                        {t('partnerShareLabel')}: <strong className="text-foreground">{partnerPct}%</strong>
+                        {' / '}
+                        {t('merchantShareLabel')}: <strong className="text-foreground">{merchantPct}%</strong>
+                      </span>
+                    )}
+                    {allocationBase === 'net_profit' && <span className="text-primary">{t('netProfitSplit')}</span>}
+                    {allocationBase === 'sale_economics' && <span className="text-primary">{t('saleLinkedSplit')}</span>}
                     {!isDealCreator && relationship?.counterparty?.display_name && (
-                      <span>{t('merchantLabel')}: <strong className="text-foreground">{relationship.counterparty.display_name}</strong></span>
+                      <span>{t('partner')}: <strong className="text-foreground">{relationship.counterparty.display_name}</strong></span>
                     )}
                     {deal.realized_pnl != null && <span>P&L: ${deal.realized_pnl.toLocaleString()}</span>}
                     {roi != null && <span>ROI: {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%</span>}
