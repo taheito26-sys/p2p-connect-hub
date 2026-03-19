@@ -737,8 +737,10 @@ export default function OrdersPage() {
                           return (
                             <tr key={deal.id} style={{ background: rowBg }}>
                               <td style={tdStyle()}>
-                                <span className="mono">{deal.issue_date}</span>
-                                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
+                              </td>
+                              <td style={tdStyle()}>
+                                <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
                               </td>
                               <td style={tdStyle()}>
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -757,6 +759,8 @@ export default function OrdersPage() {
                               <td style={tdStyle()}>
                                 <div className="actionsRow">
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
