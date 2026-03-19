@@ -693,6 +693,14 @@ const translations = {
   templateAmount: { en: 'Agreement Amount', ar: 'مبلغ الاتفاقية' },
   templateAmountHint: { en: 'Auto-filled from sale amount', ar: 'يتم ملؤه تلقائياً من مبلغ البيع' },
   customDeal: { en: 'Custom Agreement', ar: 'اتفاقية مخصصة' },
+  confirmDeleteDeal: { en: 'Are you sure you want to cancel this agreement?', ar: 'هل أنت متأكد أنك تريد إلغاء هذه الاتفاقية؟' },
+  dealCancelled: { en: 'Agreement cancelled', ar: 'تم إلغاء الاتفاقية' },
+  editDealTitle: { en: 'Edit Agreement', ar: 'تعديل الاتفاقية' },
+  dealTitleLabel: { en: 'Title', ar: 'العنوان' },
+  dealAmountLabel: { en: 'Amount', ar: 'المبلغ' },
+  dealStatusLabel: { en: 'Status', ar: 'الحالة' },
+  merchantNetProfit: { en: 'Merchant Net Profit', ar: 'صافي ربح التاجر' },
+  partnerNetProfit: { en: 'Partner Net Profit', ar: 'صافي ربح الشريك' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

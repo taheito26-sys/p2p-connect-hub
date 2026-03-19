@@ -82,6 +82,12 @@ export default function OrdersPage() {
   const [templateDueDate, setTemplateDueDate] = useState('');
   const [templateExpectedReturn, setTemplateExpectedReturn] = useState('');
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  // ─── Edit Deal State ────────────────────────────────────────
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
+  const [editDealTitle, setEditDealTitle] = useState('');
+  const [editDealAmount, setEditDealAmount] = useState('');
+  const [editDealStatus, setEditDealStatus] = useState('');
+  const [editDealSaving, setEditDealSaving] = useState(false);
   // Borrower can expose their buyer name to the lender per deal
   const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
   const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
@@ -447,6 +453,45 @@ export default function OrdersPage() {
     }
   };
 
+  const openEditDeal = (dealId: string) => {
+    const deal = allMerchantDeals.find(d => d.id === dealId);
+    if (!deal) return;
+    setEditingDealId(dealId);
+    setEditDealTitle(deal.title);
+    setEditDealAmount(String(deal.amount));
+    setEditDealStatus(deal.status);
+  };
+
+  const saveEditDeal = async () => {
+    if (!editingDealId) return;
+    setEditDealSaving(true);
+    try {
+      await api.deals.update(editingDealId, {
+        title: editDealTitle,
+        amount: Number(editDealAmount),
+        status: editDealStatus as any,
+      });
+      await reloadMerchantData();
+      toast.success(t('saveChanges'));
+      setEditingDealId(null);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setEditDealSaving(false);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    if (!confirm(t('confirmDeleteDeal'))) return;
+    try {
+      await api.deals.update(dealId, { status: 'cancelled' });
+      await reloadMerchantData();
+      toast.success(t('dealCancelled'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
@@ -601,7 +646,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('buyer')}</th><th>{t('type')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -652,19 +697,6 @@ export default function OrdersPage() {
                               )}
                             </td>
                             <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td>
-                              {isMerchantOrder ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--brand)' }}>
-                                  <span style={{ fontSize: 14 }}>🤝</span>
-                                  {t('orderTypeMerchant')}
-                                </span>
-                              ) : (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                                  {t('orderTypeSelf')}
-                                </span>
-                              )}
-                            </td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
@@ -685,7 +717,7 @@ export default function OrdersPage() {
                           </tr>
                           {detailsOpen[tr.id] && (
                             <tr>
-                              <td colSpan={10} style={{ padding: 0 }}>
+                              <td colSpan={9} style={{ padding: 0 }}>
                                 {renderDetail(tr, c)}
                               </td>
                             </tr>
@@ -725,6 +757,7 @@ export default function OrdersPage() {
                     <thead>
                       <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                         <th style={thStyle()}>{t('date')}</th>
+                        <th style={thStyle()}>{t('partner')}</th>
                         <th style={thStyle()}>{t('merchantDealType')}</th>
                         <th style={thStyle(true)}>{t('qty')}</th>
                         <th style={thStyle(true)}>{t('sell')}</th>
@@ -749,8 +782,10 @@ export default function OrdersPage() {
                           return (
                             <tr key={deal.id} style={{ background: rowBg }}>
                               <td style={tdStyle()}>
-                                <span className="mono">{deal.issue_date}</span>
-                                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
+                                <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
+                              </td>
+                              <td style={tdStyle()}>
+                                <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
                               </td>
                               <td style={tdStyle()}>
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -769,6 +804,8 @@ export default function OrdersPage() {
                               <td style={tdStyle()}>
                                 <div className="actionsRow">
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
@@ -787,7 +824,10 @@ export default function OrdersPage() {
                             <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
                               <td style={tdStyle()}>
                                 <span className="mono">{fmtDate(tr.ts)}</span>
-                                {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                              </td>
+                              <td style={tdStyle()}>
+                                <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
+                                {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{deal.title}</div>}
                               </td>
                               <td style={tdStyle()}>
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -806,6 +846,8 @@ export default function OrdersPage() {
                               <td style={tdStyle()}>
                                 <div className="actionsRow">
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
@@ -869,7 +911,7 @@ export default function OrdersPage() {
                           return (
                             <tr key={deal.id} style={{ background: rowBg }}>
                               <td style={tdStyle()}>
-                                <span className="mono">{deal.issue_date}</span>
+                                <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
                                 <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName}</div>
                               </td>
                               <td style={tdStyle()}>
@@ -889,6 +931,8 @@ export default function OrdersPage() {
                               <td style={tdStyle()}>
                                 <div className="actionsRow">
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
@@ -947,6 +991,8 @@ export default function OrdersPage() {
                                     </button>
                                   )}
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
@@ -1082,85 +1128,56 @@ export default function OrdersPage() {
                       </div>
                       {linkedRelId && (
                         <>
-                          {/* ─── QUICK AGREEMENT TEMPLATES ─── */}
+                          {/* ─── AGREEMENT TEMPLATES DROPDOWN ─── */}
                           <div style={{ marginTop: 6, marginBottom: 4 }}>
                             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('quickAgreements')}</div>
-                            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 8 }}>{t('quickAgreementsDesc')}</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {AGREEMENT_TEMPLATES.map(tmpl => {
-                                const isSelected = selectedTemplateId === tmpl.id;
-                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
-                                return (
-                                  <div
-                                    key={tmpl.id}
-                                    onClick={() => { setSelectedTemplateId(isSelected ? null : tmpl.id); setLinkedDealId(''); }}
-                                    style={{
-                                      padding: '8px 10px', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                                      background: isSelected ? `color-mix(in srgb, ${accentVar} 10%, transparent)` : 'color-mix(in srgb, var(--bg) 50%, var(--line))',
-                                      border: `1px solid ${isSelected ? accentVar : 'color-mix(in srgb, var(--line) 60%, transparent)'}`,
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                        <span style={{ fontSize: 14 }}>{tmpl.icon}</span>
-                                        <div style={{ minWidth: 0 }}>
-                                          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? accentVar : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {tmpl.label[t.lang]}
-                                          </div>
-                                          <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, marginTop: 1 }}>{tmpl.description[t.lang]}</div>
-                                        </div>
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
-                                        <span className="pill" style={{ fontSize: 9, fontWeight: 800, color: accentVar, borderColor: `color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
-                                          {tmpl.ratioDisplay}
-                                        </span>
-                                        {tmpl.tags.includes('popular') && (
-                                          <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--warn)', letterSpacing: '.3px', textTransform: 'uppercase' }}>⭐ {t('popular')}</span>
-                                        )}
-                                      </div>
-                                    </div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6 }}>{t('quickAgreementsDesc')}</div>
+                            <select
+                              value={selectedTemplateId || ''}
+                              onChange={e => { const v = e.target.value; setSelectedTemplateId(v || null); if (v) setLinkedDealId(''); }}
+                              style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                            >
+                              <option value="">{t('selectTemplate')}</option>
+                              {AGREEMENT_TEMPLATES.map(tmpl => (
+                                <option key={tmpl.id} value={tmpl.id}>
+                                  {tmpl.icon} {tmpl.label[t.lang]} ({tmpl.ratioDisplay}){tmpl.tags.includes('popular') ? ' ⭐' : ''}
+                                </option>
+                              ))}
+                            </select>
 
-                                    {/* Expanded details when selected */}
-                                    {isSelected && (
-                                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid color-mix(in srgb, ${accentVar} 20%, transparent)` }}>
-                                        {/* Ratio preview */}
-                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
-                                          {getTemplateRatioLabel(tmpl, t.lang)}
-                                        </div>
-
-                                        {/* Helper text */}
-                                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4, fontStyle: 'italic' }}>
-                                          {tmpl.helperText[t.lang]}
-                                        </div>
-
-                                        {/* Amount note */}
-                                        {saleAmount && (
-                                          <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            ℹ️ {t('templateAmountHint')}: <strong className="mono">{saleAmount} {saleMode}</strong>
-                                          </div>
-                                        )}
-
-                                        {/* Auto-approval note */}
-                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 6 }}>{t('autoApprovalNote')}</div>
-
-                                        <button
-                                          className="btn"
-                                          disabled={applyingTemplate}
-                                          onClick={e => { e.stopPropagation(); applyTemplate(tmpl); }}
-                                          style={{ width: '100%', fontSize: 11, padding: '6px 12px', opacity: applyingTemplate ? 0.7 : 1 }}
-                                        >
-                                          {applyingTemplate ? t('applyingTemplate') : t('applyTemplate')}
-                                        </button>
-                                      </div>
-                                    )}
+                            {/* Expanded details for selected template */}
+                            {selectedTemplateId && (() => {
+                              const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
+                              if (!tmpl) return null;
+                              const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                              return (
+                                <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 10%, transparent)`, border: `1px solid ${accentVar}` }}>
+                                  <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
+                                    {getTemplateRatioLabel(tmpl, t.lang)}
                                   </div>
-                                );
-                              })}
-                            </div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.4 }}>{tmpl.description[t.lang]}</div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, fontStyle: 'italic' }}>{tmpl.helperText[t.lang]}</div>
+                                  {saleAmount && (
+                                    <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      ℹ️ {t('templateAmountHint')}: <strong className="mono">{saleAmount} {saleMode}</strong>
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 6 }}>{t('autoApprovalNote')}</div>
+                                  <button
+                                    className="btn"
+                                    disabled={applyingTemplate}
+                                    onClick={() => applyTemplate(tmpl)}
+                                    style={{ width: '100%', fontSize: 11, padding: '6px 12px', opacity: applyingTemplate ? 0.7 : 1 }}
+                                  >
+                                    {applyingTemplate ? t('applyingTemplate') : t('applyTemplate')}
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </div>
 
-                          {/* ─── EXISTING DEALS SECTION ─── */}
-                          {relDeals.length > 0 && (
+                          {/* ─── EXISTING DEALS SECTION (hidden when template selected) ─── */}
+                          {!selectedTemplateId && relDeals.length > 0 && (
                             <div style={{ marginTop: 8 }}>
                               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orSelectExisting')}</div>
                               <select
@@ -1178,12 +1195,14 @@ export default function OrdersPage() {
                           )}
 
                           {/* ─── CUSTOM DEAL SHORTCUT ─── */}
-                          <div style={{ marginTop: 6 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orCreateCustom')}</div>
-                            <button className="btn secondary" type="button" style={{ width: '100%', fontSize: 10 }} onClick={() => setCreateDealOpen(true)}>
-                              {t('customDeal')} →
-                            </button>
-                          </div>
+                          {!selectedTemplateId && (
+                            <div style={{ marginTop: 6 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orCreateCustom')}</div>
+                              <button className="btn secondary" type="button" style={{ width: '100%', fontSize: 10 }} onClick={() => setCreateDealOpen(true)}>
+                                {t('customDeal')} →
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
                     </>
@@ -1222,6 +1241,13 @@ export default function OrdersPage() {
                           {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
                         </strong>
                       </div>
+                      {/* Merchant Net Profit when linked to deal */}
+                      {allocationWithBase && (
+                        <div style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5, marginTop: 4 }}>
+                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--good)' }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 12 }}>{fmtQ(allocationWithBase.merchantAmount)}</strong></div>
+                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--bad)' }}>🤝 {t('partnerNetProfit')}</span><strong style={{ color: 'var(--bad)', fontSize: 12 }}>{fmtQ(allocationWithBase.counterpartyAmount)}</strong></div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1521,6 +1547,53 @@ export default function OrdersPage() {
                       style={{ padding: '9px 18px', borderRadius: 6, background: valid ? 'var(--brand)' : 'var(--muted2)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: valid ? 'pointer' : 'not-allowed', opacity: adjustSaving ? 0.7 : 1 }}
                     >
                       {adjustSaving ? '…' : t('saveAdjustment')}
+                    </button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* ─── EDIT DEAL DIALOG ─── */}
+      {(() => {
+        const editDeal = editingDealId ? allMerchantDeals.find(d => d.id === editingDealId) : null;
+        const editDealCfg = editDeal ? DEAL_TYPE_CONFIGS[editDeal.deal_type] : null;
+        const editDealRel = editDeal ? relationships.find(r => r.id === editDeal.relationship_id) : null;
+        return (
+          <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 450, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--brand) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 14 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('editDealTitle')}</DialogTitle>
+              </DialogHeader>
+              {editDeal && (
+                <>
+                  <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 10 }}>
+                    <span>{editDealCfg?.icon} {editDealCfg?.label}</span> · <span>{editDealRel?.counterparty?.display_name || '—'}</span>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl">{t('dealTitleLabel')}</div>
+                    <div className="inputBox"><input value={editDealTitle} onChange={e => setEditDealTitle(e.target.value)} style={{ width: '100%' }} /></div>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl">{t('dealAmountLabel')}</div>
+                    <div className="inputBox"><input type="number" value={editDealAmount} onChange={e => setEditDealAmount(e.target.value)} style={{ width: '100%' }} /></div>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 14 }}>
+                    <div className="lbl">{t('dealStatusLabel')}</div>
+                    <select value={editDealStatus} onChange={e => setEditDealStatus(e.target.value)} style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}>
+                      {['draft', 'active', 'settled', 'closed', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                    <button className="btn secondary" onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
+                    <button
+                      disabled={editDealSaving}
+                      onClick={saveEditDeal}
+                      style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--brand)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', opacity: editDealSaving ? 0.7 : 1 }}
+                    >
+                      {editDealSaving ? '…' : t('saveChanges')}
                     </button>
                   </DialogFooter>
                 </>
