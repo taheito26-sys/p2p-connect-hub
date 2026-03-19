@@ -463,18 +463,6 @@ export function CreateDealDialog({
               </div>
             )}
 
-            {config.hasCounterpartyShare && selectedType === 'capital_placement' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>{t('poolOwnerShare')} ({counterpartyName})</Label>
-                  <Input type="number" min="1" max="99" value={form.pool_owner_share_pct} onChange={e => setForm(f => ({ ...f, pool_owner_share_pct: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('yourSharePct')}</Label>
-                  <Input disabled value={String(100 - Number(form.pool_owner_share_pct))} />
-                </div>
-              </div>
-            )}
 
             {config.hasCounterpartyShare && (
               <div className="space-y-2">
