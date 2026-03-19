@@ -70,6 +70,7 @@ export default function OrdersPage() {
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [allocationPreview, setAllocationPreview] = useState<{ counterpartyAmount: number; merchantAmount: number; counterpartyName: string; dealTitle: string } | null>(null);
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
+  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
   const [adjustShareValue, setAdjustShareValue] = useState('');
