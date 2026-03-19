@@ -492,6 +492,7 @@ export default function OrdersPage() {
     }
   };
 
+  const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
     const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
