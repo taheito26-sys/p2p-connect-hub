@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, CheckCircle, Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
-import { DEAL_TYPE_CONFIGS, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
+import { DEAL_TYPE_CONFIGS, SUPPORTED_DEAL_TYPES, generateRuleSummary, type DealTypeConfig } from '@/lib/deal-engine';
 import { useT } from '@/lib/i18n';
 import type { DealType } from '@/types/domain';
 import type { Customer, TrackerState, Trade, Batch } from '@/lib/tracker-helpers';
