@@ -102,7 +102,70 @@ export default function OrdersPage() {
     }
   }, []);
 
-  useEffect(() => {
+  const applyTemplate = useCallback(async (template: DealTemplate) => {
+    if (!linkedRelId) return;
+    const rel = relationships.find(r => r.id === linkedRelId);
+    if (!rel) return;
+
+    // Validate required fields for advance template
+    if (template.requiresDueDate && !templateDueDate) {
+      setSaleMessage(`${t('fixFields')} ${t('dueDate')}`);
+      return;
+    }
+
+    const customerName = buyerName.trim() || t('buyer');
+    const amount = Number(saleAmount) || 0;
+    const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
+
+    if (amount <= 0) {
+      setSaleMessage(`${t('fixFields')} ${t('amount')}`);
+      return;
+    }
+
+    setApplyingTemplate(true);
+    try {
+      const metadata = buildTemplateMetadata(template);
+      // Add customer/supplier references
+      const ensured = ensureCustomer(buyerName);
+      metadata.customer_id = ensured.id || '';
+      metadata.customer_name = customerName;
+      metadata.supplier_name = 'System';
+      metadata.template_id = template.id;
+
+      const title = generateTemplateTitle(template, customerName, t.lang);
+
+      const dealResult = await api.deals.create({
+        relationship_id: linkedRelId,
+        deal_type: template.dealType,
+        title,
+        amount,
+        currency,
+        due_date: templateDueDate || undefined,
+        expected_return: templateExpectedReturn ? parseFloat(templateExpectedReturn) : undefined,
+        metadata,
+      });
+
+      // Refresh deals and auto-select the new deal
+      await reloadMerchantData();
+      const dealsRes = await api.deals.list(linkedRelId);
+      setRelDeals(dealsRes.deals);
+
+      const newDealId = dealResult.deal?.id;
+      if (newDealId) {
+        setLinkedDealId(newDealId);
+      }
+
+      toast.success(t('templateApplied'));
+      setSelectedTemplateId(null);
+      setTemplateDueDate('');
+      setTemplateExpectedReturn('');
+    } catch (err: any) {
+      toast.error(err.message || t('templateApplyFailed'));
+    } finally {
+      setApplyingTemplate(false);
+    }
+  }, [linkedRelId, relationships, buyerName, saleAmount, saleMode, templateDueDate, templateExpectedReturn, t, reloadMerchantData]);
+
     reloadMerchantData();
   }, [reloadMerchantData]);
 
