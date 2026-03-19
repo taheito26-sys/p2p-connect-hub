@@ -601,7 +601,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('buyer')}</th><th>{t('type')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
