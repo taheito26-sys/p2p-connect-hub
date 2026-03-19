@@ -627,7 +627,7 @@ export default function OrdersPage() {
                                 {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
                                 {isMerchantOrder && (
                                   <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)', fontWeight: 700, letterSpacing: '.3px' }}>
-                                    {t('merchantOrder')}
+                                     {t('partnerAgreement')}
                                   </span>
                                 )}
                               </div>
