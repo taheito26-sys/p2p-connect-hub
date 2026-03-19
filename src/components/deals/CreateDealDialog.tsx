@@ -117,8 +117,7 @@ export function CreateDealDialog({
     if (!config?.hasCounterpartyShare) return 0;
     const cpShare = Number(
       selectedType === 'arbitrage' ? form.counterparty_share_pct :
-      selectedType === 'partnership' ? form.partner_ratio :
-      selectedType === 'capital_placement' ? form.pool_owner_share_pct : 0
+      selectedType === 'partnership' ? form.partner_ratio : 0
     );
     return 100 - cpShare;
   }, [selectedType, form, config]);
