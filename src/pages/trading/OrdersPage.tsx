@@ -325,6 +325,9 @@ export default function OrdersPage() {
     setLinkedRelId('');
     setLinkedDealId('');
     setAllocationPreview(null);
+    setSelectedTemplateId(null);
+    setTemplateDueDate('');
+    setTemplateExpectedReturn('');
   };
 
   const exportCsv = () => {
