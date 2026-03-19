@@ -637,11 +637,14 @@ export default function OrdersPage() {
                                   {linkedRel?.counterparty?.display_name && (
                                     <span className="pill" style={{ fontSize: 8 }}>🤝 {linkedRel.counterparty.display_name}</span>
                                   )}
-                                  {dealCfg?.hasCounterpartyShare && (
-                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                                      {t('capitalShared')}
-                                    </span>
-                                  )}
+                                  {dealCfg?.hasCounterpartyShare && (() => {
+                                    const { partnerPct, allocationBase } = getDealShares(linkedDeal!);
+                                    return (
+                                      <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
+                                        {allocationBase === 'net_profit' ? t('netProfitSplit') : t('saleLinkedSplit')} {partnerPct != null ? `${partnerPct}%` : ''}
+                                      </span>
+                                    );
+                                  })()}
                                   {dealCustomerName && <span style={{ fontSize: 8 }}>👤 {dealCustomerName}</span>}
                                   {dealSupplierName && <span style={{ fontSize: 8 }}>📦 {dealSupplierName}</span>}
                                 </div>
