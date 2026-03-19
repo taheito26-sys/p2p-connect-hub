@@ -133,22 +133,14 @@ const translations = {
   addBuyerTitle: { en: 'Add Buyer', ar: 'إضافة مشتري' },
   buyerNamePlaceholder: { en: 'Buyer name', ar: 'اسم المشتري' },
   useFifoStock: { en: 'Use FIFO stock', ar: 'استخدام مخزون FIFO' },
-  linkToMerchantDeal: { en: '🤝 Link to partner agreement', ar: '🤝 ربط باتفاقية شريك' },
   optional: { en: '(optional)', ar: '(اختياري)' },
   relationship: { en: 'Partner', ar: 'الشريك' },
   noneSelected: { en: '— None —', ar: '— بدون —' },
-  selectDeal: { en: '— Select agreement —', ar: '— اختر اتفاقية —' },
-  deal: { en: 'Agreement', ar: 'الاتفاقية' },
-  noActiveDeals: { en: 'No active agreements in this relationship', ar: 'لا توجد اتفاقيات نشطة في هذه العلاقة' },
-  allocationPreview: { en: 'ALLOCATION PREVIEW', ar: 'معاينة التوزيع' },
-  counterpartyShare: { en: "'s share", ar: ' حصة' },
-  yourShare: { en: 'Your share', ar: 'حصتك' },
-  autoApprovalNote: { en: 'This allocation will be automatically submitted for counterparty approval.', ar: 'سيتم إرسال هذا التوزيع تلقائياً للموافقة من الطرف الآخر.' },
   livePreview: { en: 'Live Preview', ar: 'معاينة مباشرة' },
   enterDetails: { en: 'Enter details...', ar: 'أدخل التفاصيل...' },
   revenue: { en: 'Revenue', ar: 'الإيرادات' },
   costFifo: { en: 'Cost (FIFO)', ar: 'التكلفة (FIFO)' },
-  addTrade: { en: 'Add Trade', ar: 'إضافة صفقة' },
+  addTrade: { en: 'Record Sale', ar: 'تسجيل البيع' },
   tradeLogged: { en: 'Trade logged ✓', ar: 'تم تسجيل الصفقة ✓' },
   quantityUsdt: { en: 'Quantity (USDT)', ar: 'الكمية (USDT)' },
   sellPriceQar: { en: 'Sell Price (QAR)', ar: 'سعر البيع (ر.ق)' },
@@ -469,6 +461,7 @@ const translations = {
   eligibleOrdersNote: { en: 'orders can be linked to this agreement for automatic allocation.', ar: 'يمكن ربط الطلبات بهذه الاتفاقية للتوزيع التلقائي.' },
   eligible: { en: 'Eligible', ar: 'مؤهل' },
   with: { en: 'with', ar: 'مع' },
+  status: { en: 'Status', ar: 'الحالة' },
 
   // ── Standalone pages ──
   platformDirectory: { en: 'Platform Directory', ar: 'دليل المنصة' },
@@ -573,6 +566,7 @@ const translations = {
 
   // ── Agreement-specific labels ──
   partnerAgreement: { en: 'Partner Agreement', ar: 'اتفاقية شريك' },
+  partnerLinked: { en: 'Partner-Linked', ar: 'مرتبط بشريك' },
   netProfitSplit: { en: 'Net profit split', ar: 'تقسيم صافي الربح' },
   saleLinkedSplit: { en: 'Sale-linked split', ar: 'تقسيم مرتبط بالبيع' },
   agreementFamily: { en: 'Agreement Type', ar: 'نوع الاتفاقية' },
@@ -593,7 +587,7 @@ const translations = {
   estPartnerShare: { en: 'Est. partner share', ar: 'حصة الشريك المقدّرة' },
   estMerchantShare: { en: 'Est. merchant share', ar: 'حصة التاجر المقدّرة' },
 
-  // ── Edit dialogs redesign ──
+  // ── Edit dialogs ──
   correctTradeTitle: { en: 'Correct Trade — Edit in Place', ar: 'تصحيح الصفقة — تحرير في المكان' },
   editInPlaceWarning: { en: 'Editing the original record in place. FIFO and profit will be recomputed after save.', ar: 'تحرير السجل الأصلي في مكانه. سيتم إعادة حساب FIFO والأرباح بعد الحفظ.' },
   saveCorrection: { en: 'Save Correction', ar: 'حفظ التصحيح' },
@@ -610,13 +604,13 @@ const translations = {
 
   // ── Unified Merchant Order Space ──
   merchantOrderSpace: { en: 'Merchant Order Space', ar: 'مساحة الطلبات التجارية' },
-  incomingDeals: { en: 'Incoming Deals', ar: 'الصفقات الواردة' },
-  outcomeDeals: { en: 'Outcome Deals', ar: 'صفقاتك الصادرة' },
-  yourDealsSection: { en: 'Your Deals', ar: 'صفقاتك' },
-  merchantDealType: { en: 'Merchant Deal Type', ar: 'نوع الصفقة التجارية' },
+  incomingDeals: { en: 'Incoming Trades', ar: 'الصفقات الواردة' },
+  outcomeDeals: { en: 'Outgoing Trades', ar: 'صفقاتك الصادرة' },
+  yourDealsSection: { en: 'Your Trades', ar: 'صفقاتك' },
+  merchantDealType: { en: 'Agreement Type', ar: 'نوع الاتفاقية' },
   avgBuySellPrice: { en: 'Avg Buy / Sell Price', ar: 'متوسط سعر الشراء / البيع' },
-  exposeBuyerToLender: { en: 'Share buyer with lender', ar: 'مشاركة المشتري مع المُقرض' },
-  buyerExposed: { en: 'Buyer visible to lender', ar: 'المشتري مرئي للمُقرض' },
+  exposeBuyerToLender: { en: 'Share buyer with partner', ar: 'مشاركة المشتري مع الشريك' },
+  buyerExposed: { en: 'Buyer visible to partner', ar: 'المشتري مرئي للشريك' },
   buyerHidden: { en: 'Buyer hidden', ar: 'المشتري مخفي' },
   adjustShare: { en: 'Adjust Share', ar: 'تعديل الحصة' },
   adjustShareTitle: { en: 'Adjust Profit Share', ar: 'تعديل نسبة تقاسم الأرباح' },
@@ -667,15 +661,62 @@ const translations = {
 
   // ── Orders Sub-tabs ──
   myOrders: { en: 'My Orders', ar: 'طلباتي' },
-  incomingOrders: { en: 'Incoming Orders', ar: 'الطلبات الواردة' },
-  outgoingOrders: { en: 'Outgoing Orders', ar: 'الطلبات الصادرة' },
+  incomingOrders: { en: 'Incoming', ar: 'الواردة' },
+  outgoingOrders: { en: 'Outgoing', ar: 'الصادرة' },
   partnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
   count: { en: 'Count', ar: 'العدد' },
   selectDealToLink: { en: 'Select a deal to view linked orders', ar: 'اختر صفقة لعرض الطلبات المرتبطة' },
   createNewDealShortcut: { en: '+ Create New Agreement', ar: '+ إنشاء اتفاقية جديدة' },
   noPnlYet: { en: 'No P&L yet', ar: 'لا أرباح/خسائر بعد' },
 
-  // ── Deal Agreement Templates ──
+  // ── Trade-Centric Merchant Flow ──
+  linkToPartner: { en: 'Link to Partner', ar: 'ربط بشريك' },
+  isThisSaleLinked: { en: 'Is this sale linked to another merchant?', ar: 'هل هذا البيع مرتبط بتاجر آخر؟' },
+  selectPartner: { en: 'Select Partner', ar: 'اختر الشريك' },
+  agreementType: { en: 'Agreement Type', ar: 'نوع الاتفاقية' },
+  selectAgreementType: { en: '— Select agreement type —', ar: '— اختر نوع الاتفاقية —' },
+  agreementTypeRequired: { en: 'Agreement type', ar: 'نوع الاتفاقية' },
+  sendForApproval: { en: 'Send for Approval', ar: 'إرسال للموافقة' },
+  tradeSentForApproval: { en: 'Trade sent to partner for approval ✓', ar: 'تم إرسال الصفقة للشريك للموافقة ✓' },
+  tradeWillBeSentForApproval: { en: 'This trade will be sent to the partner for approval before it becomes permanent.', ar: 'سيتم إرسال هذه الصفقة للشريك للموافقة قبل أن تصبح دائمة.' },
+
+  // ── Approval Statuses ──
+  pendingApprovalStatus: { en: 'Pending Approval', ar: 'بانتظار الموافقة' },
+  approvedStatus: { en: 'Approved', ar: 'تمت الموافقة' },
+  rejectedStatus: { en: 'Rejected', ar: 'مرفوض' },
+  cancellationPendingStatus: { en: 'Cancellation Pending', ar: 'بانتظار الإلغاء' },
+  cancelledStatus: { en: 'Cancelled', ar: 'ملغي' },
+
+  // ── Approval/Cancellation Flow ──
+  tradeApproved: { en: 'Trade approved ✓', ar: 'تمت الموافقة على الصفقة ✓' },
+  tradeRejected: { en: 'Trade rejected', ar: 'تم رفض الصفقة' },
+  tradeCancelled: { en: 'Trade cancelled', ar: 'تم إلغاء الصفقة' },
+  requestCancellation: { en: 'Request Cancellation', ar: 'طلب إلغاء' },
+  requestCancellationTitle: { en: 'Request Trade Cancellation', ar: 'طلب إلغاء الصفقة' },
+  cancellationRequestExplainer: { en: 'This trade has been approved by both parties. To cancel it, you must submit a cancellation request. The trade will only be cancelled if all involved parties approve the cancellation.', ar: 'تمت الموافقة على هذه الصفقة من كلا الطرفين. لإلغائها، يجب تقديم طلب إلغاء. لن يتم إلغاء الصفقة إلا إذا وافق جميع الأطراف المعنية على الإلغاء.' },
+  submitCancellationRequest: { en: 'Submit Cancellation Request', ar: 'تقديم طلب الإلغاء' },
+  cancellationRequestSent: { en: 'Cancellation request sent — awaiting partner approval', ar: 'تم إرسال طلب الإلغاء — بانتظار موافقة الشريك' },
+  cannotEditApprovedTrade: { en: 'Approved trades cannot be edited. Request cancellation instead.', ar: 'لا يمكن تعديل الصفقات المعتمدة. اطلب الإلغاء بدلاً من ذلك.' },
+  cannotDeleteApprovedTrade: { en: 'Approved trades cannot be deleted. Request cancellation instead.', ar: 'لا يمكن حذف الصفقات المعتمدة. اطلب الإلغاء بدلاً من ذلك.' },
+
+  // ── Incoming/Outgoing Trade Tab Labels ──
+  partnerTradesAwaitingApproval: { en: 'Partner trades requiring your approval', ar: 'صفقات الشريك التي تتطلب موافقتك' },
+  noIncomingTrades: { en: 'No incoming partner trades', ar: 'لا توجد صفقات واردة من الشركاء' },
+  incomingTradesDesc: { en: 'When a partner links a sale to you, it appears here for approval.', ar: 'عندما يربط شريك عملية بيع بك، تظهر هنا للموافقة.' },
+  incomingTradesHelp: { en: 'Review and approve incoming trades from your partners. Approved trades become permanent shared records.', ar: 'راجع ووافق على الصفقات الواردة من شركائك. الصفقات المعتمدة تصبح سجلات مشتركة دائمة.' },
+  yourMerchantLinkedTrades: { en: 'Sales you linked to a partner', ar: 'المبيعات التي ربطتها بشريك' },
+  noOutgoingTrades: { en: 'No outgoing partner trades yet', ar: 'لا توجد صفقات صادرة للشركاء بعد' },
+  outgoingTradesDesc: { en: 'Create a sale and link it to a partner to send it for approval.', ar: 'أنشئ عملية بيع واربطها بشريك لإرسالها للموافقة.' },
+  outgoingTradesSummary: { en: 'Outgoing Summary', ar: 'ملخص الصادرة' },
+  outgoingTradesHelp: { en: 'These are sales you created and linked to a partner merchant. They require partner approval to become permanent.', ar: 'هذه مبيعات أنشأتها وربطتها بتاجر شريك. تتطلب موافقة الشريك لتصبح دائمة.' },
+  pendingApprovalCount: { en: '{n} trades pending approval', ar: '{n} صفقات بانتظار الموافقة' },
+  awaitingPartnerApproval: { en: 'Awaiting partner approval before becoming permanent records.', ar: 'بانتظار موافقة الشريك قبل أن تصبح سجلات دائمة.' },
+  approvedTrades: { en: 'approved trades', ar: 'صفقات معتمدة' },
+  permanentSharedRecords: { en: 'These are permanent shared records visible to both parties.', ar: 'هذه سجلات مشتركة دائمة مرئية لكلا الطرفين.' },
+  approvalInbox: { en: 'Approval Inbox', ar: 'صندوق الموافقات' },
+  noPendingApprovals: { en: 'No pending approvals — all clear!', ar: 'لا توجد موافقات معلقة — كل شيء مُنجز!' },
+
+  // ── Deal Agreement Templates (simplified) ──
   quickAgreements: { en: 'Agreement Templates', ar: 'قوالب الاتفاقيات' },
   quickAgreementsDesc: { en: 'Select a predefined agreement to auto-create and link to this sale.', ar: 'اختر اتفاقية محددة مسبقاً لإنشائها وربطها بهذا البيع تلقائياً.' },
   selectTemplate: { en: 'Select a template', ar: 'اختر قالباً' },
@@ -701,6 +742,14 @@ const translations = {
   dealStatusLabel: { en: 'Status', ar: 'الحالة' },
   merchantNetProfit: { en: 'Merchant Net Profit', ar: 'صافي ربح التاجر' },
   partnerNetProfit: { en: 'Partner Net Profit', ar: 'صافي ربح الشريك' },
+  noActiveDeals: { en: 'No active agreements in this relationship', ar: 'لا توجد اتفاقيات نشطة في هذه العلاقة' },
+  selectDeal: { en: '— Select agreement —', ar: '— اختر اتفاقية —' },
+  deal: { en: 'Agreement', ar: 'الاتفاقية' },
+  allocationPreview: { en: 'ALLOCATION PREVIEW', ar: 'معاينة التوزيع' },
+  counterpartyShare: { en: "'s share", ar: ' حصة' },
+  yourShare: { en: 'Your share', ar: 'حصتك' },
+  autoApprovalNote: { en: 'This allocation will be automatically submitted for counterparty approval.', ar: 'سيتم إرسال هذا التوزيع تلقائياً للموافقة من الطرف الآخر.' },
+  linkToMerchantDeal: { en: '🤝 Link to partner agreement', ar: '🤝 ربط باتفاقية شريك' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
