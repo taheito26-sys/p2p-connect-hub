@@ -1,5 +1,7 @@
-// ─── Deal Engine: Predefined Deal Type Logic ────────────────────────
-// Each deal type has strict required fields, rules, lifecycle, and downstream effects.
+// ─── Deal Engine: Agreement Type Logic ──────────────────────────────
+// Each agreement type has strict required fields, rules, lifecycle, and downstream effects.
+// Supported types: arbitrage (Sales Deal) and partnership (Profit Share)
+// Legacy types (lending, capital_placement, general) are preserved for old records.
 
 import type { DealType, DealStatus, MerchantDeal } from '@/types/domain';
 
@@ -21,47 +23,17 @@ export interface DealTypeConfig {
   settlementBehavior: 'manual' | 'auto_on_close' | 'periodic';
   lifecycleSteps: string[];
   ruleSummaryTemplate: string;
+  /** Whether this type is still supported for new agreement creation */
+  isLegacy: boolean;
+  /** Allocation base: net_profit for Profit Share, sale_economics for Sales Deal */
+  allocationBase: 'net_profit' | 'sale_economics' | 'none';
 }
 
 export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
-  lending: {
-    type: 'lending',
-    label: 'Advance',
-    description: 'Capital advance with repayment terms. A principal amount is lent with expected return by a due date.',
-    icon: '💰',
-    requiredFields: ['title', 'amount', 'due_date'],
-    optionalFields: ['expected_return', 'metadata.interest_rate', 'metadata.repayment_terms'],
-    hasCounterpartyShare: false,
-    hasDueDate: true,
-    hasExpectedReturn: true,
-    hasRepaymentLogic: true,
-    eligibleOrderSides: [],
-    requiresApproval: true,
-    settlementBehavior: 'manual',
-    lifecycleSteps: ['draft', 'active', 'due', 'overdue', 'settled', 'closed'],
-    ruleSummaryTemplate: 'This advance of {amount} {currency} is due on {due_date}. Expected return: {expected_return} {currency}. Settlement requires counterparty approval.',
-  },
-  arbitrage: {
-    type: 'arbitrage',
-    label: 'Sales Deal',
-    description: 'Linked to sell orders. Capital owner funds a share of trading economics. Profit is split based on participation ratio.',
-    icon: '📊',
-    requiredFields: ['title', 'amount', 'metadata.counterparty_share_pct'],
-    optionalFields: ['due_date', 'metadata.merchant_share_pct', 'metadata.min_order_amount'],
-    hasCounterpartyShare: true,
-    hasDueDate: false,
-    hasExpectedReturn: false,
-    hasRepaymentLogic: false,
-    eligibleOrderSides: ['sell'],
-    requiresApproval: true,
-    settlementBehavior: 'periodic',
-    lifecycleSteps: ['draft', 'active', 'settled', 'closed'],
-    ruleSummaryTemplate: 'This deal allocates {counterparty_share_pct}% of eligible sell-order economics to {counterparty_name} and {merchant_share_pct}% to the merchant. Linked sell orders automatically generate allocations.',
-  },
   partnership: {
     type: 'partnership',
-    label: 'Profit-Share Deal',
-    description: 'Partners share profits from linked order activity based on predefined ratios.',
+    label: 'Profit Share',
+    description: 'Net profit from linked sales is split between partner and merchant based on predefined ratios.',
     icon: '🤝',
     requiredFields: ['title', 'amount', 'metadata.partner_ratio'],
     optionalFields: ['metadata.settlement_period', 'metadata.min_profit_threshold'],
@@ -73,12 +45,53 @@ export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
     requiresApproval: true,
     settlementBehavior: 'periodic',
     lifecycleSteps: ['draft', 'active', 'settled', 'closed'],
-    ruleSummaryTemplate: 'Profits from linked orders are shared {partner_ratio}% to {counterparty_name} and {merchant_ratio}% to the merchant. Distributions are calculated {settlement_period}.',
+    ruleSummaryTemplate: 'Net profit from linked sales is shared {partner_ratio}% to {counterparty_name} (partner) and {merchant_ratio}% to you (merchant). Distributions are calculated {settlement_period}.',
+    isLegacy: false,
+    allocationBase: 'net_profit',
+  },
+  arbitrage: {
+    type: 'arbitrage',
+    label: 'Sales Deal',
+    description: 'Sale-linked economics split for specific sell orders. Counterparty receives a share of order economics.',
+    icon: '📊',
+    requiredFields: ['title', 'amount', 'metadata.counterparty_share_pct'],
+    optionalFields: ['due_date', 'metadata.merchant_share_pct', 'metadata.min_order_amount'],
+    hasCounterpartyShare: true,
+    hasDueDate: false,
+    hasExpectedReturn: false,
+    hasRepaymentLogic: false,
+    eligibleOrderSides: ['sell'],
+    requiresApproval: true,
+    settlementBehavior: 'periodic',
+    lifecycleSteps: ['draft', 'active', 'settled', 'closed'],
+    ruleSummaryTemplate: 'This agreement allocates {counterparty_share_pct}% of sale-linked economics to {counterparty_name} (counterparty) and {merchant_share_pct}% to you (merchant). Applies only to linked sell orders.',
+    isLegacy: false,
+    allocationBase: 'sale_economics',
+  },
+  // ── Legacy types (read-only, not available for new creation) ──
+  lending: {
+    type: 'lending',
+    label: 'Advance (Legacy)',
+    description: 'Capital advance with repayment terms. This agreement type is no longer available for new creation.',
+    icon: '💰',
+    requiredFields: ['title', 'amount', 'due_date'],
+    optionalFields: ['expected_return', 'metadata.interest_rate', 'metadata.repayment_terms'],
+    hasCounterpartyShare: false,
+    hasDueDate: true,
+    hasExpectedReturn: true,
+    hasRepaymentLogic: true,
+    eligibleOrderSides: [],
+    requiresApproval: true,
+    settlementBehavior: 'manual',
+    lifecycleSteps: ['draft', 'active', 'due', 'overdue', 'settled', 'closed'],
+    ruleSummaryTemplate: 'Legacy advance of {amount} {currency} due on {due_date}.',
+    isLegacy: true,
+    allocationBase: 'none',
   },
   capital_placement: {
     type: 'capital_placement',
-    label: 'Capital Pool Deal',
-    description: 'Capital pool where a capital owner provides funds for the merchant to utilize in trading. Pool shares determine distribution.',
+    label: 'Capital Pool (Legacy)',
+    description: 'Capital pool agreement. This agreement type is no longer available for new creation.',
     icon: '🏦',
     requiredFields: ['title', 'amount', 'metadata.pool_owner_share_pct'],
     optionalFields: ['metadata.utilization_cap', 'metadata.distribution_schedule'],
@@ -90,12 +103,14 @@ export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
     requiresApproval: true,
     settlementBehavior: 'periodic',
     lifecycleSteps: ['draft', 'active', 'settled', 'closed'],
-    ruleSummaryTemplate: 'Capital pool of {amount} {currency} with {pool_owner_share_pct}% belonging to {counterparty_name}. Utilization into deals or orders is tracked. Distributions follow pool share ratios.',
+    ruleSummaryTemplate: 'Legacy capital pool of {amount} {currency} with {pool_owner_share_pct}% belonging to {counterparty_name}.',
+    isLegacy: true,
+    allocationBase: 'sale_economics',
   },
   general: {
     type: 'general',
-    label: 'General Deal',
-    description: 'A flexible deal type for agreements that do not fit other categories.',
+    label: 'General (Legacy)',
+    description: 'A flexible agreement type. No longer available for new creation.',
     icon: '📋',
     requiredFields: ['title', 'amount'],
     optionalFields: ['due_date', 'expected_return'],
@@ -107,9 +122,14 @@ export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
     requiresApproval: false,
     settlementBehavior: 'manual',
     lifecycleSteps: ['draft', 'active', 'settled', 'closed'],
-    ruleSummaryTemplate: 'General deal of {amount} {currency}.',
+    ruleSummaryTemplate: 'Legacy agreement of {amount} {currency}.',
+    isLegacy: true,
+    allocationBase: 'none',
   },
 };
+
+/** Only supported (non-legacy) types for creation flows */
+export const SUPPORTED_DEAL_TYPES: DealType[] = ['partnership', 'arbitrage'];
 
 // ─── Deal Rule Summary Generator ────────────────────────────────────
 
@@ -164,11 +184,20 @@ export interface DealAllocation {
   status: 'pending' | 'approved' | 'settled';
 }
 
+/**
+ * Calculate allocation for a deal based on the correct base:
+ * - Profit Share (partnership): allocates based on NET PROFIT (revenue - FIFO cost)
+ * - Sales Deal (arbitrage): allocates based on sale-linked economics (order amount)
+ * - Legacy types: use order amount as fallback
+ *
+ * @param netProfit - Net profit from the sale (revenue - FIFO cost). Used for Profit Share.
+ */
 export function calculateAllocation(
   deal: MerchantDeal,
   orderAmount: number,
   orderCurrency: string,
-): { counterpartyAmount: number; merchantAmount: number } | null {
+  netProfit?: number,
+): { counterpartyAmount: number; merchantAmount: number; allocationBase: 'net_profit' | 'sale_economics' } | null {
   const config = DEAL_TYPE_CONFIGS[deal.deal_type];
   if (!config.hasCounterpartyShare) return null;
 
@@ -176,10 +205,18 @@ export function calculateAllocation(
   const sharePct = (meta.counterparty_share_pct ?? meta.pool_owner_share_pct ?? meta.partner_ratio ?? 0) as number;
   if (sharePct <= 0 || sharePct > 100) return null;
 
+  // Profit Share: allocate from NET PROFIT
+  if (deal.deal_type === 'partnership') {
+    const base = netProfit ?? 0;
+    const counterpartyAmount = (base * sharePct) / 100;
+    const merchantAmount = base - counterpartyAmount;
+    return { counterpartyAmount, merchantAmount, allocationBase: 'net_profit' };
+  }
+
+  // Sales Deal / Legacy: allocate from order amount (sale-linked economics)
   const counterpartyAmount = (orderAmount * sharePct) / 100;
   const merchantAmount = orderAmount - counterpartyAmount;
-
-  return { counterpartyAmount, merchantAmount };
+  return { counterpartyAmount, merchantAmount, allocationBase: 'sale_economics' };
 }
 
 // ─── Deal Status Transitions ────────────────────────────────────────

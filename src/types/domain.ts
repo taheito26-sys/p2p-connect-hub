@@ -110,8 +110,17 @@ export interface RelationshipSummary {
 }
 
 // ─── Deals ──────────────────────────────────────────────────────────
+// Supported agreement types: arbitrage (Sales Deal) and partnership (Profit Share)
+// Legacy types (lending, capital_placement, general) are kept for backward compatibility
+// but hidden from creation flows.
 export type DealType = 'lending' | 'arbitrage' | 'partnership' | 'capital_placement' | 'general';
+export type SupportedDealType = 'arbitrage' | 'partnership';
 export type DealStatus = 'draft' | 'active' | 'due' | 'settled' | 'closed' | 'overdue' | 'cancelled';
+
+/** Check if a deal type is a currently supported (non-legacy) type */
+export function isSupportedDealType(dt: DealType): dt is SupportedDealType {
+  return dt === 'arbitrage' || dt === 'partnership';
+}
 
 export interface MerchantDeal {
   id: string;
