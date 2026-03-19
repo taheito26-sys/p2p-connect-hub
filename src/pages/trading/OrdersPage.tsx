@@ -1408,7 +1408,7 @@ export default function OrdersPage() {
                               style={{ width: '100%', justifyContent: 'center', color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 35%, var(--line))' }}
                               onClick={() => setCreateDealOpen(true)}
                             >
-                              {t('createNewDeal')}
+                              {t('createNewDealBtn')}
                             </button>
                           )}
                         </>
