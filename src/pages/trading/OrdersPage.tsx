@@ -23,6 +23,12 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   return 'Unknown error';
 }
+function formatDealAmount(amount: number | null | undefined) {
+  return Number.isFinite(amount) ? Number(amount).toLocaleString() : '—';
+}
+function formatDealCurrency(currency: string | null | undefined) {
+  return currency?.trim() || '—';
+}
 
 export default function OrdersPage() {
   const { settings } = useTheme();
@@ -814,9 +820,74 @@ export default function OrdersPage() {
                     </div>
                   </div>
                 )}
-              </div>
-            );
-          })()}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
+                  <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
+                </label>
+                {/* Optional Merchant Order Linking */}
+                <div className="previewBox" style={{ marginTop: 6, borderColor: merchantOrderEnabled ? 'var(--brand)' : undefined }}>
+                  <div className="pt" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {t('merchantOrder')}<span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)', marginBottom: merchantOrderEnabled ? 8 : 0 }}>
+                    <input type="checkbox" checked={merchantOrderEnabled} onChange={e => { const v = e.target.checked; setMerchantOrderEnabled(v); if (!v) { setLinkedRelId(''); setLinkedDealId(''); setAllocationPreview(null); } }} style={{ accentColor: 'var(--brand)' }} /> {t('addSaleAsMerchantOrder')}
+                  </label>
+                  {merchantOrderEnabled && (
+                    <>
+                      <div className="field2" style={{ marginBottom: 4 }}>
+                        <div className="lbl">{t('relationship')}</div>
+                        <select value={linkedRelId} onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }} style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}>
+                          <option value="">{t('noneSelected')}</option>
+                          {relationships.map(r => <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>)}
+                        </select>
+                      </div>
+                      {linkedRelId && (
+                        <>
+                          <div className="field2" style={{ marginBottom: 4 }}>
+                            <div className="lbl">{t('deal')}</div>
+                            <select value={linkedDealId} onChange={e => setLinkedDealId(e.target.value)} style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}>
+                              <option value="">{t('selectDeal')}</option>
+                              {relDeals.map(d => { const cfg = DEAL_TYPE_CONFIGS[d.deal_type]; return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${formatDealAmount(d.amount)} {formatDealCurrency(d.currency)})</option>; })}
+                            </select>
+                            {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noLinkedDeals')}</div>}
+                          </div>
+                          <div className="formActions" style={{ justifyContent: 'flex-start' }}>
+                            <button className="btn secondary" type="button" onClick={() => setCreateDealOpen(true)}>{t('createMerchantDealFromOrder')}</button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {allocationPreview && (
+                    <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('allocationPreview')}</div>
+                      <div className="prev-row"><span className="muted">{t('deal')}</span><strong style={{ fontSize: 10 }}>{allocationPreview.dealTitle}</strong></div>
+                      <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName}{t('counterpartyShare')}</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('yourShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                      <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('autoApprovalNote')}</div>
+                    </div>
+                  )}
+                </div>
+                {/* Live Preview */}
+                <div className="previewBox">
+                  <div className="pt">{t('livePreview')}</div>
+                  {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
+                    <>
+                      {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
+                      <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
+                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                      <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
+                        <span className="muted">{t('net')}</span>
+                        <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
+                        </strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="formActions"><button className="btn" onClick={addTrade}>{t('addTrade')}</button></div>
+                <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
+          </div>
         </div>
 
         <div>
@@ -829,16 +900,101 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <div className="field2">
-                <div className="lbl">{t('dateTime')}</div>
-                <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
-              </div>
-
-              <div className="field2">
-                <div className="lbl">{t('inputMode')}</div>
-                <div className="modeToggle">
-                  <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
-                  <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
+              {partnerMerchantDeals.length === 0 ? (
+                <div className="empty">
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📥</div>
+                  <div className="empty-t">{t('noIncomingDealsYet')}</div>
+                  <div className="empty-s">{t('noIncomingDealsHint')}</div>
+                  <button className="btn secondary" style={{ marginTop: 10, fontSize: 11 }} onClick={() => navigate('/network')}>{t('goToNetwork')}</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {partnerMerchantDeals.map(deal => {
+                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                    const rel = relationships.find(r => r.id === deal.relationship_id);
+                    const dealTrades = incomingTrades.filter(tr => tr.linkedDealId === deal.id);
+                    const sharePct = getDealSharePct(deal);
+                    const workspacePath = rel ? `/network/relationships/${rel.id}` : '/network';
+                    const counterpartyName = rel?.counterparty?.display_name || '—';
+                    const dealVol = dealTrades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
+                    const dealNet = dealTrades.reduce((s, tr) => { const c = derived.tradeCalc.get(tr.id); return s + (c?.ok ? c.netQAR : 0); }, 0);
+                    return (
+                      <div key={deal.id} style={{ border: '1px solid color-mix(in srgb, var(--brand) 22%, var(--line))', borderRadius: 10, overflow: 'hidden' }}>
+                        {/* Deal header */}
+                        <div style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 8%, var(--card-bg))', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 15 }}>{cfg?.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{deal.title}</div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>{counterpartyName} · {formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)} {sharePct != null ? `· ${sharePct}% ${t('partnerShare')}` : ''}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {dealTrades.length > 0 && <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{dealTrades.length} {t('ordersLinked')}</span>}
+                            {dealTrades.length > 0 && dealVol > 0 && <span className="pill" style={{ fontSize: 9 }}>{fmtQ(dealVol)}</span>}
+                            {dealTrades.length > 0 && <span className="pill" style={{ fontSize: 9, color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)' }}>{dealNet >= 0 ? '+' : ''}{fmtQ(dealNet)}</span>}
+                            {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                            <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                          </div>
+                        </div>
+                        {/* Trades table for this deal */}
+                        {dealTrades.length === 0 ? (
+                          <div style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 11, fontStyle: 'italic' }}>
+                            {t('noLinkedOrders')} · {t('amount')}: {formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                                  <th style={thStyle()}>{t('date')}</th>
+                                  <th style={thStyle()}>{t('buyer')}</th>
+                                  <th style={thStyle(true)}>{t('qty')}</th>
+                                  <th style={thStyle(true)}>{t('sell')}</th>
+                                  <th style={thStyle(true)}>{t('volume')}</th>
+                                  <th style={thStyle(true)}>{t('net')}</th>
+                                  <th style={thStyle()}>{t('margin')}</th>
+                                  <th style={thStyle()}>{t('actions')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {dealTrades.map(tr => {
+                                  const c = derived.tradeCalc.get(tr.id);
+                                  const ok = !!c?.ok;
+                                  const rev = tr.amountUSDT * tr.sellPriceQAR;
+                                  const net = ok ? c!.netQAR : NaN;
+                                  const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                                  const cn = state.customers.find(x => x.id === tr.customerId)?.name || counterpartyName;
+                                  return (
+                                    <React.Fragment key={tr.id}>
+                                      <tr style={{ background: 'color-mix(in srgb, var(--brand) 3%, transparent)' }}>
+                                        <td style={tdStyle()}>
+                                          <span className="mono">{fmtDate(tr.ts)}</span>
+                                        </td>
+                                        <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                        <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                          {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                        </td>
+                                        {renderMarginCell(margin)}
+                                        <td style={tdStyle()}>
+                                          <div className="actionsRow">
+                                            <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>{detailsOpen[tr.id] ? t('hideDetails') : t('details')}</button>
+                                            <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {detailsOpen[tr.id] && <tr><td colSpan={8} style={{ padding: 0 }}>{renderDetail(tr, c)}</td></tr>}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -847,9 +1003,182 @@ export default function OrdersPage() {
                   <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
                   <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
                 </div>
-                <div className="field2">
-                  <div className="lbl">{t('sellPriceLabel')}</div>
-                  <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
+                <div className="inner">
+                  {partnerMerchantDeals.length === 0 ? (
+                    <div style={{ padding: '20px 10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>📥</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{t('noIncomingDealsYet')}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 10 }}>{t('noIncomingDealsHint')}</div>
+                      <button className="btn secondary" style={{ fontSize: 11 }} onClick={() => navigate('/network')}>{t('goToNetwork')}</button>
+                    </div>
+                  ) : !formDealId ? (
+                    /* PHASE 1: Deal card selector */
+                    <>
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Select a deal to log an order:</div>
+                      {partnerMerchantDeals.map(deal => {
+                        const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                        const rel = relationships.find(r => r.id === deal.relationship_id);
+                        const sharePct = getDealSharePct(deal);
+                        const tradeCount = incomingTrades.filter(t => t.linkedDealId === deal.id).length;
+                        const counterpartyName = rel?.counterparty?.display_name || '—';
+                        return (
+                          <button
+                            key={deal.id}
+                            type="button"
+                            onClick={() => { setFormDealId(deal.id); setFormRelId(deal.relationship_id); setLinkedDealId(deal.id); setLinkedRelId(deal.relationship_id); }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, marginBottom: 6,
+                              border: '1px solid color-mix(in srgb, var(--brand) 22%, var(--line))',
+                              background: 'color-mix(in srgb, var(--brand) 5%, var(--card-bg))',
+                              cursor: 'pointer', transition: 'all .12s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--brand)'; (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--brand) 10%, var(--card-bg))'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'color-mix(in srgb, var(--brand) 22%, var(--line))'; (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--brand) 5%, var(--card-bg))'; }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span style={{ fontSize: 14 }}>{cfg?.icon}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)', flex: 1 }}>{deal.title}</span>
+                              {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{sharePct}%</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--muted)', flexWrap: 'wrap' }}>
+                              <span>🤝 {counterpartyName}</span>
+                              <span>{formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}</span>
+                              {tradeCount > 0 && <span style={{ color: 'var(--good)' }}>✓ {tradeCount} orders</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    /* PHASE 2: Order form for selected incoming deal */
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setFormDealId(''); setFormRelId(''); setLinkedDealId(''); setLinkedRelId(''); setAllocationPreview(null); setSaleAmount(''); setSaleMessage(''); }}
+                        style={{ fontSize: 10, color: 'var(--brand)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0', marginBottom: 6, fontWeight: 600 }}
+                      >
+                        {t('backToDeals')}
+                      </button>
+
+                      {/* Selected deal context box */}
+                      {selectedInDeal && (() => {
+                        const cfg = DEAL_TYPE_CONFIGS[selectedInDeal.deal_type];
+                        const sharePct = getDealSharePct(selectedInDeal);
+                        return (
+                          <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 22%, transparent)', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span>{cfg?.icon}</span>
+                              <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--brand)' }}>{selectedInDeal.title}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, color: 'var(--muted)' }}>
+                              <span>{t('dealPartner')}: <strong style={{ color: 'var(--text)' }}>{selectedInRel?.counterparty?.display_name || '—'}</strong></span>
+                              <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>{formatDealAmount(selectedInDeal.amount)} {formatDealCurrency(selectedInDeal.currency)}</strong></span>
+                              {sharePct != null && <span>Share: <strong style={{ color: 'var(--brand)' }}>{sharePct}%</strong></span>}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Order inputs */}
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orderDetails')}</div>
+                      {wacop && (
+                        <div className="bannerRow">
+                          <span className="bLbl">{t('avPrice')}</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
+                        </div>
+                      )}
+                      <div className="field2">
+                        <div className="lbl">{t('dateTime')}</div>
+                        <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
+                      </div>
+                      <div className="field2">
+                        <div className="lbl">{t('inputMode')}</div>
+                        <div className="modeToggle">
+                          <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
+                          <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
+                        </div>
+                      </div>
+                      <div className="g2tight">
+                        <div className="field2">
+                          <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
+                          <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
+                        </div>
+                        <div className="field2">
+                          <div className="lbl">{t('sellPriceLabel')}</div>
+                          <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
+                        </div>
+                      </div>
+                      <div className="field2">
+                        <div className="lbl">{t('buyerName')}</div>
+                        <div className="lookupShell">
+                          <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
+                              onFocus={() => setBuyerMenuOpen(true)}
+                              onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
+                            />
+                            <button className="sideAction" type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
+                            <button className="sideAction" type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+                          </div>
+                          {buyerMenuOpen && (
+                            <div className="lookupMenu">
+                              {filteredCustomers.length ? filteredCustomers.map(c => (
+                                <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
+                                  <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
+                                </button>
+                              )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {addBuyerOpen && (
+                        <div className="previewBox" style={{ marginTop: 2 }}>
+                          <div className="pt">{t('addBuyerTitle')}</div>
+                          <div className="g2tight" style={{ marginBottom: 6 }}>
+                            <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
+                            <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                          </div>
+                          <div className="field2">
+                            <div className="lbl">{t('tier')}</div>
+                            <div className="modeToggle">{['A','B','C','D'].map(tier => <button key={tier} type="button" className={newBuyerTier===tier?'active':''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>)}</div>
+                          </div>
+                          <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
+                        </div>
+                      )}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
+                        <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
+                      </label>
+                      {/* Allocation preview */}
+                      {allocationPreview && (
+                        <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 6, padding: '8px 10px', marginTop: 4, border: '1px solid color-mix(in srgb, var(--brand) 22%, transparent)' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('allocationPreview')}</div>
+                          <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName} (Partner):</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
+                          <div className="prev-row"><span className="muted">{t('yourShare')}:</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                          <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('autoApprovalNote')}</div>
+                        </div>
+                      )}
+                      {/* Live preview */}
+                      <div className="previewBox">
+                        <div className="pt">{t('livePreview')}</div>
+                        {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
+                          <>
+                            {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
+                            <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
+                            <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
+                            <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                            <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
+                              <span className="muted">{t('net')}</span>
+                              <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                                {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
+                              </strong>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div className="formActions">
+                        <button className="btn" style={{ background: 'var(--brand)' }} onClick={addTrade}>📥 {t('logIncomingOrder')}</button>
+                      </div>
+                      <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -876,18 +1205,101 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {addBuyerOpen && (
-                <div className="previewBox" style={{ marginTop: 2 }}>
-                  <div className="pt">{t('addBuyerTitle')}</div>
-                  <div className="g2tight" style={{ marginBottom: 6 }}>
-                    <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
-                    <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
-                  </div>
-                  <div className="field2">
-                    <div className="lbl">{t('tier')}</div>
-                    <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>))}</div>
-                  </div>
-                  <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
+              {creatorMerchantDeals.length === 0 ? (
+                <div className="empty">
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📤</div>
+                  <div className="empty-t">{t('noOutgoingDealsYet')}</div>
+                  <div className="empty-s">{t('noOutgoingDealsHint')}</div>
+                  <button className="btn secondary" style={{ marginTop: 10, fontSize: 11 }} onClick={() => navigate('/network')}>{t('goToNetwork')}</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {creatorMerchantDeals.map(deal => {
+                    const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                    const rel = relationships.find(r => r.id === deal.relationship_id);
+                    const dealTrades = outgoingTrades.filter(tr => tr.linkedDealId === deal.id);
+                    const sharePct = getDealSharePct(deal);
+                    const workspacePath = rel ? `/network/relationships/${rel.id}` : '/network';
+                    const counterpartyName = rel?.counterparty?.display_name || '—';
+                    const dealVol = dealTrades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
+                    const dealNet = dealTrades.reduce((s, tr) => { const c = derived.tradeCalc.get(tr.id); return s + (c?.ok ? c.netQAR : 0); }, 0);
+                    return (
+                      <div key={deal.id} style={{ border: '1px solid color-mix(in srgb, var(--good) 22%, var(--line))', borderRadius: 10, overflow: 'hidden' }}>
+                        {/* Deal header */}
+                        <div style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--good) 8%, var(--card-bg))', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 15 }}>{cfg?.icon}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--good)' }}>{deal.title}</div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>{counterpartyName} · {formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}{sharePct != null ? ` · ${sharePct}% ${t('partnerShare')}` : ''}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {dealTrades.length > 0 && <span className="pill" style={{ fontSize: 9, color: 'var(--good)' }}>{dealTrades.length} {t('ordersLinked')}</span>}
+                            {dealVol > 0 && <span className="pill" style={{ fontSize: 9 }}>{fmtQ(dealVol)}</span>}
+                            {dealTrades.length > 0 && <span className="pill" style={{ fontSize: 9, color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)' }}>{dealNet >= 0 ? '+' : ''}{fmtQ(dealNet)}</span>}
+                            {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                            <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
+                          </div>
+                        </div>
+                        {/* Trades table */}
+                        {dealTrades.length === 0 ? (
+                          <div style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 11, fontStyle: 'italic' }}>
+                            {t('noLinkedOrders')} · {t('amount')}: {formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
+                                  <th style={thStyle()}>{t('date')}</th>
+                                  <th style={thStyle()}>{t('buyer')}</th>
+                                  <th style={thStyle(true)}>{t('qty')}</th>
+                                  <th style={thStyle(true)}>{t('avgBuy')}</th>
+                                  <th style={thStyle(true)}>{t('sell')}</th>
+                                  <th style={thStyle(true)}>{t('volume')}</th>
+                                  <th style={thStyle(true)}>{t('net')}</th>
+                                  <th style={thStyle()}>{t('margin')}</th>
+                                  <th style={thStyle()}>{t('actions')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {dealTrades.map(tr => {
+                                  const c = derived.tradeCalc.get(tr.id);
+                                  const ok = !!c?.ok;
+                                  const rev = tr.amountUSDT * tr.sellPriceQAR;
+                                  const net = ok ? c!.netQAR : NaN;
+                                  const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                                  const cn = state.customers.find(x => x.id === tr.customerId)?.name || counterpartyName;
+                                  return (
+                                    <React.Fragment key={tr.id}>
+                                      <tr style={{ background: 'color-mix(in srgb, var(--good) 3%, transparent)' }}>
+                                        <td style={tdStyle()}><span className="mono">{fmtDate(tr.ts)}</span></td>
+                                        <td style={tdStyle()}>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 120 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
+                                        <td className="mono" style={tdStyle(true)}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
+                                        <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
+                                        <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
+                                          {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+                                        </td>
+                                        {renderMarginCell(margin)}
+                                        <td style={tdStyle()}>
+                                          <div className="actionsRow">
+                                            <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>{detailsOpen[tr.id] ? t('hideDetails') : t('details')}</button>
+                                            <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {detailsOpen[tr.id] && <tr><td colSpan={9} style={{ padding: 0 }}>{renderDetail(tr, c)}</td></tr>}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -901,53 +1313,173 @@ export default function OrdersPage() {
                   {t('merchantOrder')}
                   <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)', marginBottom: merchantOrderEnabled ? 8 : 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={merchantOrderEnabled}
-                    onChange={e => {
-                      const nextEnabled = e.target.checked;
-                      setMerchantOrderEnabled(nextEnabled);
-                      if (!nextEnabled) {
-                        setLinkedRelId('');
-                        setLinkedDealId('');
-                        setAllocationPreview(null);
-                      }
-                    }}
-                    style={{ accentColor: 'var(--brand)' }}
-                  /> {t('addSaleAsMerchantOrder')}
-                </label>
-                {merchantOrderEnabled && (
-                  <>
-                    <div className="field2" style={{ marginBottom: 4 }}>
-                      <div className="lbl">{t('relationship')}</div>
-                      <select
-                        value={linkedRelId}
-                        onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }}
-                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                <div className="inner">
+                  {!formDealId ? (
+                    /* PHASE 1: Deal card selector + create deal */
+                    <>
+                      {creatorMerchantDeals.length > 0 && (
+                        <>
+                          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Select a deal to log an order:</div>
+                          {creatorMerchantDeals.map(deal => {
+                            const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                            const rel = relationships.find(r => r.id === deal.relationship_id);
+                            const sharePct = getDealSharePct(deal);
+                            const tradeCount = outgoingTrades.filter(t => t.linkedDealId === deal.id).length;
+                            const counterpartyName = rel?.counterparty?.display_name || '—';
+                            return (
+                              <button
+                                key={deal.id}
+                                type="button"
+                                onClick={() => { setFormDealId(deal.id); setFormRelId(deal.relationship_id); setLinkedDealId(deal.id); setLinkedRelId(deal.relationship_id); }}
+                                style={{
+                                  width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, marginBottom: 6,
+                                  border: '1px solid color-mix(in srgb, var(--good) 22%, var(--line))',
+                                  background: 'color-mix(in srgb, var(--good) 5%, var(--card-bg))',
+                                  cursor: 'pointer', transition: 'all .12s',
+                                }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--good)'; (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--good) 10%, var(--card-bg))'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'color-mix(in srgb, var(--good) 22%, var(--line))'; (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--good) 5%, var(--card-bg))'; }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                  <span style={{ fontSize: 14 }}>{cfg?.icon}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--good)', flex: 1 }}>{deal.title}</span>
+                                  {sharePct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)' }}>{sharePct}%</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                  <span>🤝 {counterpartyName}</span>
+                                  <span>{formatDealAmount(deal.amount)} {formatDealCurrency(deal.currency)}</span>
+                                  {tradeCount > 0 && <span style={{ color: 'var(--good)' }}>✓ {tradeCount} orders</span>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                          <div style={{ borderTop: '1px solid var(--line)', margin: '8px 0', fontSize: 9, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px', paddingTop: 8 }}>{t('orSelectRelForDeal')}</div>
+                        </>
+                      )}
+                      {creatorMerchantDeals.length === 0 && (
+                        <div style={{ padding: '12px 4px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 24, marginBottom: 6 }}>📤</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{t('noOutgoingDealsYet')}</div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>{t('noOutgoingDealsHint')}</div>
+                        </div>
+                      )}
+                      {/* Create new deal section */}
+                      {relationships.length > 0 ? (
+                        <>
+                          <div className="field2" style={{ marginBottom: 4 }}>
+                            <div className="lbl">{t('relationship')}</div>
+                            <select value={linkedRelId} onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }} style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}>
+                              <option value="">{t('noneSelected')}</option>
+                              {relationships.map(r => <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>)}
+                            </select>
+                          </div>
+                          {linkedRelId && (
+                            <button
+                              className="btn secondary"
+                              type="button"
+                              style={{ width: '100%', justifyContent: 'center', color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 35%, var(--line))' }}
+                              onClick={() => setCreateDealOpen(true)}
+                            >
+                              {t('createNewDeal')}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <button className="btn secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }} onClick={() => navigate('/network')}>{t('goToNetwork')}</button>
+                      )}
+                    </>
+                  ) : (
+                    /* PHASE 2: Order form for selected outgoing deal */
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setFormDealId(''); setFormRelId(''); setLinkedDealId(''); setLinkedRelId(''); setAllocationPreview(null); setSaleAmount(''); setSaleMessage(''); }}
+                        style={{ fontSize: 10, color: 'var(--good)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0', marginBottom: 6, fontWeight: 600 }}
                       >
-                        <option value="">{t('noneSelected')}</option>
-                        {relationships.map(r => (
-                          <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id} ({r.relationship_type})</option>
-                        ))}
-                      </select>
-                    </div>
-                    {linkedRelId && (
-                      <>
-                        <div className="field2" style={{ marginBottom: 4 }}>
-                          <div className="lbl">{t('deal')}</div>
-                          <select
-                            value={linkedDealId}
-                            onChange={e => setLinkedDealId(e.target.value)}
-                            style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                          >
-                            <option value="">{t('selectDeal')}</option>
-                            {relDeals.map(d => {
-                              const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
-                              return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${d.amount.toLocaleString()} {d.currency})</option>;
-                            })}
-                          </select>
-                          {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noLinkedDeals')}</div>}
+                        {t('backToDeals')}
+                      </button>
+
+                      {/* Selected deal context box */}
+                      {selectedOutDeal && (() => {
+                        const cfg = DEAL_TYPE_CONFIGS[selectedOutDeal.deal_type];
+                        const sharePct = getDealSharePct(selectedOutDeal);
+                        return (
+                          <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 22%, transparent)', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span>{cfg?.icon}</span>
+                              <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--good)' }}>{selectedOutDeal.title}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, color: 'var(--muted)' }}>
+                              <span>{t('dealPartner')}: <strong style={{ color: 'var(--text)' }}>{selectedOutRel?.counterparty?.display_name || '—'}</strong></span>
+                              <span>{t('amount')}: <strong style={{ color: 'var(--t1)' }}>{formatDealAmount(selectedOutDeal.amount)} {formatDealCurrency(selectedOutDeal.currency)}</strong></span>
+                              {sharePct != null && <span>Share: <strong style={{ color: 'var(--good)' }}>{sharePct}%</strong></span>}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Order inputs */}
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orderDetails')}</div>
+                      {wacop && (
+                        <div className="bannerRow">
+                          <span className="bLbl">{t('avPrice')}</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
+                        </div>
+                      )}
+                      <div className="field2">
+                        <div className="lbl">{t('dateTime')}</div>
+                        <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
+                      </div>
+                      <div className="field2">
+                        <div className="lbl">{t('inputMode')}</div>
+                        <div className="modeToggle">
+                          <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
+                          <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
+                        </div>
+                      </div>
+                      <div className="g2tight">
+                        <div className="field2">
+                          <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
+                          <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
+                        </div>
+                        <div className="field2">
+                          <div className="lbl">{t('sellPriceLabel')}</div>
+                          <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
+                        </div>
+                      </div>
+                      <div className="field2">
+                        <div className="lbl">{t('buyerName')}</div>
+                        <div className="lookupShell">
+                          <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
+                              onFocus={() => setBuyerMenuOpen(true)}
+                              onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
+                            />
+                            <button className="sideAction" type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
+                            <button className="sideAction" type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+                          </div>
+                          {buyerMenuOpen && (
+                            <div className="lookupMenu">
+                              {filteredCustomers.length ? filteredCustomers.map(c => (
+                                <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
+                                  <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
+                                </button>
+                              )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {addBuyerOpen && (
+                        <div className="previewBox" style={{ marginTop: 2 }}>
+                          <div className="pt">{t('addBuyerTitle')}</div>
+                          <div className="g2tight" style={{ marginBottom: 6 }}>
+                            <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
+                            <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                          </div>
+                          <div className="field2">
+                            <div className="lbl">{t('tier')}</div>
+                            <div className="modeToggle">{['A','B','C','D'].map(tier => <button key={tier} type="button" className={newBuyerTier===tier?'active':''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>)}</div>
+                          </div>
+                          <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
                         </div>
                         <div className="formActions" style={{ justifyContent: 'flex-start' }}>
                           <button className="btn secondary" type="button" onClick={() => setCreateDealOpen(true)}>
