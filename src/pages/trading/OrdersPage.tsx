@@ -1124,25 +1124,14 @@ export default function OrdersPage() {
                                     {isSelected && (
                                       <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid color-mix(in srgb, ${accentVar} 20%, transparent)` }}>
                                         {/* Ratio preview */}
-                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 6 }}>
+                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 4 }}>
                                           {getTemplateRatioLabel(tmpl, t.lang)}
                                         </div>
 
-                                        {/* Due date for advance templates */}
-                                        {tmpl.requiresDueDate && (
-                                          <div className="field2" style={{ marginBottom: 6 }}>
-                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateDueDate')}</div>
-                                            <div className="inputBox"><input type="date" value={templateDueDate} onChange={e => setTemplateDueDate(e.target.value)} /></div>
-                                          </div>
-                                        )}
-
-                                        {/* Expected return for lending */}
-                                        {tmpl.dealType === 'lending' && (
-                                          <div className="field2" style={{ marginBottom: 6 }}>
-                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateExpectedReturn')}</div>
-                                            <div className="inputBox"><input type="number" inputMode="decimal" placeholder="0" value={templateExpectedReturn} onChange={e => setTemplateExpectedReturn(e.target.value)} /></div>
-                                          </div>
-                                        )}
+                                        {/* Helper text */}
+                                        <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4, fontStyle: 'italic' }}>
+                                          {tmpl.helperText[t.lang]}
+                                        </div>
 
                                         {/* Amount note */}
                                         {saleAmount && (
