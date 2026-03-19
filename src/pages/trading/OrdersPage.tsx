@@ -170,44 +170,7 @@ export default function OrdersPage() {
     api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
   }, [linkedRelId]);
 
-  // Compute allocation preview with correct base (net profit vs sale economics)
-  const allocationWithBase = useMemo(() => {
-    if (!linkedDealId || !saleAmount) return null;
-    const deal = relDeals.find(d => d.id === linkedDealId);
-    const rel = relationships.find(r => r.id === linkedRelId);
-    if (!deal || !rel) return null;
-    const raw = Number(saleAmount);
-    const sell = Number(saleSell);
-    const orderAmount = saleMode === 'USDT' ? raw * sell : raw;
-    // Compute net profit from FIFO for Profit Share agreements
-    const netProfit = salePreview?.net != null && Number.isFinite(salePreview.net) ? salePreview.net : undefined;
-    const alloc = calculateAllocation(deal, orderAmount, 'QAR', netProfit);
-    if (alloc) {
-      return {
-        ...alloc,
-        counterpartyName: rel.counterparty?.display_name || t('partner'),
-        dealTitle: deal.title,
-        orderAmount,
-        netProfit: netProfit ?? null,
-        fifoCost: salePreview?.cost != null && Number.isFinite(salePreview.cost) ? salePreview.cost : null,
-        revenue: salePreview?.revenue ?? orderAmount,
-      };
-    }
-    return null;
-  }, [linkedDealId, saleAmount, saleSell, saleMode, relDeals, relationships, linkedRelId, salePreview]);
-
-  useEffect(() => {
-    if (allocationWithBase) {
-      setAllocationPreview({
-        counterpartyAmount: allocationWithBase.counterpartyAmount,
-        merchantAmount: allocationWithBase.merchantAmount,
-        counterpartyName: allocationWithBase.counterpartyName,
-        dealTitle: allocationWithBase.dealTitle,
-      });
-    } else {
-      setAllocationPreview(null);
-    }
-  }, [allocationWithBase]);
+  // Allocation preview is computed after salePreview (see below)
 
   const applyState = (next: TrackerState) => {
     setState(next);
