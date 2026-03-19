@@ -29,6 +29,19 @@ function formatDealAmount(amount: number | null | undefined) {
 function formatDealCurrency(currency: string | null | undefined) {
   return currency?.trim() || '—';
 }
+function normalizeRelationships(input: unknown): MerchantRelationship[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((item): item is MerchantRelationship => !!item && typeof item === 'object');
+}
+function normalizeDeals(input: unknown): MerchantDeal[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((item): item is MerchantDeal => !!item && typeof item === 'object')
+    .map((deal) => ({
+      ...deal,
+      metadata: deal.metadata && typeof deal.metadata === 'object' ? deal.metadata : {},
+    }));
+}
 
 export default function OrdersPage() {
   const { settings } = useTheme();
@@ -98,8 +111,8 @@ export default function OrdersPage() {
         api.relationships.list(),
         api.deals.list(),
       ]);
-      setRelationships(relationshipsRes.relationships);
-      setAllMerchantDeals(dealsRes.deals);
+      setRelationships(normalizeRelationships(relationshipsRes.relationships));
+      setAllMerchantDeals(normalizeDeals(dealsRes.deals));
     } catch {
       // keep tracker usable even if merchant data refresh fails
     }
@@ -111,7 +124,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!linkedRelId) { setRelDeals([]); setLinkedDealId(''); return; }
-    api.deals.list(linkedRelId).then(r => setRelDeals(r.deals)).catch(() => {});
+    api.deals.list(linkedRelId).then(r => setRelDeals(normalizeDeals(r.deals))).catch(() => {});
   }, [linkedRelId]);
 
   useEffect(() => {
