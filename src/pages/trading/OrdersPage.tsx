@@ -103,7 +103,7 @@ export default function OrdersPage() {
     }
   }, []);
 
-  const applyTemplate = useCallback(async (template: DealTemplate) => {
+  const applyTemplate = useCallback(async (template: AgreementTemplate) => {
     if (!linkedRelId) return;
     const rel = relationships.find(r => r.id === linkedRelId);
     if (!rel) return;
