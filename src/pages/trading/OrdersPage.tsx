@@ -21,6 +21,10 @@ type TabKey = 'myOrders' | 'incoming' | 'outgoing';
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  return 'Unknown error';
+}
 
 export default function OrdersPage() {
   const { settings } = useTheme();
@@ -238,7 +242,7 @@ export default function OrdersPage() {
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
     const ts = new Date(saleDate).getTime();
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
@@ -273,7 +277,7 @@ export default function OrdersPage() {
     const ts = new Date(saleDate).getTime();
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
@@ -309,8 +313,8 @@ export default function OrdersPage() {
           note: `Auto-allocation from sell order: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)} QAR. Total: ${fmtQ(revenue)}. ${allocationPreview.counterpartyName}'s share: ${fmtQ(allocationPreview.counterpartyAmount)}.`,
         });
         toast.success(t('tradeLogged'));
-      } catch (err: any) {
-        toast.error(err.message);
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err));
       }
     } else {
       setSaleMessage(t('tradeLogged'));
@@ -416,8 +420,8 @@ export default function OrdersPage() {
       await reloadMerchantData();
       toast.success(t('saveChanges'));
       setAdjustingDealId(null);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setAdjustSaving(false);
     }
