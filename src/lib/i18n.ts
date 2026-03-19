@@ -652,6 +652,25 @@ const translations = {
   selectDealToLink: { en: 'Select a deal to view linked orders', ar: 'اختر صفقة لعرض الطلبات المرتبطة' },
   createNewDealShortcut: { en: '+ Create New Deal', ar: '+ إنشاء صفقة جديدة' },
   noPnlYet: { en: 'No P&L yet', ar: 'لا أرباح/خسائر بعد' },
+
+  // ── Deal Agreement Templates ──
+  quickAgreements: { en: 'Quick Agreements', ar: 'اتفاقيات سريعة' },
+  quickAgreementsDesc: { en: 'Select a predefined agreement template to auto-create a deal with this relationship.', ar: 'اختر قالب اتفاقية محدد مسبقاً لإنشاء صفقة تلقائياً مع هذه العلاقة.' },
+  selectTemplate: { en: 'Select a template', ar: 'اختر قالباً' },
+  templateSelected: { en: 'Template selected', ar: 'تم اختيار القالب' },
+  applyTemplate: { en: 'Apply & Create Deal', ar: 'تطبيق وإنشاء الصفقة' },
+  applyingTemplate: { en: 'Creating deal...', ar: 'جاري إنشاء الصفقة...' },
+  templateApplied: { en: 'Agreement applied — deal created and linked', ar: 'تم تطبيق الاتفاقية — تم إنشاء الصفقة وربطها' },
+  templateApplyFailed: { en: 'Failed to apply template', ar: 'فشل تطبيق القالب' },
+  orSelectExisting: { en: 'Or select an existing deal', ar: 'أو اختر صفقة موجودة' },
+  existingDeals: { en: 'Existing Deals', ar: 'الصفقات الموجودة' },
+  orCreateCustom: { en: 'Or create a custom deal', ar: 'أو أنشئ صفقة مخصصة' },
+  popular: { en: 'Popular', ar: 'شائع' },
+  templateDueDate: { en: 'Due Date (required for advances)', ar: 'تاريخ الاستحقاق (مطلوب للسلف)' },
+  templateExpectedReturn: { en: 'Expected Return', ar: 'العائد المتوقع' },
+  templateAmount: { en: 'Deal Amount', ar: 'مبلغ الصفقة' },
+  templateAmountHint: { en: 'Auto-filled from sale amount', ar: 'يتم ملؤه تلقائياً من مبلغ البيع' },
+  customDeal: { en: 'Custom Deal', ar: 'صفقة مخصصة' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

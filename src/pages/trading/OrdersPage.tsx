@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
+import { DEAL_TEMPLATES, buildTemplateMetadata, generateTemplateTitle, getTemplateRatioLabel, type DealTemplate } from '@/lib/deal-templates';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -75,6 +76,11 @@ export default function OrdersPage() {
   const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
   const [adjustShareValue, setAdjustShareValue] = useState('');
   const [adjustSaving, setAdjustSaving] = useState(false);
+  // ─── Agreement Template State ────────────────────────────────────
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateDueDate, setTemplateDueDate] = useState('');
+  const [templateExpectedReturn, setTemplateExpectedReturn] = useState('');
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
   // Borrower can expose their buyer name to the lender per deal
   const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
   const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
@@ -95,6 +101,70 @@ export default function OrdersPage() {
       // keep tracker usable even if merchant data refresh fails
     }
   }, []);
+
+  const applyTemplate = useCallback(async (template: DealTemplate) => {
+    if (!linkedRelId) return;
+    const rel = relationships.find(r => r.id === linkedRelId);
+    if (!rel) return;
+
+    // Validate required fields for advance template
+    if (template.requiresDueDate && !templateDueDate) {
+      setSaleMessage(`${t('fixFields')} ${t('dueDate')}`);
+      return;
+    }
+
+    const customerName = buyerName.trim() || t('buyer');
+    const amount = Number(saleAmount) || 0;
+    const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
+
+    if (amount <= 0) {
+      setSaleMessage(`${t('fixFields')} ${t('amount')}`);
+      return;
+    }
+
+    setApplyingTemplate(true);
+    try {
+      const metadata = buildTemplateMetadata(template);
+      // Add customer/supplier references
+      const ensured = ensureCustomer(buyerName);
+      metadata.customer_id = ensured.id || '';
+      metadata.customer_name = customerName;
+      metadata.supplier_name = 'System';
+      metadata.template_id = template.id;
+
+      const title = generateTemplateTitle(template, customerName, t.lang);
+
+      const dealResult = await api.deals.create({
+        relationship_id: linkedRelId,
+        deal_type: template.dealType,
+        title,
+        amount,
+        currency,
+        due_date: templateDueDate || undefined,
+        expected_return: templateExpectedReturn ? parseFloat(templateExpectedReturn) : undefined,
+        metadata,
+      });
+
+      // Refresh deals and auto-select the new deal
+      await reloadMerchantData();
+      const dealsRes = await api.deals.list(linkedRelId);
+      setRelDeals(dealsRes.deals);
+
+      const newDealId = dealResult.deal?.id;
+      if (newDealId) {
+        setLinkedDealId(newDealId);
+      }
+
+      toast.success(t('templateApplied'));
+      setSelectedTemplateId(null);
+      setTemplateDueDate('');
+      setTemplateExpectedReturn('');
+    } catch (err: any) {
+      toast.error(err.message || t('templateApplyFailed'));
+    } finally {
+      setApplyingTemplate(false);
+    }
+  }, [linkedRelId, relationships, buyerName, saleAmount, saleMode, templateDueDate, templateExpectedReturn, t, reloadMerchantData]);
 
   useEffect(() => {
     reloadMerchantData();
@@ -255,6 +325,9 @@ export default function OrdersPage() {
     setLinkedRelId('');
     setLinkedDealId('');
     setAllocationPreview(null);
+    setSelectedTemplateId(null);
+    setTemplateDueDate('');
+    setTemplateExpectedReturn('');
   };
 
   const exportCsv = () => {
@@ -978,7 +1051,7 @@ export default function OrdersPage() {
                         <div className="lbl">{t('relationship')}</div>
                         <select
                           value={linkedRelId}
-                          onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); }}
+                          onChange={e => { setLinkedRelId(e.target.value); setLinkedDealId(''); setSelectedTemplateId(null); }}
                           style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                         >
                           <option value="">{t('noneSelected')}</option>
@@ -989,24 +1062,117 @@ export default function OrdersPage() {
                       </div>
                       {linkedRelId && (
                         <>
-                          <div className="field2" style={{ marginBottom: 4 }}>
-                            <div className="lbl">{t('deal')}</div>
-                            <select
-                              value={linkedDealId}
-                              onChange={e => setLinkedDealId(e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                            >
-                              <option value="">{t('selectDeal')}</option>
-                              {relDeals.map(d => {
-                                const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
-                                return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} (${d.amount.toLocaleString()} {d.currency})</option>;
+                          {/* ─── QUICK AGREEMENT TEMPLATES ─── */}
+                          <div style={{ marginTop: 6, marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>{t('quickAgreements')}</div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 8 }}>{t('quickAgreementsDesc')}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {DEAL_TEMPLATES.map(tmpl => {
+                                const isSelected = selectedTemplateId === tmpl.id;
+                                const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : tmpl.accent === 'good' ? 'var(--good)' : tmpl.accent === 'bad' ? 'var(--bad)' : 'var(--warn)';
+                                return (
+                                  <div
+                                    key={tmpl.id}
+                                    onClick={() => { setSelectedTemplateId(isSelected ? null : tmpl.id); setLinkedDealId(''); }}
+                                    style={{
+                                      padding: '8px 10px', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                                      background: isSelected ? `color-mix(in srgb, ${accentVar} 10%, transparent)` : 'color-mix(in srgb, var(--bg) 50%, var(--line))',
+                                      border: `1px solid ${isSelected ? accentVar : 'color-mix(in srgb, var(--line) 60%, transparent)'}`,
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                        <span style={{ fontSize: 14 }}>{tmpl.icon}</span>
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? accentVar : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {tmpl.label[t.lang]}
+                                          </div>
+                                          <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, marginTop: 1 }}>{tmpl.description[t.lang]}</div>
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
+                                        <span className="pill" style={{ fontSize: 9, fontWeight: 800, color: accentVar, borderColor: `color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
+                                          {tmpl.ratioDisplay}
+                                        </span>
+                                        {tmpl.tags.includes('popular') && (
+                                          <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--warn)', letterSpacing: '.3px', textTransform: 'uppercase' }}>⭐ {t('popular')}</span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded details when selected */}
+                                    {isSelected && (
+                                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid color-mix(in srgb, ${accentVar} 20%, transparent)` }}>
+                                        {/* Ratio preview */}
+                                        <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 6 }}>
+                                          {getTemplateRatioLabel(tmpl, t.lang)}
+                                        </div>
+
+                                        {/* Due date for advance templates */}
+                                        {tmpl.requiresDueDate && (
+                                          <div className="field2" style={{ marginBottom: 6 }}>
+                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateDueDate')}</div>
+                                            <div className="inputBox"><input type="date" value={templateDueDate} onChange={e => setTemplateDueDate(e.target.value)} /></div>
+                                          </div>
+                                        )}
+
+                                        {/* Expected return for lending */}
+                                        {tmpl.dealType === 'lending' && (
+                                          <div className="field2" style={{ marginBottom: 6 }}>
+                                            <div className="lbl" style={{ fontSize: 9 }}>{t('templateExpectedReturn')}</div>
+                                            <div className="inputBox"><input type="number" inputMode="decimal" placeholder="0" value={templateExpectedReturn} onChange={e => setTemplateExpectedReturn(e.target.value)} /></div>
+                                          </div>
+                                        )}
+
+                                        {/* Amount note */}
+                                        {saleAmount && (
+                                          <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            ℹ️ {t('templateAmountHint')}: <strong className="mono">{saleAmount} {saleMode}</strong>
+                                          </div>
+                                        )}
+
+                                        {/* Auto-approval note */}
+                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 6 }}>{t('autoApprovalNote')}</div>
+
+                                        <button
+                                          className="btn"
+                                          disabled={applyingTemplate}
+                                          onClick={e => { e.stopPropagation(); applyTemplate(tmpl); }}
+                                          style={{ width: '100%', fontSize: 11, padding: '6px 12px', opacity: applyingTemplate ? 0.7 : 1 }}
+                                        >
+                                          {applyingTemplate ? t('applyingTemplate') : t('applyTemplate')}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
                               })}
-                            </select>
-                            {relDeals.length === 0 && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('noLinkedDeals')}</div>}
+                            </div>
                           </div>
-                          <div className="formActions" style={{ justifyContent: 'flex-start' }}>
-                            <button className="btn secondary" type="button" onClick={() => setCreateDealOpen(true)}>
-                              {t('createMerchantDealFromOrder')}
+
+                          {/* ─── EXISTING DEALS SECTION ─── */}
+                          {relDeals.length > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orSelectExisting')}</div>
+                              <select
+                                value={linkedDealId}
+                                onChange={e => { setLinkedDealId(e.target.value); setSelectedTemplateId(null); }}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                              >
+                                <option value="">{t('selectDeal')}</option>
+                                {relDeals.map(d => {
+                                  const cfg = DEAL_TYPE_CONFIGS[d.deal_type];
+                                  return <option key={d.id} value={d.id}>{cfg?.icon} {d.title} ({d.amount.toLocaleString()} {d.currency})</option>;
+                                })}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* ─── CUSTOM DEAL SHORTCUT ─── */}
+                          <div style={{ marginTop: 6 }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>{t('orCreateCustom')}</div>
+                            <button className="btn secondary" type="button" style={{ width: '100%', fontSize: 10 }} onClick={() => setCreateDealOpen(true)}>
+                              {t('customDeal')} →
                             </button>
                           </div>
                         </>
