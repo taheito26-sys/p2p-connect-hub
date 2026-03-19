@@ -82,6 +82,12 @@ export default function OrdersPage() {
   const [templateDueDate, setTemplateDueDate] = useState('');
   const [templateExpectedReturn, setTemplateExpectedReturn] = useState('');
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  // ─── Edit Deal State ────────────────────────────────────────
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
+  const [editDealTitle, setEditDealTitle] = useState('');
+  const [editDealAmount, setEditDealAmount] = useState('');
+  const [editDealStatus, setEditDealStatus] = useState('');
+  const [editDealSaving, setEditDealSaving] = useState(false);
   // Borrower can expose their buyer name to the lender per deal
   const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
   const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
