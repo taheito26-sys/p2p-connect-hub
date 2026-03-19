@@ -165,7 +165,7 @@ export default function OrdersPage() {
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
     const ts = new Date(saleDate).getTime();
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
@@ -237,7 +237,7 @@ export default function OrdersPage() {
     const ts = new Date(saleDate).getTime();
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
-    let amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));

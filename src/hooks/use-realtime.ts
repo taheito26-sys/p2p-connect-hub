@@ -52,6 +52,6 @@ export function useRealtimeRefresh(callback: () => void, eventTypes: RealtimeEve
       unsub();
       realtime.release();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isAuthenticated, stableCallback, eventTypesKey]);
 }

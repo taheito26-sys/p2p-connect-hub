@@ -224,7 +224,7 @@ export function CreateDealDialog({
         const dealId = dealResult.deal?.id || '';
         // Ensure customer exists in tracker state
         let nextCustomers = trackerState.customers;
-        let customerId = selectedCustomerId;
+        const customerId = selectedCustomerId;
         const existing = trackerState.customers.find(c => c.id === selectedCustomerId);
         if (!existing && selectedCustomer) {
           const newCust: Customer = {
