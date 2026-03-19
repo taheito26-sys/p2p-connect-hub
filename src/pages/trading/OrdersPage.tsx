@@ -779,7 +779,10 @@ export default function OrdersPage() {
                             <tr key={tr.id} style={{ background: rowBg, borderTop: firstRowBorder }}>
                               <td style={tdStyle()}>
                                 <span className="mono">{fmtDate(tr.ts)}</span>
-                                {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{counterpartyName} · {deal.title}</div>}
+                              </td>
+                              <td style={tdStyle()}>
+                                <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
+                                {idx === 0 && <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>{deal.title}</div>}
                               </td>
                               <td style={tdStyle()}>
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -798,6 +801,8 @@ export default function OrdersPage() {
                               <td style={tdStyle()}>
                                 <div className="actionsRow">
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
