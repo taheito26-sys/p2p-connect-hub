@@ -74,6 +74,16 @@ export default function OrdersPage() {
   // Cancellation request dialog
   const [cancelTradeId, setCancelTradeId] = useState<string | null>(null);
 
+  // ─── Merchant Deal Edit (for incoming/outgoing API deals) ─────────
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
+  const [editDealTitle, setEditDealTitle] = useState('');
+  const [editDealAmount, setEditDealAmount] = useState('');
+  const [editDealQty, setEditDealQty] = useState('');
+  const [editDealSell, setEditDealSell] = useState('');
+  const [editDealFee, setEditDealFee] = useState('0');
+  const [editDealNote, setEditDealNote] = useState('');
+  const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
+
   const reloadMerchantData = useCallback(async () => {
     try {
       const [relationshipsRes, dealsRes] = await Promise.all([
