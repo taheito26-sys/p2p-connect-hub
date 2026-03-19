@@ -1539,5 +1539,6 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
+    </div>
   );
 }
