@@ -130,6 +130,7 @@ const translations = {
   buyerName: { en: 'Buyer Name', ar: 'اسم المشتري' },
   searchOrTypeBuyer: { en: 'Search or type buyer name', ar: 'ابحث أو اكتب اسم المشتري' },
   noBuyersYet: { en: 'No buyers yet', ar: 'لا يوجد مشترين بعد' },
+  buyerPickerHint: { en: 'Modern buyer picker, type to filter, tap the arrow to browse saved customers.', ar: 'اختر المشتري، اكتب للتصفية، اضغط السهم لاستعراض العملاء.' },
   addBuyerTitle: { en: 'Add Buyer', ar: 'إضافة مشتري' },
   buyerNamePlaceholder: { en: 'Buyer name', ar: 'اسم المشتري' },
   useFifoStock: { en: 'Use FIFO stock', ar: 'استخدام مخزون FIFO' },

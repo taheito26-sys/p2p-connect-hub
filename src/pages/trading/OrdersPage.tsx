@@ -354,7 +354,7 @@ export default function OrdersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>{t('date')}</th><th>{t('buyer')}</th><th>{t('type')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                    <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -402,19 +402,6 @@ export default function OrdersPage() {
                           )}
                         </td>
                         <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                        <td>
-                          {isMerchantOrder ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--brand)' }}>
-                              <span style={{ fontSize: 14 }}>🤝</span>
-                              {t('orderTypeMerchant')}
-                            </span>
-                          ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                              {t('orderTypeSelf')}
-                            </span>
-                          )}
-                        </td>
                         <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                         <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                         <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
@@ -427,7 +414,11 @@ export default function OrdersPage() {
                         <td>
                           <div className="actionsRow">
                             <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
-                              {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+                              {detailsOpen[tr.id] ? (
+                                <>▼ {t('hideDetails')}</>
+                              ) : (
+                                <>▶ {t('details')}</>
+                              )}
                             </button>
                             <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
                           </div>
@@ -435,7 +426,7 @@ export default function OrdersPage() {
                       </tr>
                       {detailsOpen[tr.id] && (
                         <tr>
-                          <td colSpan={10} style={{ padding: 0 }}>
+                          <td colSpan={9} style={{ padding: 0 }}>
                             {renderDetail(tr, c)}
                           </td>
                         </tr>
@@ -611,6 +602,8 @@ export default function OrdersPage() {
                   <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
                 </div>
               )}
+
+              <div className="lookupHint" style={{ fontStyle: 'italic', marginTop: -1 }}>{t('buyerPickerHint')}</div>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
                 <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
