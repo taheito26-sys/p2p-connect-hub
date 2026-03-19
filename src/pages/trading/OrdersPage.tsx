@@ -823,17 +823,10 @@ export default function OrdersPage() {
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table>
                     <thead>
-                      <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
-                        <th style={thStyle()}>{t('date')}</th>
-                        <th style={thStyle()}>{t('merchantDealType')}</th>
-                        <th style={thStyle(true)}>{t('qty')}</th>
-                        <th style={thStyle(true)}>{t('sell')}</th>
-                        <th style={thStyle(true)}>{t('volume')}</th>
-                        <th style={thStyle(true)}>{t('net')}</th>
-                        <th style={thStyle()}>{t('marginLabel')}</th>
-                        <th style={thStyle()}>{t('actions')}</th>
+                      <tr>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -843,45 +836,63 @@ export default function OrdersPage() {
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
                         const net = ok ? c!.netQAR : NaN;
                         const margin = ok && rev > 0 ? net / rev : NaN;
-                        const pct = Number.isFinite(margin) ? Math.min(Math.abs(margin), 1) : 0;
-                        const familyLabel = tr.agreementFamily === 'profit_share' ? t('profitShareFamily') : tr.agreementFamily === 'sales_deal' ? t('salesDealFamily') : '—';
+                        const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
+                        const merchantName = linkedRel?.counterparty?.display_name || '—';
+                        const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                         return (
-                          <tr key={tr.id} style={{ background: 'color-mix(in srgb, var(--good) 3%, transparent)' }}>
-                            <td style={tdStyle()}>
-                              <span className="mono">{fmtDate(tr.ts)}</span>
-                            </td>
-                            <td style={tdStyle()}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                <span>{tr.agreementFamily === 'profit_share' ? '🤝' : '📊'}</span>
-                                <span style={{ color: 'var(--good)', fontWeight: 600, fontSize: 10 }}>{familyLabel}</span>
-                                {tr.partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--good)' }}>{tr.partnerPct}/{tr.merchantPct}</span>}
-                              </span>
-                            </td>
-                            <td className="mono" style={tdStyle(true)}>{fmtU(tr.amountUSDT)}</td>
-                            <td className="mono" style={tdStyle(true)}>{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono" style={tdStyle(true)}>{fmtQ(rev)}</td>
-                            <td className="mono" style={{ ...tdStyle(true), color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>
-                              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
-                            </td>
-                            <td style={tdStyle()}>
-                              <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}%` : '—'}</div>
-                            </td>
-                            <td style={tdStyle()}>
-                              <div className="actionsRow">
-                                {tr.approvalStatus === 'pending_approval' && (
-                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
-                                )}
-                                {tr.approvalStatus === 'approved' && (
-                                  <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
-                                )}
-                                {linkedRel && (
-                                  <button className="rowBtn" onClick={() => navigate(`/network/relationships/${linkedRel.id}`)}>{t('viewInWorkspace')}</button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                          <React.Fragment key={tr.id}>
+                            <tr>
+                              <td>
+                                <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <span className="mono">{fmtDate(tr.ts)}</span>
+                                  {tr.approvalStatus && getApprovalStatusBadge(tr.approvalStatus)}
+                                </div>
+                              </td>
+                              <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                              <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                              <td className="mono r">{fmtU(tr.amountUSDT)}</td>
+                              <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
+                              <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
+                              <td className="mono r">{fmtQ(rev)}</td>
+                              <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
+                              <td>
+                                <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+                                <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
+                              </td>
+                              <td>
+                                <div className="actionsRow">
+                                  <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
+                                    {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+                                  </button>
+                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+                                    <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+                                  )}
+                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => {
+                                      if (tr.approvalStatus === 'pending_approval') {
+                                        handleCancelTrade(tr.id);
+                                      } else {
+                                        // Direct delete for non-merchant trades
+                                        applyState({ ...state, trades: state.trades.filter(x => x.id !== tr.id) });
+                                        toast.success(t('tradeCancelled'));
+                                      }
+                                    }}>{t('delete')}</button>
+                                  )}
+                                  {tr.approvalStatus === 'approved' && (
+                                    <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {detailsOpen[tr.id] && (
+                              <tr>
+                                <td colSpan={10} style={{ padding: 0 }}>
+                                  {renderDetail(tr, c)}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
