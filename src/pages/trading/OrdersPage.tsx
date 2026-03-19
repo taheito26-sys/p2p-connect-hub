@@ -133,21 +133,26 @@ export default function OrdersPage() {
     [allTrades],
   );
 
-  // Outgoing: trades I created that are merchant-linked
+  // Outgoing: locally-created merchant-linked trades that are still visible
   const outgoingTrades = useMemo(
-    () => merchantLinkedTrades, // In local state, all trades are created by this user
+    () => merchantLinkedTrades.filter(tr => tr.approvalStatus !== 'cancelled'),
     [merchantLinkedTrades],
   );
 
-  // Incoming: deals created by partners (from API data)
+  // Incoming/Outgoing API deals that are still visible in the review queue/history
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId),
+    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId),
+    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
+  const outgoingApiDeals = useMemo(
+    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => (deal.metadata as any)?.local_trade_id === tr.id)),
+    [creatorMerchantDeals, outgoingTrades],
+  );
+  const outgoingVisibleCount = outgoingTrades.length + outgoingApiDeals.length;
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
