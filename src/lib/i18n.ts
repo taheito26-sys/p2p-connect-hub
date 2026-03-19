@@ -384,7 +384,7 @@ const translations = {
   workspace: { en: 'Workspace', ar: 'مساحة العمل' },
   relationshipNotFound: { en: 'Relationship not found', ar: 'العلاقة غير موجودة' },
   failedLoadWorkspace: { en: 'Failed to load workspace data', ar: 'فشل تحميل بيانات مساحة العمل' },
-  dealsLabel: { en: 'Deals', ar: 'الصفقات' },
+  dealsLabel: { en: 'Agreements', ar: 'الاتفاقيات' },
   messagesLabel: { en: 'Messages', ar: 'الرسائل' },
   approvalsLabel: { en: 'Approvals', ar: 'الموافقات' },
   auditLabel: { en: 'Audit', ar: 'السجل' },
