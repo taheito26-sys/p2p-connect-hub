@@ -991,6 +991,8 @@ export default function OrdersPage() {
                                     </button>
                                   )}
                                   {cfg?.hasCounterpartyShare && <button className="rowBtn" onClick={() => openAdjustDeal(deal.id)}>{t('adjustShare')}</button>}
+                                  <button className="rowBtn" onClick={() => openEditDeal(deal.id)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleDeleteDeal(deal.id)}>{t('delete')}</button>
                                   <button className="rowBtn" onClick={() => navigate(workspacePath)}>{t('viewInWorkspace')}</button>
                                 </div>
                               </td>
