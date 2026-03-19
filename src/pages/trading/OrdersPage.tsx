@@ -476,7 +476,7 @@ export default function OrdersPage() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-
+  const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
     const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
