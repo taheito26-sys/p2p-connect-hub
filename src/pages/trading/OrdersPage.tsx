@@ -1188,12 +1188,20 @@ export default function OrdersPage() {
                       )}
                     </>
                   )}
-                  {allocationPreview && (
+                  {allocationWithBase && (
                     <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
-                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('allocationPreview')}</div>
-                      <div className="prev-row"><span className="muted">{t('deal')}</span><strong style={{ fontSize: 10 }}>{allocationPreview.dealTitle}</strong></div>
-                      <div className="prev-row"><span className="muted">{allocationPreview.counterpartyName}{t('counterpartyShare')}</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.counterpartyAmount)}</strong></div>
-                      <div className="prev-row"><span className="muted">{t('yourShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
+                      <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationWithBase.revenue)}</strong></div>
+                      {allocationWithBase.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationWithBase.fifoCost)}</strong></div>}
+                      {allocationWithBase.allocationBase === 'net_profit' && (
+                        <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: (allocationWithBase.netProfit ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationWithBase.netProfit != null ? `${allocationWithBase.netProfit >= 0 ? '+' : ''}${fmtQ(allocationWithBase.netProfit)}` : '—'}</strong></div>
+                      )}
+                      <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 4, marginTop: 2 }}>
+                        <span className="muted">{t('allocationBaseLabel')}</span>
+                        <strong style={{ fontSize: 9 }}>{allocationWithBase.allocationBase === 'net_profit' ? t('netProfitBase') : t('saleEconomicsBase')}</strong>
+                      </div>
+                      <div className="prev-row"><span className="muted">{t('estPartnerShare')} ({allocationWithBase.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationWithBase.counterpartyAmount)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('estMerchantShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationWithBase.merchantAmount)}</strong></div>
                       <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('autoApprovalNote')}</div>
                     </div>
                   )}
