@@ -434,8 +434,6 @@ export default function OrdersPage() {
       } else if (deal.deal_type === 'partnership') {
         updatedMetadata.partner_ratio = newPct;
         updatedMetadata.merchant_ratio = 100 - newPct;
-      } else if (deal.deal_type === 'capital_placement') {
-        updatedMetadata.pool_owner_share_pct = newPct;
       }
       await api.deals.update(adjustingDealId, { metadata: updatedMetadata });
       await reloadMerchantData();
