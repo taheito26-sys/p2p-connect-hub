@@ -166,6 +166,7 @@ export default function OrdersPage() {
     }
   }, [linkedRelId, relationships, buyerName, saleAmount, saleMode, templateDueDate, templateExpectedReturn, t, reloadMerchantData]);
 
+  useEffect(() => {
     reloadMerchantData();
   }, [reloadMerchantData]);
 
