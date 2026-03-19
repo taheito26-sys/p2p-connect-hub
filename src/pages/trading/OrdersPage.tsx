@@ -867,7 +867,7 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{outgoingTrades.length} {t('trades')}</span>
+                <span className="pill">{outgoingVisibleCount} {t('trades')}</span>
               </div>
 
               {outgoingVisibleCount === 0 ? (
