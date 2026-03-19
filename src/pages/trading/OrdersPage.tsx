@@ -1436,6 +1436,108 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+      {/* ─── MERCHANT DEAL EDIT DIALOG ─── */}
+      {(() => {
+        const editingDeal = editingDealId ? allMerchantDeals.find(d => d.id === editingDealId) : null;
+        if (!editingDeal) return null;
+        const dealVol = Number(editDealQty) * Number(editDealSell);
+        const dealCost = Number((editingDeal.metadata as any)?.fifo_cost ?? 0);
+        const dealNet = dealVol - dealCost - Number(editDealFee);
+        return (
+          <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 14 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
+              </DialogHeader>
+
+              <div style={{ background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--warn)', marginBottom: 14, lineHeight: 1.5 }}>
+                {t('editInPlaceWarning')}
+              </div>
+
+              <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+                <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
+                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="g2tight" style={{ marginBottom: 10 }}>
+                <div className="field2">
+                  <div className="lbl">{t('qtyUsdt')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={e => setEditDealQty(e.target.value)} /></div>
+                </div>
+                <div className="field2">
+                  <div className="lbl">{t('sellPriceQar')}</div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={e => setEditDealSell(e.target.value)} /></div>
+                </div>
+              </div>
+
+              <div className="field2" style={{ marginBottom: 10 }}>
+                <div className="lbl">{t('feeQarLabel')}</div>
+                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={e => setEditDealFee(e.target.value)} /></div>
+              </div>
+
+              <div className="field2" style={{ marginBottom: 16 }}>
+                <div className="lbl">{t('note')}</div>
+                <div className="inputBox" style={{ padding: 0 }}>
+                  <textarea
+                    value={editDealNote}
+                    onChange={e => setEditDealNote(e.target.value)}
+                    rows={2}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  onClick={() => setDeleteDealConfirm(editingDealId)}
+                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                >
+                  {t('delete')}
+                </button>
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
+                  <button
+                    onClick={saveDealEdit}
+                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                  >
+                    {t('saveCorrection')}
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* ─── DELETE DEAL CONFIRMATION DIALOG ─── */}
+      <Dialog open={!!deleteDealConfirm} onOpenChange={open => !open && setDeleteDealConfirm(null)}>
+        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+          <DialogHeader style={{ marginBottom: 14 }}>
+            <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('confirmDeleteDeal')}</DialogTitle>
+          </DialogHeader>
+          <div style={{ background: 'color-mix(in srgb, var(--bad) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--bad)', marginBottom: 14, lineHeight: 1.5 }}>
+            {t('deleteDealWarning')}
+          </div>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <button className="btn secondary" onClick={() => setDeleteDealConfirm(null)}>{t('cancel')}</button>
+            <button
+              onClick={() => deleteDealConfirm && deleteDeal(deleteDealConfirm)}
+              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--bad)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+            >
+              {t('delete')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
   );
 }
