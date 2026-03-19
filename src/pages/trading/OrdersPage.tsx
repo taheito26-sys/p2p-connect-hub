@@ -945,6 +945,54 @@ export default function OrdersPage() {
                           </React.Fragment>
                         );
                       })}
+                      {/* Also show API-created outgoing deals */}
+                      {creatorMerchantDeals.map(deal => {
+                        const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
+                        const rel = relationships.find(r => r.id === deal.relationship_id);
+                        const { partnerPct } = getDealShares(deal);
+                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
+                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const dealVol = dealQty * (dealSell || 1);
+                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
+                        const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
+                        const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
+                        const merchantName = rel?.counterparty?.display_name || '—';
+                        const avgBuy = dealQty > 0 && dealCost > 0 ? dealCost / dealQty : 0;
+                        const customerName = String((deal.metadata as any)?.customer_name || '');
+                        // Check if this deal also has a local trade already rendered
+                        const hasLocalTrade = outgoingTrades.some(tr => (deal.metadata as any)?.local_trade_id === tr.id);
+                        if (hasLocalTrade) return null;
+                        return (
+                          <tr key={`deal-${deal.id}`}>
+                            <td>
+                              <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
+                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)' }}>API</span>
+                              </div>
+                            </td>
+                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td>{customerName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{customerName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="mono r">{fmtU(dealQty)}</td>
+                            <td className="mono r">{avgBuy > 0 ? fmtP(avgBuy) : '—'}</td>
+                            <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
+                            <td className="mono r">{fmtQ(dealVol)}</td>
+                            <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                              {dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                            </td>
+                            <td>
+                              <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
+                            </td>
+                            <td>
+                              <div className="actionsRow">
+                                <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
+                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
