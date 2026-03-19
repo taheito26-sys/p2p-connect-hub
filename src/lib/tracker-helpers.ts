@@ -84,6 +84,8 @@ export interface Batch {
   revisions: any[];
 }
 
+export type LinkedTradeStatus = 'pending_approval' | 'approved' | 'rejected' | 'cancellation_pending' | 'cancelled';
+
 export interface Trade {
   id: string;
   ts: number;
@@ -96,10 +98,25 @@ export interface Trade {
   usesStock: boolean;
   revisions: any[];
   customerId: string;
-  /** Linked merchant deal ID (if this is a merchant order) */
+  /** Linked merchant deal ID (if this is a merchant order — legacy, kept for old data) */
   linkedDealId?: string;
   /** Linked relationship ID (if this is a merchant order) */
   linkedRelId?: string;
+  /** Linked merchant user/profile ID (counterparty) */
+  linkedMerchantId?: string;
+  // ── Trade-centric agreement fields ──
+  /** Agreement family: profit_share or sales_deal */
+  agreementFamily?: 'profit_share' | 'sales_deal';
+  /** Agreement template ID used */
+  agreementTemplateId?: string;
+  /** Partner share percentage */
+  partnerPct?: number;
+  /** Merchant share percentage */
+  merchantPct?: number;
+  /** Approval status for merchant-linked trades */
+  approvalStatus?: LinkedTradeStatus;
+  /** Who requested cancellation (user_id), if cancellation_pending */
+  cancellationRequestedBy?: string;
 }
 
 export interface Customer {
