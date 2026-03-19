@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
+import { DEAL_TEMPLATES, buildTemplateMetadata, generateTemplateTitle, getTemplateRatioLabel, type DealTemplate } from '@/lib/deal-templates';
 import { CreateDealDialog } from '@/components/deals/CreateDealDialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
