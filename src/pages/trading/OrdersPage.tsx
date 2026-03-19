@@ -407,10 +407,8 @@ export default function OrdersPage() {
   };
 
   const getDealSharePct = (deal: MerchantDeal): number | null => {
-    if (deal.deal_type === 'arbitrage') return (deal.metadata?.counterparty_share_pct as number) ?? null;
-    if (deal.deal_type === 'partnership') return (deal.metadata?.partner_ratio as number) ?? null;
-    if (deal.deal_type === 'capital_placement') return (deal.metadata?.pool_owner_share_pct as number) ?? null;
-    return null;
+    const { partnerPct } = getDealShares(deal);
+    return partnerPct;
   };
 
   const openAdjustDeal = (dealId: string) => {
