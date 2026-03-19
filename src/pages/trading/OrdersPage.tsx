@@ -453,7 +453,45 @@ export default function OrdersPage() {
     }
   };
 
-  const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
+  const openEditDeal = (dealId: string) => {
+    const deal = allMerchantDeals.find(d => d.id === dealId);
+    if (!deal) return;
+    setEditingDealId(dealId);
+    setEditDealTitle(deal.title);
+    setEditDealAmount(String(deal.amount));
+    setEditDealStatus(deal.status);
+  };
+
+  const saveEditDeal = async () => {
+    if (!editingDealId) return;
+    setEditDealSaving(true);
+    try {
+      await api.deals.update(editingDealId, {
+        title: editDealTitle,
+        amount: Number(editDealAmount),
+        status: editDealStatus as any,
+      });
+      await reloadMerchantData();
+      toast.success(t('saveChanges'));
+      setEditingDealId(null);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setEditDealSaving(false);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    if (!confirm(t('confirmDeleteDeal'))) return;
+    try {
+      await api.deals.update(dealId, { status: 'cancelled' });
+      await reloadMerchantData();
+      toast.success(t('dealCancelled'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
     const ok = !!c?.ok;
     const revenue = tr.amountUSDT * tr.sellPriceQAR;
     const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
