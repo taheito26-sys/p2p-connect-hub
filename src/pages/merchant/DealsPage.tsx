@@ -66,7 +66,7 @@ export default function DealsPage() {
   const saveEdit = async () => {
     if (!editingDeal) return;
     const amount = Number(editAmount);
-    if (!(amount > 0)) { toast.error(t('fixFields') + ' ' + t('amountLabel')); return; }
+    if (!(amount > 0)) { toast.error(t('fixFields') + ' ' + t('dealAmountLabel')); return; }
     try {
       const existingMeta = (editingDeal.metadata || {}) as Record<string, unknown>;
       await dealsApi.update(editingDeal.id, {
@@ -112,8 +112,8 @@ export default function DealsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('deal')}</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('status')}</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('merchant')}</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('dates')}</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('amountLabel')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('due')}</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('dealAmountLabel')}</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">P&L</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('actions')}</th>
                 </tr>
@@ -212,7 +212,7 @@ export default function DealsPage() {
             <div className="rounded-lg border border-green-500/25 bg-green-500/5 p-3">
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-green-600 mb-2">{t('currentStatsLabel')}</div>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-sm">{t('amountLabel')}</span>
+                <span className="text-sm">{t('dealAmountLabel')}</span>
                 <strong className="font-mono text-sm">${editingDeal.amount.toLocaleString()}</strong>
               </div>
               {editingDeal.realized_pnl != null && (
@@ -238,7 +238,7 @@ export default function DealsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('amountLabel')}</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('dealAmountLabel')}</label>
                 <input
                   inputMode="decimal"
                   value={editAmount}
