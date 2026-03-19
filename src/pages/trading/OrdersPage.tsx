@@ -870,7 +870,7 @@ export default function OrdersPage() {
                 <span className="pill">{outgoingTrades.length} {t('trades')}</span>
               </div>
 
-              {outgoingTrades.length === 0 ? (
+              {outgoingVisibleCount === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -928,7 +928,6 @@ export default function OrdersPage() {
                                       if (tr.approvalStatus === 'pending_approval') {
                                         handleCancelTrade(tr.id);
                                       } else {
-                                        // Direct delete for non-merchant trades
                                         applyState({ ...state, trades: state.trades.filter(x => x.id !== tr.id) });
                                         toast.success(t('tradeCancelled'));
                                       }
@@ -950,8 +949,7 @@ export default function OrdersPage() {
                           </React.Fragment>
                         );
                       })}
-                      {/* Also show API-created outgoing deals */}
-                      {creatorMerchantDeals.map(deal => {
+                      {outgoingApiDeals.map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -963,23 +961,21 @@ export default function OrdersPage() {
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
-                        const avgBuy = dealQty > 0 && dealCost > 0 ? dealCost / dealQty : 0;
                         const customerName = String((deal.metadata as any)?.customer_name || '');
-                        // Check if this deal also has a local trade already rendered
-                        const hasLocalTrade = outgoingTrades.some(tr => (deal.metadata as any)?.local_trade_id === tr.id);
-                        if (hasLocalTrade) return null;
                         return (
                           <tr key={`deal-${deal.id}`}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
-                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)' }}>API</span>
+                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)' }}>{cfg?.icon || 'API'}</span>
+                                <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
+                                {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
                               </div>
                             </td>
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td>{customerName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{customerName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(dealQty)}</td>
-                            <td className="mono r">{avgBuy > 0 ? fmtP(avgBuy) : '—'}</td>
+                            <td className="mono r">{dealQty > 0 && dealCost > 0 ? fmtP(dealCost / dealQty) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
                             <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
