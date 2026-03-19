@@ -1556,6 +1556,53 @@ export default function OrdersPage() {
         );
       })()}
 
+      {/* ─── EDIT DEAL DIALOG ─── */}
+      {(() => {
+        const editDeal = editingDealId ? allMerchantDeals.find(d => d.id === editingDealId) : null;
+        const editDealCfg = editDeal ? DEAL_TYPE_CONFIGS[editDeal.deal_type] : null;
+        const editDealRel = editDeal ? relationships.find(r => r.id === editDeal.relationship_id) : null;
+        return (
+          <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 450, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--brand) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+              <DialogHeader style={{ marginBottom: 14 }}>
+                <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('editDealTitle')}</DialogTitle>
+              </DialogHeader>
+              {editDeal && (
+                <>
+                  <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 10 }}>
+                    <span>{editDealCfg?.icon} {editDealCfg?.label}</span> · <span>{editDealRel?.counterparty?.display_name || '—'}</span>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl">{t('dealTitleLabel')}</div>
+                    <div className="inputBox"><input value={editDealTitle} onChange={e => setEditDealTitle(e.target.value)} style={{ width: '100%' }} /></div>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl">{t('dealAmountLabel')}</div>
+                    <div className="inputBox"><input type="number" value={editDealAmount} onChange={e => setEditDealAmount(e.target.value)} style={{ width: '100%' }} /></div>
+                  </div>
+                  <div className="field2" style={{ marginBottom: 14 }}>
+                    <div className="lbl">{t('dealStatusLabel')}</div>
+                    <select value={editDealStatus} onChange={e => setEditDealStatus(e.target.value)} style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}>
+                      {['draft', 'active', 'settled', 'closed', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                    <button className="btn secondary" onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
+                    <button
+                      disabled={editDealSaving}
+                      onClick={saveEditDeal}
+                      style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--brand)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', opacity: editDealSaving ? 0.7 : 1 }}
+                    >
+                      {editDealSaving ? '…' : t('saveChanges')}
+                    </button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
       {linkedRelId && (
         <CreateDealDialog
           open={createDealOpen}
