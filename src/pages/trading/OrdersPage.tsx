@@ -76,6 +76,11 @@ export default function OrdersPage() {
   const [adjustingDealId, setAdjustingDealId] = useState<string | null>(null);
   const [adjustShareValue, setAdjustShareValue] = useState('');
   const [adjustSaving, setAdjustSaving] = useState(false);
+  // ─── Agreement Template State ────────────────────────────────────
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateDueDate, setTemplateDueDate] = useState('');
+  const [templateExpectedReturn, setTemplateExpectedReturn] = useState('');
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
   // Borrower can expose their buyer name to the lender per deal
   const [exposedBuyerDealIds, setExposedBuyerDealIds] = useState<Set<string>>(new Set());
   const toggleExposeBuyer = (dealId: string) => setExposedBuyerDealIds(prev => {
