@@ -388,6 +388,67 @@ export default function OrdersPage() {
     );
   };
 
+  // ─── Helper styles for merchant deal tables ───
+  const thStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '7px 10px', fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase',
+    fontWeight: 800, letterSpacing: '.3px', whiteSpace: 'nowrap',
+    textAlign: right ? 'right' : 'left',
+  });
+  const tdStyle = (right?: boolean): React.CSSProperties => ({
+    padding: '9px 10px', fontSize: 11,
+    textAlign: right ? 'right' : 'left',
+    borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
+  });
+  const renderMargin = (margin: number) => {
+    const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
+    return Number.isFinite(margin) ? (
+      <td style={tdStyle()}>
+        <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
+      </td>
+    ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
+  };
+
+  // ─── KPI computations per tab ───
+  const myKpi = useMemo(() => {
+    const selfTrades = filtered.filter(tr => !tr.linkedDealId && !tr.linkedRelId);
+    let qty = 0, vol = 0, netVal = 0;
+    for (const tr of selfTrades) {
+      const c = derived.tradeCalc.get(tr.id);
+      qty += tr.amountUSDT;
+      vol += tr.amountUSDT * tr.sellPriceQAR;
+      if (c?.ok) netVal += c.netQAR;
+    }
+    return { count: selfTrades.length, qty, vol, net: netVal };
+  }, [filtered, derived]);
+
+  const inKpi = useMemo(() => {
+    let vol = 0, netVal = 0;
+    for (const deal of partnerMerchantDeals) {
+      vol += deal.amount;
+      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
+    }
+    return { count: partnerMerchantDeals.length, vol, net: netVal };
+  }, [partnerMerchantDeals]);
+
+  const outKpi = useMemo(() => {
+    let vol = 0, netVal = 0;
+    for (const deal of creatorMerchantDeals) {
+      vol += deal.amount;
+      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
+    }
+    return { count: creatorMerchantDeals.length, vol, net: netVal };
+  }, [creatorMerchantDeals]);
+
+  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
+    <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
+      {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtQ(kpi.vol)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtQ(kpi.net)}</div></div>
+    </div>
+  );
+
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div className="twoColPage">
