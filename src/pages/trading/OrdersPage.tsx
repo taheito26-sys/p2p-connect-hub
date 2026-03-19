@@ -137,8 +137,6 @@ export default function OrdersPage() {
         title,
         amount,
         currency,
-        due_date: templateDueDate || undefined,
-        expected_return: templateExpectedReturn ? parseFloat(templateExpectedReturn) : undefined,
         metadata,
       });
 
