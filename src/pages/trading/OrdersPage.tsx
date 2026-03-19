@@ -825,13 +825,12 @@ export default function OrdersPage() {
                     <thead>
                       <tr style={{ background: 'color-mix(in srgb, var(--bg) 80%, black 20%)' }}>
                         <th style={thStyle()}>{t('date')}</th>
-                        <th style={thStyle()}>{t('partner')}</th>
-                        <th style={thStyle()}>{t('agreementType')}</th>
+                        <th style={thStyle()}>{t('merchantDealType')}</th>
                         <th style={thStyle(true)}>{t('qty')}</th>
                         <th style={thStyle(true)}>{t('sell')}</th>
                         <th style={thStyle(true)}>{t('volume')}</th>
                         <th style={thStyle(true)}>{t('net')}</th>
-                        <th style={thStyle()}>{t('status')}</th>
+                        <th style={thStyle()}>{t('marginLabel')}</th>
                         <th style={thStyle()}>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -841,16 +840,14 @@ export default function OrdersPage() {
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
                         const net = ok ? c!.netQAR : NaN;
-                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-                        const counterpartyName = linkedRel?.counterparty?.display_name || '—';
+                        const margin = ok && rev > 0 ? net / rev : NaN;
+                        const pct = Number.isFinite(margin) ? Math.min(Math.abs(margin), 1) : 0;
                         const familyLabel = tr.agreementFamily === 'profit_share' ? t('profitShareFamily') : tr.agreementFamily === 'sales_deal' ? t('salesDealFamily') : '—';
+                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
                         return (
                           <tr key={tr.id} style={{ background: 'color-mix(in srgb, var(--good) 3%, transparent)' }}>
                             <td style={tdStyle()}>
                               <span className="mono">{fmtDate(tr.ts)}</span>
-                            </td>
-                            <td style={tdStyle()}>
-                              <span style={{ fontWeight: 600, fontSize: 10 }}>{counterpartyName}</span>
                             </td>
                             <td style={tdStyle()}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -866,7 +863,8 @@ export default function OrdersPage() {
                               {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
                             </td>
                             <td style={tdStyle()}>
-                              {getApprovalStatusBadge(tr.approvalStatus)}
+                              <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}%` : '—'}</div>
                             </td>
                             <td style={tdStyle()}>
                               <div className="actionsRow">
