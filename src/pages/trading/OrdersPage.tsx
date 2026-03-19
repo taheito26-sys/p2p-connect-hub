@@ -23,12 +23,6 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   return 'Unknown error';
 }
-function formatDealAmount(amount: number | null | undefined) {
-  return Number.isFinite(amount) ? Number(amount).toLocaleString() : '—';
-}
-function formatDealCurrency(currency: string | null | undefined) {
-  return currency?.trim() || '—';
-}
 
 export default function OrdersPage() {
   const { settings } = useTheme();
