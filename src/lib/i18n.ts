@@ -737,6 +737,7 @@ const translations = {
   customDeal: { en: 'Custom Agreement', ar: 'اتفاقية مخصصة' },
   confirmDeleteDeal: { en: 'Are you sure you want to cancel this agreement?', ar: 'هل أنت متأكد أنك تريد إلغاء هذه الاتفاقية؟' },
   dealCancelled: { en: 'Agreement cancelled', ar: 'تم إلغاء الاتفاقية' },
+  deleteDealWarning: { en: 'This will permanently cancel this deal. This action cannot be undone.', ar: 'سيتم إلغاء هذه الصفقة نهائياً. لا يمكن التراجع عن هذا الإجراء.' },
   editDealTitle: { en: 'Edit Agreement', ar: 'تعديل الاتفاقية' },
   dealTitleLabel: { en: 'Title', ar: 'العنوان' },
   dealAmountLabel: { en: 'Amount', ar: 'المبلغ' },
