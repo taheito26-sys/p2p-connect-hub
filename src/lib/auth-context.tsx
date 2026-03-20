@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useAuth as useClerkAuth, useUser } from '@/shims/clerk-react';
+import { useAuth as useClerkAuth, useUser } from "@clerk/react";
 import { merchant, setAuthTokenGetter } from '@/lib/api';
 import type { MerchantProfile } from '@/types/domain';
 
@@ -79,5 +79,6 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
 
 
