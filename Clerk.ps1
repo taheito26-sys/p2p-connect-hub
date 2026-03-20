@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 
 $envFile = Join-Path $RepoRoot ".env.local"
 $keyName = "VITE_CLERK_PUBLISHABLE_KEY"
-$keyValue = "pk_live_Y2xlcmsudHJhY2tlcjAxLnBhZ2VzLmRldiQ"
+$keyValue = "pk_live_Y2xlcmsudGFoZWl0bzI2LndvcmtlcnMuZGV2JA"
 $newLine = "$keyName=$keyValue"
 
 if (-not (Test-Path $RepoRoot)) {
