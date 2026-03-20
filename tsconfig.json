@@ -7,6 +7,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@clerk/clerk-react": [
+        "./src/shims/clerk-react.tsx"
       ]
     },
     "skipLibCheck": true,
