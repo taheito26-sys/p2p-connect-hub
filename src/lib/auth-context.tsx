@@ -15,6 +15,15 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms.`)), ms);
+    }),
+  ]);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, userId, getToken, signOut } = useClerkAuth();
   const { user } = useUser();
@@ -34,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setProfileLoading(true);
     try {
-      const { profile: nextProfile } = await merchant.getMyProfile();
+      const { profile: nextProfile } = await withTimeout(merchant.getMyProfile(), 10000, 'Loading merchant profile');
       setProfile(nextProfile);
     } catch {
       setProfile(null);

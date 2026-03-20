@@ -25,6 +25,15 @@ function useClerkContext() {
   return ctx;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms.`)), ms);
+    }),
+  ]);
+}
+
 function AuthFallback({ title, message }: { title: string; message: string }) {
   return (
     <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-5 text-sm text-muted-foreground shadow-sm">
@@ -50,9 +59,9 @@ export function ClerkProvider({ publishableKey, children }: { publishableKey: st
     let unsubscribe: (() => void) | undefined;
 
     const boot = async () => {
-      const { Clerk } = await loadClerkBrowserSdk();
+      const { Clerk } = await withTimeout(loadClerkBrowserSdk(), 10000, 'Loading Clerk SDK');
       const clerk = new Clerk(publishableKey);
-      await clerk.load();
+      await withTimeout(clerk.load(), 10000, 'Initializing Clerk');
       if (!active) return;
 
       const sync = () => {
