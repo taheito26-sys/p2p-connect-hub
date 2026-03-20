@@ -26,4 +26,4 @@
 
 
 ## Environment note
-- The frontend now accepts `VITE_CLERK_PUBLISHABLE_KEY` or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` for the publishable key, while `CLERK_SECRET_KEY` remains a backend/server-only secret for token verification and server-side Clerk operations. Use placeholders in committed env examples and keep real Clerk credentials only in deployment secrets or untracked local env files.
+- The frontend now accepts `VITE_CLERK_PUBLISHABLE_KEY` or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` for the publishable key. If your backend expects a custom Clerk JWT template instead of the default session token, set `VITE_CLERK_JWT_TEMPLATE` (or `NEXT_PUBLIC_CLERK_JWT_TEMPLATE`) so frontend API calls request the matching token shape. `CLERK_SECRET_KEY` remains a backend/server-only secret for token verification and server-side Clerk operations. Use placeholders in committed env examples and keep real Clerk credentials only in deployment secrets or untracked local env files. For local development, use a Clerk publishable key whose allowed origins include your local app URL (for example `http://localhost:8080`), otherwise Clerk will fail with an "Origin not allowed" error.

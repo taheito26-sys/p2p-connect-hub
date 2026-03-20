@@ -3,6 +3,8 @@ import { useAuth as useClerkAuth, useUser } from '@/shims/clerk-react';
 import { merchant, setAuthTokenGetter } from '@/lib/api';
 import type { MerchantProfile } from '@/types/domain';
 
+const clerkJwtTemplate = import.meta.env.VITE_CLERK_JWT_TEMPLATE || import.meta.env.NEXT_PUBLIC_CLERK_JWT_TEMPLATE;
+
 type AuthState = {
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -31,7 +33,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
-    setAuthTokenGetter(isSignedIn ? getToken : null);
+    if (!isSignedIn) {
+      setAuthTokenGetter(null);
+      return () => setAuthTokenGetter(null);
+    }
+
+    setAuthTokenGetter(() => getToken({
+      ...(clerkJwtTemplate ? { template: clerkJwtTemplate } : {}),
+    }));
+
     return () => setAuthTokenGetter(null);
   }, [getToken, isSignedIn]);
 
