@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Activity, Bell, Plus, Search } from 'lucide-react';
+import { UserButton } from '@/shims/clerk-react';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/i18n';
@@ -27,7 +28,7 @@ function titleFromPath(pathname: string, t: ReturnType<typeof useT>) {
 
 export function TrackerTopbar() {
   const { settings, update } = useTheme();
-  const { profile, logout } = useAuth();
+  const { profile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const t = useT();
@@ -113,7 +114,9 @@ export function TrackerTopbar() {
             <strong>{profile?.display_name || t('user')}</strong>
             <small>{profile?.merchant_id ? `${t('clientId')}: ${profile.merchant_id}` : `${t('clientId')}: N/A`}</small>
           </div>
-          <button className="tracker-signout" onClick={logout} type="button">{t('signOut')}</button>
+          <div className="rounded-full overflow-hidden border border-border/60 bg-background">
+            <UserButton afterSignOutUrl="/auth/login" />
+          </div>
         </div>
 
         <button className="tracker-plus" type="button" onClick={() => navigate('/trading/orders')}>
