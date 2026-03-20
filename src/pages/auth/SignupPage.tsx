@@ -1,5 +1,5 @@
 import { Link, Navigate } from 'react-router-dom';
-import { SignUp } from '@/shims/clerk-react';
+import { SignUp } from "@clerk/react";
 import { TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
@@ -37,5 +37,6 @@ export default function SignupPage() {
     </div>
   );
 }
+
 
 
