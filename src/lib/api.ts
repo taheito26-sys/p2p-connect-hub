@@ -35,10 +35,11 @@ export interface PortfolioAnalytics {
 
 // ─── Configuration ──────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://tracker-platform.taheito26.workers.dev';
-let authToken: string | null = null;
+type AuthTokenGetter = (() => Promise<string | null>) | null;
+let authTokenGetter: AuthTokenGetter = null;
 
-export function setAuthToken(token: string | null) {
-  authToken = token;
+export function setAuthTokenGetter(getter: AuthTokenGetter) {
+  authTokenGetter = getter;
 }
 
 // ─── HTTP Transport ─────────────────────────────────────────────────
@@ -52,11 +53,12 @@ async function request<T>(
     ...(options.headers as Record<string, string> || {}),
   };
 
+  const authToken = await authTokenGetter?.();
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(url, { ...options, headers, credentials: 'include' });
+  const res = await fetch(url, { ...options, headers });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -76,30 +78,6 @@ export class ApiError extends Error {
     this.body = body;
   }
 }
-
-// ─── Auth API ───────────────────────────────────────────────────────
-export const auth = {
-  signup: (email: string, password: string) =>
-    request<{ ok: boolean }>('/api/auth/signup', {
-      method: 'POST', body: JSON.stringify({ email, password }),
-    }),
-  login: (email: string, password: string) =>
-    request<{ ok: boolean; user_id: string; token: string }>('/api/auth/login', {
-      method: 'POST', body: JSON.stringify({ email, password }),
-    }),
-  logout: () =>
-    request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  verifyEmail: (token: string) =>
-    request<{ ok: boolean }>('/api/auth/verify-email', {
-      method: 'POST', body: JSON.stringify({ token }),
-    }),
-  resetPassword: (email: string) =>
-    request<{ ok: boolean }>('/api/auth/reset-password', {
-      method: 'POST', body: JSON.stringify({ email }),
-    }),
-  session: () =>
-    request<{ user_id: string; email: string } | null>('/api/auth/session'),
-};
 
 // ─── Merchant Profile API ───────────────────────────────────────────
 export const merchant = {
