@@ -15,6 +15,8 @@ import {
   UserCircle,
   CloudUpload,
   MessageCircle,
+  Mail,
+  CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
@@ -40,6 +42,16 @@ const networkNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
   { labelKey: 'vault', icon: CloudUpload, path: '/vault' },
   { labelKey: 'settings', icon: Settings, path: '/settings' },
 ];
+
+
+const workspaceNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
+  { labelKey: 'messages', icon: MessageCircle, path: '/messages' },
+  { labelKey: 'invitations', icon: Mail, path: '/invitations' },
+  { labelKey: 'approvals', icon: CheckSquare, path: '/approvals' },
+  { labelKey: 'relationships', icon: Users, path: '/relationships' },
+  { labelKey: 'notifications', icon: Bell, path: '/notifications' },
+];
+
 
 export function AppSidebar() {
   const location = useLocation();
@@ -154,17 +166,30 @@ export function AppSidebar() {
             </Link>
           );
         })}
+
+        {!collapsed && <p className="px-4 pt-5 pb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Workspace</p>}
+        {workspaceNav.map(item => {
+          const active = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                'flex items-center gap-3 mx-2 px-3 py-2 rounded-md text-sm transition-colors',
+                active
+                  ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              )}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              {!collapsed && <span>{t(item.labelKey)}</span>}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-2 space-y-1">
-        <Link
-          to="/notifications"
-          className="flex items-center gap-3 mx-0 px-3 py-2 rounded-md text-sm hover:bg-sidebar-accent transition-colors"
-        >
-          <Bell className="w-4 h-4" />
-          {!collapsed && <span>{t('notifications')}</span>}
-        </Link>
         <button
           onClick={() => void signOut()}
           className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm text-destructive hover:bg-sidebar-accent transition-colors"
