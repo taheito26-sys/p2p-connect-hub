@@ -3,6 +3,11 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 type ClerkLike = any;
 
+type GetTokenOptions = {
+  template?: string;
+  skipCache?: boolean;
+};
+
 type ClerkContextValue = {
   clerk: ClerkLike | null;
   isLoaded: boolean;
@@ -156,7 +161,7 @@ export function useAuth() {
     isSignedIn,
     userId,
     sessionId: session?.id ?? null,
-    getToken: async () => session?.getToken?.() ?? null,
+    getToken: async (options?: GetTokenOptions) => session?.getToken?.(options) ?? null,
     signOut: async () => clerk?.signOut?.(),
   };
 }
