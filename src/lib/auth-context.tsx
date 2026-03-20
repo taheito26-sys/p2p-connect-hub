@@ -1,127 +1,77 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { auth as authApi, merchant, setAuthToken } from '@/lib/api';
-import { isDemoMode, getDemoMode, DEMO_USER, DEMO_PROFILE } from '@/lib/demo-mode';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth as useClerkAuth, useUser } from '@/shims/clerk-react';
+import { merchant, setAuthTokenGetter } from '@/lib/api';
 import type { MerchantProfile } from '@/types/domain';
 
-interface AuthState {
+type AuthState = {
   isLoading: boolean;
   isAuthenticated: boolean;
   userId: string | null;
   email: string | null;
   profile: MerchantProfile | null;
-  isDemoMode: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-}
+  signOut: () => Promise<void>;
+};
 
 const AuthContext = createContext<AuthState | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
-  const [profile, setProfile] = useState<MerchantProfile | null>(null);
-  const [demo, setDemo] = useState(false);
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms.`)), ms);
+    }),
+  ]);
+}
 
-  const refreshProfile = useCallback(async () => {
-    if (getDemoMode()) {
-      setProfile(DEMO_PROFILE);
-      return;
-    }
-    try {
-      const { profile: p } = await merchant.getMyProfile();
-      setProfile(p);
-    } catch {
-      setProfile(null);
-    }
-  }, []);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn, userId, getToken, signOut } = useClerkAuth();
+  const { user } = useUser();
+  const [profile, setProfile] = useState<MerchantProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const demoActive = await isDemoMode();
-      setDemo(demoActive);
+    setAuthTokenGetter(isSignedIn ? getToken : null);
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isSignedIn]);
 
-      if (demoActive) {
-        // Auto-login in demo mode
-        setUserId(DEMO_USER.user_id);
-        setEmail(DEMO_USER.email);
-        setProfile(DEMO_PROFILE);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const session = await authApi.session();
-        if (session) {
-          setUserId(session.user_id);
-          setEmail(session.email);
-          await refreshProfile();
-        }
-      } catch {
-        // Not authenticated
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, [refreshProfile]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    if (getDemoMode()) {
-      setUserId(DEMO_USER.user_id);
-      setEmail(DEMO_USER.email);
-      setProfile(DEMO_PROFILE);
+  const refreshProfile = useCallback(async () => {
+    if (!isSignedIn) {
+      setProfile(null);
       return;
     }
-    const result = await authApi.login(email, password);
-    setAuthToken(result.token);
-    setUserId(result.user_id);
-    setEmail(email);
-    await refreshProfile();
-  }, [refreshProfile]);
 
-  const signup = useCallback(async (email: string, password: string) => {
-    if (getDemoMode()) {
-      // In demo mode, just succeed
+    setProfileLoading(true);
+    try {
+      const { profile: nextProfile } = await withTimeout(merchant.getMyProfile(), 10000, 'Loading merchant profile');
+      setProfile(nextProfile);
+    } catch {
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      setProfile(null);
       return;
     }
-    await authApi.signup(email, password);
-    const result = await authApi.login(email, password);
-    setAuthToken(result.token);
-    setUserId(result.user_id);
-    setEmail(email);
-    await refreshProfile();
-  }, [refreshProfile]);
+    void refreshProfile();
+  }, [isLoaded, isSignedIn, refreshProfile]);
 
-  const logout = useCallback(async () => {
-    if (!getDemoMode()) {
-      try { await authApi.logout(); } catch {
-        // Ignore logout transport failures while clearing local state.
-      }
-    }
-    setAuthToken(null);
-    setUserId(null);
-    setEmail(null);
-    setProfile(null);
-  }, []);
+  const value = useMemo<AuthState>(() => ({
+    isLoading: !isLoaded || profileLoading,
+    isAuthenticated: Boolean(isSignedIn),
+    userId: userId ?? null,
+    email: user?.primaryEmailAddress?.emailAddress ?? null,
+    profile,
+    refreshProfile,
+    signOut,
+  }), [isLoaded, isSignedIn, userId, user, profile, refreshProfile, signOut, profileLoading]);
 
-  return (
-    <AuthContext.Provider value={{
-      isLoading,
-      isAuthenticated: !!userId,
-      userId,
-      email,
-      profile,
-      isDemoMode: demo,
-      login,
-      signup,
-      logout,
-      refreshProfile,
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
