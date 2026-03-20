@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 
 $envFile = Join-Path $RepoRoot ".env.local"
 $keyName = "VITE_CLERK_PUBLISHABLE_KEY"
-$keyValue = "pk_live_Y2xlcmsudGFoZWl0bzI2LndvcmtlcnMuZGV2JA"
+$keyValue = "pk_test_replace_with_your_local_clerk_publishable_key"
 $newLine = "$keyName=$keyValue"
 
 if (-not (Test-Path $RepoRoot)) {
@@ -62,5 +62,6 @@ Write-Host "Final .env.local contents:"
 Get-Content -Path $envFile -Encoding UTF8 | ForEach-Object { Write-Host $_ }
 
 Write-Host ""
-Write-Host "Important: fully stop your Vite dev server, then run:"
+Write-Host "Important: use a Clerk publishable key whose allowed origins include your local dev URL (for example http://localhost:8080)."
+Write-Host "Then fully stop your Vite dev server and run:"
 Write-Host "  npm run dev"
