@@ -1,4 +1,4 @@
-import { ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider } from '@/shims/clerk-react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';

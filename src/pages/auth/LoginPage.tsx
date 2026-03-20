@@ -1,5 +1,5 @@
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { SignIn } from '@clerk/clerk-react';
+import { SignIn } from '@/shims/clerk-react';
 import { TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
