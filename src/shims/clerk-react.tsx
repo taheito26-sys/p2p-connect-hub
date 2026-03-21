@@ -21,10 +21,13 @@ type ClerkContextValue = {
 declare global {
   interface Window {
     Clerk?: ClerkLike;
+    __clerk_publishable_key?: string;
+    __clerk_frontend_api?: string;
   }
 }
 
 const ClerkContext = createContext<ClerkContextValue | null>(null);
+const CLERK_JS_URL = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
 
 function decodeFrontendApi(publishableKey: string) {
   const encoded = publishableKey.split('_').pop();
@@ -41,40 +44,48 @@ function loadClerkBrowserSdk(publishableKey: string) {
 
   const frontendApi = decodeFrontendApi(publishableKey);
   const existing = document.querySelector<HTMLScriptElement>('script[data-clerk-script="true"]');
-  const script = existing ?? document.createElement('script');
 
-  // Set global key so the self-initializing bundle can find it
-  (window as any).__clerk_publishable_key = publishableKey;
-  (window as any).__clerk_frontend_api = frontendApi;
+  if (existing && existing.src !== CLERK_JS_URL) {
+    existing.remove();
+  }
+
+  const script = existing && existing.src === CLERK_JS_URL ? existing : document.createElement('script');
+
+  window.__clerk_publishable_key = publishableKey;
+  window.__clerk_frontend_api = frontendApi;
 
   return new Promise<ClerkLike>((resolve, reject) => {
-    const handleLoad = () => {
-      // Give the bundle a moment to self-initialize
-      const check = (attempts = 0) => {
-        if (window.Clerk) {
-          resolve(window.Clerk);
-        } else if (attempts < 20) {
-          setTimeout(() => check(attempts + 1), 100);
-        } else {
-          reject(new Error('Clerk script loaded but window.Clerk was not found.'));
-        }
-      };
-      check();
+    const checkForClerk = (attempts = 0) => {
+      if (window.Clerk) {
+        resolve(window.Clerk);
+        return;
+      }
+
+      if (attempts >= 20) {
+        reject(new Error('Clerk script loaded but window.Clerk was not found.'));
+        return;
+      }
+
+      window.setTimeout(() => checkForClerk(attempts + 1), 100);
     };
 
+    const handleLoad = () => checkForClerk();
     const handleError = () => reject(new Error('Failed to load Clerk browser SDK.'));
 
     script.addEventListener('load', handleLoad, { once: true });
     script.addEventListener('error', handleError, { once: true });
 
-    if (!existing) {
+    if (script !== existing) {
       script.async = true;
       script.crossOrigin = 'anonymous';
       script.dataset.clerkScript = 'true';
       script.dataset.clerkPublishableKey = publishableKey;
-      script.src = `https://${frontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
+      script.src = CLERK_JS_URL;
       document.head.appendChild(script);
-    } else if (window.Clerk) {
+      return;
+    }
+
+    if (window.Clerk) {
       handleLoad();
     }
   });
@@ -121,7 +132,14 @@ export function ClerkProvider({ publishableKey, children }: { publishableKey: st
 
     const boot = async () => {
       const clerk = await withTimeout(loadClerkBrowserSdk(publishableKey), 15000, 'Loading Clerk SDK');
-      await withTimeout(clerk.load({ publishableKey }), 30000, 'Initializing Clerk');
+      await withTimeout(
+        clerk.load({
+          publishableKey,
+          frontendApi: decodeFrontendApi(publishableKey),
+        }),
+        30000,
+        'Initializing Clerk'
+      );
       if (!active) return;
 
       const sync = () => {
@@ -184,6 +202,7 @@ export function useUser() {
 
 function MountableClerkComponent({
   mount,
+  unmount,
   loadingTitle,
   loadingMessage,
   errorTitle,
@@ -191,6 +210,7 @@ function MountableClerkComponent({
   options,
 }: {
   mount: (clerk: ClerkLike, node: HTMLDivElement, options?: Record<string, unknown>) => void;
+  unmount: (clerk: ClerkLike, node: HTMLDivElement) => void;
   loadingTitle: string;
   loadingMessage: string;
   errorTitle: string;
@@ -200,9 +220,10 @@ function MountableClerkComponent({
   const { clerk, isLoaded, error } = useClerkContext();
   const ref = useRef<HTMLDivElement | null>(null);
   const [mountError, setMountError] = useState<string | null>(null);
+  const hasError = Boolean(error || mountError);
 
   useEffect(() => {
-    if (!isLoaded || !clerk || !ref.current) return;
+    if (!isLoaded || !clerk || !ref.current || hasError) return;
     const node = ref.current;
 
     try {
@@ -214,34 +235,28 @@ function MountableClerkComponent({
     }
 
     return () => {
-      // Use try-catch to prevent React removeChild conflicts
-      // when Clerk has already manipulated the DOM
       try {
-        while (node.firstChild) {
-          node.removeChild(node.firstChild);
-        }
+        unmount(clerk, node);
       } catch {
-        // Clerk already cleaned up the DOM nodes
+        // Ignore Clerk cleanup mismatches during React unmounts
       }
     };
-  }, [clerk, isLoaded, mount, options]);
+  }, [clerk, hasError, isLoaded, mount, options, unmount]);
 
-  if (!isLoaded) {
-    return <AuthFallback title={loadingTitle} message={loadingMessage} />;
-  }
-
-  if (error || mountError) {
-    return <AuthFallback title={errorTitle} message={error || mountError || errorMessage} />;
-  }
-
-  // Extra wrapper div prevents React from trying to manage Clerk's DOM nodes
-  return <div><div ref={ref} /></div>;
+  return (
+    <div>
+      {!isLoaded ? <AuthFallback title={loadingTitle} message={loadingMessage} /> : null}
+      {isLoaded && hasError ? <AuthFallback title={errorTitle} message={error || mountError || errorMessage} /> : null}
+      <div ref={ref} className={!isLoaded || hasError ? 'hidden' : undefined} />
+    </div>
+  );
 }
 
 export function SignIn(props: Record<string, unknown>) {
   return (
     <MountableClerkComponent
       mount={(clerk, node, options) => clerk.mountSignIn(node, options)}
+      unmount={(clerk, node) => clerk.unmountSignIn?.(node)}
       loadingTitle="Loading sign in"
       loadingMessage="Please wait while authentication loads."
       errorTitle="Sign in is unavailable"
@@ -255,6 +270,7 @@ export function SignUp(props: Record<string, unknown>) {
   return (
     <MountableClerkComponent
       mount={(clerk, node, options) => clerk.mountSignUp(node, options)}
+      unmount={(clerk, node) => clerk.unmountSignUp?.(node)}
       loadingTitle="Loading sign up"
       loadingMessage="Please wait while account creation loads."
       errorTitle="Sign up is unavailable"
@@ -268,6 +284,7 @@ export function UserButton(props: Record<string, unknown>) {
   return (
     <MountableClerkComponent
       mount={(clerk, node, options) => clerk.mountUserButton(node, options)}
+      unmount={(clerk, node) => clerk.unmountUserButton?.(node)}
       loadingTitle="Loading account"
       loadingMessage="Please wait while your user menu loads."
       errorTitle="Account menu unavailable"
