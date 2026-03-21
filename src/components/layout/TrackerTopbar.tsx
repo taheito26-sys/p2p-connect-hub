@@ -115,7 +115,7 @@ export function TrackerTopbar() {
             <small>{profile?.merchant_id ? `${t('clientId')}: ${profile.merchant_id}` : `${t('clientId')}: N/A`}</small>
           </div>
           <div className="rounded-full overflow-hidden border border-border/60 bg-background">
-            <UserButton afterSignOutUrl="/auth/login" />
+            <UserButton />
           </div>
         </div>
 
