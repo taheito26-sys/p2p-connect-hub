@@ -63,7 +63,7 @@ export function AppSidebar() {
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
   const fetchUnread = useCallback(async () => {
-    if (!isAuthenticated) return;
+    try {
     try {
       const { relationships } = await api.relationships.list();
       let total = 0;
