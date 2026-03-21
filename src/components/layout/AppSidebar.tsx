@@ -73,7 +73,7 @@ export function AppSidebar() {
       }
       setUnreadMsgCount(total);
     } catch {}
-  }, [isAuthenticated, userId]);
+  }, [userId]);
 
   useEffect(() => { fetchUnread(); }, [fetchUnread]);
 
