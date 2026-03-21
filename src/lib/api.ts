@@ -35,7 +35,8 @@ export interface PortfolioAnalytics {
 
 // ─── Configuration ──────────────────────────────────────────────────
 const DEFAULT_REMOTE_API_BASE = 'https://tracker-platform.taheito26.workers.dev';
-const API_BASE = import.meta.env.VITE_API_BASE_URL || DEFAULT_REMOTE_API_BASE;
+// Use empty string in dev (proxy via Vite) to avoid CORS; direct URL in production
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 type CompatCredentials = { userId: string; email: string } | null;
 let compatCredentials: CompatCredentials = null;
 
