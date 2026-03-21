@@ -70,22 +70,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const authToken = await resolveAuthToken();
-
-  try {
-    return await fetchJson<T>(url, options, authToken);
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401 || !authTokenGetter) {
-      throw error;
-    }
-
-    const refreshedAuthToken = await resolveAuthToken();
-    if (!refreshedAuthToken || refreshedAuthToken === authToken) {
-      throw error;
-    }
-
-    return fetchJson<T>(url, options, refreshedAuthToken);
-  }
+  return fetchJson<T>(url, options);
 }
 
 export class ApiError extends Error {
