@@ -218,16 +218,22 @@ function MountableClerkComponent({
   options?: Record<string, unknown>;
 }) {
   const { clerk, isLoaded, error } = useClerkContext();
-  const ref = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mountNodeRef = useRef<HTMLDivElement | null>(null);
   const [mountError, setMountError] = useState<string | null>(null);
   const hasError = Boolean(error || mountError);
 
   useEffect(() => {
-    if (!isLoaded || !clerk || !ref.current || hasError) return;
-    const node = ref.current;
+    const container = containerRef.current;
+    if (!isLoaded || !clerk || !container || hasError) return;
+
+    // Create an imperatively-managed div so React never tracks Clerk's DOM children
+    const mountNode = document.createElement('div');
+    mountNodeRef.current = mountNode;
+    container.appendChild(mountNode);
 
     try {
-      mount(clerk, node, options);
+      mount(clerk, mountNode, options);
       setMountError(null);
     } catch (err) {
       console.error('Failed to mount Clerk UI', err);
@@ -236,10 +242,16 @@ function MountableClerkComponent({
 
     return () => {
       try {
-        unmount(clerk, node);
+        unmount(clerk, mountNode);
       } catch {
-        // Ignore Clerk cleanup mismatches during React unmounts
+        // Clerk may have already cleaned up
       }
+      try {
+        container.removeChild(mountNode);
+      } catch {
+        // Node may already be removed
+      }
+      mountNodeRef.current = null;
     };
   }, [clerk, hasError, isLoaded, mount, options, unmount]);
 
@@ -247,7 +259,7 @@ function MountableClerkComponent({
     <div>
       {!isLoaded ? <AuthFallback title={loadingTitle} message={loadingMessage} /> : null}
       {isLoaded && hasError ? <AuthFallback title={errorTitle} message={error || mountError || errorMessage} /> : null}
-      <div ref={ref} className={!isLoaded || hasError ? 'hidden' : undefined} />
+      <div ref={containerRef} className={!isLoaded || hasError ? 'hidden' : undefined} />
     </div>
   );
 }
