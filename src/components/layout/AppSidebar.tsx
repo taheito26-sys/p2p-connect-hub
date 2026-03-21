@@ -189,15 +189,7 @@ export function AppSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-2 space-y-1">
-        <button
-          onClick={() => void signOut()}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm text-destructive hover:bg-sidebar-accent transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          {!collapsed && <span>{t('logout')}</span>}
-        </button>
-      </div>
+      <div className="border-t border-sidebar-border p-2" />
     </aside>
   );
 }
