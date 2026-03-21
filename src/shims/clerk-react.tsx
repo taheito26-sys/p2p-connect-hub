@@ -43,13 +43,23 @@ function loadClerkBrowserSdk(publishableKey: string) {
   const existing = document.querySelector<HTMLScriptElement>('script[data-clerk-script="true"]');
   const script = existing ?? document.createElement('script');
 
+  // Set global key so the self-initializing bundle can find it
+  (window as any).__clerk_publishable_key = publishableKey;
+  (window as any).__clerk_frontend_api = frontendApi;
+
   return new Promise<ClerkLike>((resolve, reject) => {
     const handleLoad = () => {
-      if (window.Clerk) {
-        resolve(window.Clerk);
-      } else {
-        reject(new Error('Clerk script loaded but window.Clerk was not found.'));
-      }
+      // Give the bundle a moment to self-initialize
+      const check = (attempts = 0) => {
+        if (window.Clerk) {
+          resolve(window.Clerk);
+        } else if (attempts < 20) {
+          setTimeout(() => check(attempts + 1), 100);
+        } else {
+          reject(new Error('Clerk script loaded but window.Clerk was not found.'));
+        }
+      };
+      check();
     };
 
     const handleError = () => reject(new Error('Failed to load Clerk browser SDK.'));
