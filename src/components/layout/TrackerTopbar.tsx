@@ -114,9 +114,14 @@ export function TrackerTopbar() {
             <strong>{profile?.display_name || t('user')}</strong>
             <small>{profile?.merchant_id ? `${t('clientId')}: ${profile.merchant_id}` : `${t('clientId')}: N/A`}</small>
           </div>
-          <div className="rounded-full overflow-hidden border border-border/60 bg-background">
-            <UserButton />
-          </div>
+          <button
+            className="rounded-full p-1.5 border border-border/60 bg-background hover:bg-muted transition-colors"
+            onClick={() => signOut()}
+            title="Sign out"
+            type="button"
+          >
+            <LogOut size={14} className="text-muted-foreground" />
+          </button>
         </div>
 
         <button className="tracker-plus" type="button" onClick={() => navigate('/trading/orders')}>
