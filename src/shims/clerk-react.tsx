@@ -214,7 +214,15 @@ function MountableClerkComponent({
     }
 
     return () => {
-      node.replaceChildren();
+      // Use try-catch to prevent React removeChild conflicts
+      // when Clerk has already manipulated the DOM
+      try {
+        while (node.firstChild) {
+          node.removeChild(node.firstChild);
+        }
+      } catch {
+        // Clerk already cleaned up the DOM nodes
+      }
     };
   }, [clerk, isLoaded, mount, options]);
 
@@ -226,7 +234,8 @@ function MountableClerkComponent({
     return <AuthFallback title={errorTitle} message={error || mountError || errorMessage} />;
   }
 
-  return <div ref={ref} />;
+  // Extra wrapper div prevents React from trying to manage Clerk's DOM nodes
+  return <div><div ref={ref} /></div>;
 }
 
 export function SignIn(props: Record<string, unknown>) {
