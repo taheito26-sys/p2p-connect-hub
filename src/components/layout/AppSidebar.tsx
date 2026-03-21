@@ -64,7 +64,6 @@ export function AppSidebar() {
 
   const fetchUnread = useCallback(async () => {
     try {
-    try {
       const { relationships } = await api.relationships.list();
       let total = 0;
       for (const rel of relationships) {
