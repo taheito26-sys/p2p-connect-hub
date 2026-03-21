@@ -55,7 +55,7 @@ const workspaceNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { profile, userId, isAuthenticated, signOut } = useAuth();
+  const { profile, userId } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const t = useT();
 
