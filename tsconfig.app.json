@@ -20,7 +20,7 @@
       "@/*": [
         "./src/*"
       ],
-      "@clerk/clerk-react": [
+      "@clerk/react": [
         "./src/shims/clerk-react.tsx"
       ]
     },

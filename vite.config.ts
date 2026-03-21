@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
+      "@clerk/react": path.resolve(__dirname, "./src/shims/clerk-react.tsx"),
       "@": path.resolve(__dirname, "./src"),
     },
   },
