@@ -70,15 +70,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
   }, []);
 
-  // Wire up auth token for API calls
+  // Wire up compat credentials for API calls
   useEffect(() => {
     if (!session) {
-      setAuthTokenGetter(null);
-      return () => setAuthTokenGetter(null);
+      setCompatCredentials(null);
+      return () => setCompatCredentials(null);
     }
 
-    setAuthTokenGetter(() => Promise.resolve(session.token));
-    return () => setAuthTokenGetter(null);
+    setCompatCredentials({ userId: session.user_id, email: session.email || '' });
+    return () => setCompatCredentials(null);
   }, [session]);
 
   const refreshProfile = useCallback(async () => {
