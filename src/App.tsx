@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -7,8 +7,6 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { AppLayout } from '@/components/layout/AppLayout';
 
-import LoginPage from './pages/auth/LoginPage';
-import SignupPage from './pages/auth/SignupPage';
 import OnboardingPage from './pages/merchant/OnboardingPage';
 import DashboardPage from './pages/merchant/DashboardPage';
 import NetworkPage from './pages/merchant/NetworkPage';
@@ -35,20 +33,7 @@ function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 }
 
-function RedirectToLogin() {
-  const location = useLocation();
-  const target = `/auth/login?redirect_url=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
-  return <Navigate to={target} replace />;
-}
-
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoading, isAuthenticated } = useAuth();
-  if (isLoading) return <LoadingScreen />;
-  if (!isAuthenticated) return <RedirectToLogin />;
-  return <>{children}</>;
-}
-
-function ProfileGuard({ children }: { children: React.ReactNode }) {
+function ProfileGate({ children }: { children: React.ReactNode }) {
   const { profile, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (!profile) return <Navigate to="/onboarding" replace />;
@@ -64,12 +49,9 @@ const App = () => (
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AuthProvider>
             <Routes>
-              <Route path="/auth/login" element={<LoginPage />} />
-              <Route path="/auth/signup" element={<SignupPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
 
-              <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
-
-              <Route element={<AuthGuard><ProfileGuard><AppLayout /></ProfileGuard></AuthGuard>}>
+              <Route element={<ProfileGate><AppLayout /></ProfileGate>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/trading/orders" element={<OrdersPage />} />
                 <Route path="/trading/stock" element={<StockPage />} />
@@ -90,6 +72,7 @@ const App = () => (
               </Route>
 
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="/merchant" element={<Navigate to="/dashboard" replace />} />
               <Route path="/merchant/*" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<NotFound />} />

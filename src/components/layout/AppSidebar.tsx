@@ -55,7 +55,7 @@ const workspaceNav: { labelKey: TranslationKey; icon: any; path: string }[] = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { profile, userId, isAuthenticated, signOut } = useAuth();
+  const { profile, userId } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const t = useT();
 
@@ -63,7 +63,6 @@ export function AppSidebar() {
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
   const fetchUnread = useCallback(async () => {
-    if (!isAuthenticated) return;
     try {
       const { relationships } = await api.relationships.list();
       let total = 0;
@@ -73,7 +72,7 @@ export function AppSidebar() {
       }
       setUnreadMsgCount(total);
     } catch {}
-  }, [isAuthenticated, userId]);
+  }, [userId]);
 
   useEffect(() => { fetchUnread(); }, [fetchUnread]);
 
@@ -189,15 +188,7 @@ export function AppSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-2 space-y-1">
-        <button
-          onClick={() => void signOut()}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm text-destructive hover:bg-sidebar-accent transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          {!collapsed && <span>{t('logout')}</span>}
-        </button>
-      </div>
+      <div className="border-t border-sidebar-border p-2" />
     </aside>
   );
 }
