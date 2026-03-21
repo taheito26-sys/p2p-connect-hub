@@ -61,6 +61,7 @@ function loadClerkBrowserSdk(publishableKey: string) {
       script.async = true;
       script.crossOrigin = 'anonymous';
       script.dataset.clerkScript = 'true';
+      script.dataset.clerkPublishableKey = publishableKey;
       script.src = `https://${frontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
       document.head.appendChild(script);
     } else if (window.Clerk) {
