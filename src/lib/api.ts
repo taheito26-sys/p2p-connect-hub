@@ -35,7 +35,7 @@ export interface PortfolioAnalytics {
 
 // ─── Configuration ──────────────────────────────────────────────────
 const DEFAULT_REMOTE_API_BASE = 'https://tracker-platform.taheito26.workers.dev';
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : DEFAULT_REMOTE_API_BASE);
+const API_BASE = import.meta.env.VITE_API_BASE_URL || DEFAULT_REMOTE_API_BASE;
 type AuthTokenGetter = (() => Promise<string | null>) | null;
 let authTokenGetter: AuthTokenGetter = null;
 
