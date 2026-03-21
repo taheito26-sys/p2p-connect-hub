@@ -28,7 +28,7 @@ function titleFromPath(pathname: string, t: ReturnType<typeof useT>) {
 
 export function TrackerTopbar() {
   const { settings, update } = useTheme();
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const t = useT();
