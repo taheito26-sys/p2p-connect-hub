@@ -8,8 +8,6 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth-context';
 import type { AuthSession } from '@/types/domain';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-
 export default function LoginPage() {
   const { isAuthenticated, setSession } = useAuth();
   const [searchParams] = useSearchParams();
@@ -27,31 +25,30 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    if (!password.trim() || password.length < 4) {
+      setError('Password must be at least 4 characters');
+      return;
+    }
+
     setLoading(true);
-
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json().catch(() => ({ error: 'Invalid response from server' }));
-
-      if (!res.ok) {
-        setError(data.error || `Login failed (${res.status})`);
-        return;
-      }
-
-      const session: AuthSession = data.session || data;
-      if (!session.token) {
-        setError('Invalid session response from server');
-        return;
-      }
-
+      // Compat auth: create a local session with email as the user identity.
+      // The Worker authenticates via X-User-Id + X-User-Email headers.
+      const userId = `compat:${email.trim().toLowerCase()}`;
+      const session: AuthSession = {
+        token: 'compat',
+        user_id: userId,
+        email: email.trim().toLowerCase(),
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+      };
       setSession(session);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error. Please try again.');
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }

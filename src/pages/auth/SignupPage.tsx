@@ -8,8 +8,6 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth-context';
 import type { AuthSession } from '@/types/domain';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-
 export default function SignupPage() {
   const { isAuthenticated, setSession } = useAuth();
 
@@ -38,30 +36,18 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-
     try {
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json().catch(() => ({ error: 'Invalid response from server' }));
-
-      if (!res.ok) {
-        setError(data.error || `Registration failed (${res.status})`);
-        return;
-      }
-
-      const session: AuthSession = data.session || data;
-      if (!session.token) {
-        setError('Invalid session response from server');
-        return;
-      }
-
+      // Compat auth: create a local session with email as the user identity.
+      const userId = `compat:${email.trim().toLowerCase()}`;
+      const session: AuthSession = {
+        token: 'compat',
+        user_id: userId,
+        email: email.trim().toLowerCase(),
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      };
       setSession(session);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error. Please try again.');
+      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }
