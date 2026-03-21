@@ -36,44 +36,22 @@ export interface PortfolioAnalytics {
 // ─── Configuration ──────────────────────────────────────────────────
 const DEFAULT_REMOTE_API_BASE = 'https://tracker-platform.taheito26.workers.dev';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || DEFAULT_REMOTE_API_BASE;
-type AuthTokenGetter = (() => Promise<string | null>) | null;
-let authTokenGetter: AuthTokenGetter = null;
+type CompatCredentials = { userId: string; email: string } | null;
+let compatCredentials: CompatCredentials = null;
 
-export function setAuthTokenGetter(getter: AuthTokenGetter) {
-  authTokenGetter = getter;
+export function setCompatCredentials(creds: CompatCredentials) {
+  compatCredentials = creds;
 }
 
-const AUTH_TOKEN_RETRY_DELAYS_MS = [0, 150, 350, 750];
-
-function sleep(ms: number) {
-  return new Promise(resolve => window.setTimeout(resolve, ms));
-}
-
-async function resolveAuthToken() {
-  if (!authTokenGetter) return null;
-
-  for (const delay of AUTH_TOKEN_RETRY_DELAYS_MS) {
-    if (delay > 0) {
-      await sleep(delay);
-    }
-
-    const token = await authTokenGetter();
-    if (token) {
-      return token;
-    }
-  }
-
-  return null;
-}
-
-async function fetchJson<T>(url: string, options: RequestInit, authToken: string | null) {
+async function fetchJson<T>(url: string, options: RequestInit) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
 
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
+  if (compatCredentials) {
+    headers['X-User-Id'] = compatCredentials.userId;
+    headers['X-User-Email'] = compatCredentials.email;
   }
 
   const res = await fetch(url, { ...options, headers });
@@ -92,22 +70,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const authToken = await resolveAuthToken();
-
-  try {
-    return await fetchJson<T>(url, options, authToken);
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401 || !authTokenGetter) {
-      throw error;
-    }
-
-    const refreshedAuthToken = await resolveAuthToken();
-    if (!refreshedAuthToken || refreshedAuthToken === authToken) {
-      throw error;
-    }
-
-    return fetchJson<T>(url, options, refreshedAuthToken);
-  }
+  return fetchJson<T>(url, options);
 }
 
 export class ApiError extends Error {
