@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { merchant, setAuthTokenGetter } from '@/lib/api';
+import { merchant, setCompatCredentials } from '@/lib/api';
 import type { MerchantProfile, AuthSession } from '@/types/domain';
 
 const SESSION_KEY = 'tracker_session';
