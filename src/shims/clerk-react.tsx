@@ -22,47 +22,61 @@ declare global {
   interface Window {
     Clerk?: ClerkLike;
     __clerk_publishable_key?: string;
-    __clerk_frontend_api?: string;
   }
 }
 
 const ClerkContext = createContext<ClerkContextValue | null>(null);
 const CLERK_JS_URL = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
+let clerkLoaderPromise: Promise<ClerkLike> | null = null;
 
-function decodeFrontendApi(publishableKey: string) {
-  const encoded = publishableKey.split('_').pop();
-  if (!encoded) throw new Error('Invalid Clerk publishable key format.');
-  const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
-  const decoded = window.atob(normalized);
-  return decoded.endsWith('$') ? decoded.slice(0, -1) : decoded;
+function assertPublishableKey(publishableKey: string) {
+  if (!publishableKey) {
+    throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY. Set a Clerk publishable key before mounting ClerkProvider.');
+  }
+
+  if (publishableKey.startsWith('sk_')) {
+    throw new Error('Invalid Clerk key in frontend: received a secret key (sk_...). Use VITE_CLERK_PUBLISHABLE_KEY with a publishable key (pk_...) only.');
+  }
+
+  if (!publishableKey.startsWith('pk_')) {
+    throw new Error('Invalid VITE_CLERK_PUBLISHABLE_KEY. Clerk browser auth requires a publishable key that starts with pk_.');
+  }
 }
 
 function loadClerkBrowserSdk(publishableKey: string) {
+  assertPublishableKey(publishableKey);
+
   if (window.Clerk?.load) {
     return Promise.resolve(window.Clerk);
   }
 
-  const frontendApi = decodeFrontendApi(publishableKey);
-  const existing = document.querySelector<HTMLScriptElement>('script[data-clerk-script="true"]');
-
-  if (existing && existing.src !== CLERK_JS_URL) {
-    existing.remove();
+  if (clerkLoaderPromise) {
+    return clerkLoaderPromise;
   }
 
-  const script = existing && existing.src === CLERK_JS_URL ? existing : document.createElement('script');
-
   window.__clerk_publishable_key = publishableKey;
-  window.__clerk_frontend_api = frontendApi;
 
-  return new Promise<ClerkLike>((resolve, reject) => {
+  clerkLoaderPromise = new Promise<ClerkLike>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-clerk-script="true"]');
+    const script = existing ?? document.createElement('script');
+
+    const resetLoader = () => {
+      clerkLoaderPromise = null;
+    };
+
     const checkForClerk = (attempts = 0) => {
-      if (window.Clerk) {
+      if (window.Clerk?.load) {
         resolve(window.Clerk);
         return;
       }
 
-      if (attempts >= 20) {
-        reject(new Error('Clerk script loaded but window.Clerk was not found.'));
+      if (attempts >= 50) {
+        resetLoader();
+        reject(
+          new Error(
+            'Clerk script loaded, but the SDK did not initialize. Check for CSP/ad blockers, duplicate Clerk scripts, or a blocked jsDelivr request.'
+          )
+        );
         return;
       }
 
@@ -70,12 +84,19 @@ function loadClerkBrowserSdk(publishableKey: string) {
     };
 
     const handleLoad = () => checkForClerk();
-    const handleError = () => reject(new Error('Failed to load Clerk browser SDK.'));
+    const handleError = () => {
+      resetLoader();
+      reject(
+        new Error(
+          'Failed to load Clerk browser SDK from jsDelivr. Check network blockers, CSP rules, or third-party script blocking in the browser.'
+        )
+      );
+    };
 
     script.addEventListener('load', handleLoad, { once: true });
     script.addEventListener('error', handleError, { once: true });
 
-    if (script !== existing) {
+    if (!existing) {
       script.async = true;
       script.crossOrigin = 'anonymous';
       script.dataset.clerkScript = 'true';
@@ -85,10 +106,14 @@ function loadClerkBrowserSdk(publishableKey: string) {
       return;
     }
 
-    if (window.Clerk) {
+    existing.dataset.clerkPublishableKey = publishableKey;
+
+    if (window.Clerk?.load) {
       handleLoad();
     }
   });
+
+  return clerkLoaderPromise;
 }
 
 function useClerkContext() {
@@ -116,6 +141,8 @@ function AuthFallback({ title, message }: { title: string; message: string }) {
 }
 
 export function ClerkProvider({ publishableKey, children }: { publishableKey: string; children: React.ReactNode }) {
+  assertPublishableKey(publishableKey);
+
   const [state, setState] = useState<ClerkContextValue>({
     clerk: null,
     isLoaded: false,
@@ -135,7 +162,6 @@ export function ClerkProvider({ publishableKey, children }: { publishableKey: st
       await withTimeout(
         clerk.load({
           publishableKey,
-          frontendApi: decodeFrontendApi(publishableKey),
         }),
         30000,
         'Initializing Clerk'
@@ -168,7 +194,10 @@ export function ClerkProvider({ publishableKey, children }: { publishableKey: st
           userId: null,
           user: null,
           session: null,
-          error: error instanceof Error ? error.message : 'Unable to load Clerk authentication.',
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Unable to load Clerk authentication. Confirm VITE_CLERK_PUBLISHABLE_KEY and browser network access, then refresh the page.',
         });
       }
     });
@@ -219,7 +248,6 @@ function MountableClerkComponent({
 }) {
   const { clerk, isLoaded, error } = useClerkContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mountNodeRef = useRef<HTMLDivElement | null>(null);
   const [mountError, setMountError] = useState<string | null>(null);
   const hasError = Boolean(error || mountError);
 
@@ -227,9 +255,7 @@ function MountableClerkComponent({
     const container = containerRef.current;
     if (!isLoaded || !clerk || !container || hasError) return;
 
-    // Create an imperatively-managed div so React never tracks Clerk's DOM children
     const mountNode = document.createElement('div');
-    mountNodeRef.current = mountNode;
     container.appendChild(mountNode);
 
     try {
@@ -251,7 +277,6 @@ function MountableClerkComponent({
       } catch {
         // Node may already be removed
       }
-      mountNodeRef.current = null;
     };
   }, [clerk, hasError, isLoaded, mount, options, unmount]);
 
@@ -272,7 +297,7 @@ export function SignIn(props: Record<string, unknown>) {
       loadingTitle="Loading sign in"
       loadingMessage="Please wait while authentication loads."
       errorTitle="Sign in is unavailable"
-      errorMessage="Clerk could not be loaded for sign in. Check your auth environment settings and network access, then refresh the page."
+      errorMessage="Clerk could not load sign in. Confirm VITE_CLERK_PUBLISHABLE_KEY, allow jsDelivr in the browser, and refresh the page."
       options={props}
     />
   );
@@ -286,7 +311,7 @@ export function SignUp(props: Record<string, unknown>) {
       loadingTitle="Loading sign up"
       loadingMessage="Please wait while account creation loads."
       errorTitle="Sign up is unavailable"
-      errorMessage="Clerk could not be loaded for sign up. Check your auth environment settings and network access, then refresh the page."
+      errorMessage="Clerk could not load sign up. Confirm VITE_CLERK_PUBLISHABLE_KEY, allow jsDelivr in the browser, and refresh the page."
       options={props}
     />
   );
@@ -300,7 +325,7 @@ export function UserButton(props: Record<string, unknown>) {
       loadingTitle="Loading account"
       loadingMessage="Please wait while your user menu loads."
       errorTitle="Account menu unavailable"
-      errorMessage="Clerk could not render the user menu. You can refresh the page after authentication finishes loading."
+      errorMessage="Clerk could not render the user menu. Confirm the publishable key and browser network access, then refresh the page."
       options={props}
     />
   );
