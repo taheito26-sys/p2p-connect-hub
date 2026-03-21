@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { RedirectToSignIn } from "@clerk/react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -36,10 +35,16 @@ function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 }
 
+function RedirectToLogin() {
+  const location = useLocation();
+  const target = `/auth/login?redirect_url=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+  return <Navigate to={target} replace />;
+}
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
   if (isLoading) return <LoadingScreen />;
-  if (!isAuthenticated) return <RedirectToSignIn />;
+  if (!isAuthenticated) return <RedirectToLogin />;
   return <>{children}</>;
 }
 
@@ -97,4 +102,3 @@ const App = () => (
 );
 
 export default App;
-
