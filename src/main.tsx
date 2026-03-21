@@ -3,32 +3,37 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+function requireClerkPublishableKey() {
+  const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-function MissingClerkKeyScreen() {
-  return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm space-y-3">
-        <h1 className="text-2xl font-semibold">Clerk is not configured</h1>
-        <p className="text-sm text-muted-foreground leading-6">
-          Add <code>VITE_CLERK_PUBLISHABLE_KEY</code> or <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> to your local env file,
-          then restart the Vite dev server.
-        </p>
-        <p className="text-xs text-muted-foreground leading-5">
-          The app now fails clearly on missing Clerk config instead of crashing with a blank page.
-        </p>
-      </div>
-    </div>
-  );
+  console.info('[Clerk] VITE_CLERK_PUBLISHABLE_KEY present:', Boolean(publishableKey));
+
+  if (!publishableKey) {
+    throw new Error(
+      'Missing VITE_CLERK_PUBLISHABLE_KEY. Add a Clerk publishable key (pk_...) to your Vite environment and restart the dev server.'
+    );
+  }
+
+  if (publishableKey.startsWith('sk_')) {
+    throw new Error(
+      'Invalid Clerk frontend configuration: VITE_CLERK_PUBLISHABLE_KEY contains a secret key (sk_...). Never expose Clerk secret keys in the frontend.'
+    );
+  }
+
+  if (!publishableKey.startsWith('pk_')) {
+    throw new Error(
+      'Invalid VITE_CLERK_PUBLISHABLE_KEY. Clerk frontend auth requires a browser-safe publishable key that starts with pk_.'
+    );
+  }
+
+  return publishableKey;
 }
 
+const clerkPublishableKey = requireClerkPublishableKey();
+
 createRoot(document.getElementById('root')!).render(
-  clerkPublishableKey ? (
-    <ClerkProvider publishableKey={clerkPublishableKey}>
-      <App />
-    </ClerkProvider>
-  ) : (
-    <MissingClerkKeyScreen />
-  )
+  <ClerkProvider publishableKey={clerkPublishableKey}>
+    <App />
+  </ClerkProvider>
 );
 
