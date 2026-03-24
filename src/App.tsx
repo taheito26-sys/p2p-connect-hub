@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { AppLayout } from '@/components/layout/AppLayout';
 
+import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/merchant/OnboardingPage';
 import DashboardPage from './pages/merchant/DashboardPage';
 import NetworkPage from './pages/merchant/NetworkPage';
@@ -33,6 +34,13 @@ function LoadingScreen() {
   return <div className="flex h-screen items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
 function ProfileGate({ children }: { children: React.ReactNode }) {
   const { profile, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
@@ -49,9 +57,14 @@ const App = () => (
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AuthProvider>
             <Routes>
-              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/login" element={<LoginPage />} />
 
-              <Route element={<ProfileGate><AppLayout /></ProfileGate>}>
+              <Route element={<AuthGate><><Routes><Route path="/onboarding" element={<OnboardingPage />} /></Routes></></AuthGate>}>
+              </Route>
+
+              <Route path="/onboarding" element={<AuthGate><OnboardingPage /></AuthGate>} />
+
+              <Route element={<AuthGate><ProfileGate><AppLayout /></ProfileGate></AuthGate>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/trading/orders" element={<OrdersPage />} />
                 <Route path="/trading/stock" element={<StockPage />} />
