@@ -58,10 +58,6 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-
-              <Route element={<AuthGate><><Routes><Route path="/onboarding" element={<OnboardingPage />} /></Routes></></AuthGate>}>
-              </Route>
-
               <Route path="/onboarding" element={<AuthGate><OnboardingPage /></AuthGate>} />
 
               <Route element={<AuthGate><ProfileGate><AppLayout /></ProfileGate></AuthGate>}>
